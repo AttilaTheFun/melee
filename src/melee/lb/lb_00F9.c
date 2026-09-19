@@ -1001,7 +1001,11 @@ void lb_80011710(DynamicsDesc* arg0, DynamicsDesc* arg1)
     arg1->pos.y = arg0->pos.y;
     arg1->pos.z = arg0->pos.z;
     data1 = arg1->data;
+#ifdef MELEE_NATIVE
+    data0 = arg0->params;
+#else
     data0 = &arg0->data->desc.lb_unk1.array[0];
+#endif
     for (data1 = arg1->data, i = 0; i < (int) arg0->count;
          data1 = data1->next, i++)
     {

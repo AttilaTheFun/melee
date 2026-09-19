@@ -1,3 +1,30 @@
+#ifdef MELEE_NATIVE
+#include "db.h"
+#include <fenv.h>
+#include <execinfo.h>
+#include <unistd.h>
+#include <sysdolphin/baselib/debug.h>
+#include <sysdolphin/baselib/hsd_393C.h>
+
+void db_ClearFPUExceptions(void)
+{
+    feclearexcept(FE_ALL_EXCEPT);
+}
+
+static void fn_HSDPanicHandler(const HSD_NativePanicContext* ctx)
+{
+    OSReport("%s\n", db_build_timestamp);
+    backtrace_symbols_fd(ctx->frames, ctx->frame_count, STDERR_FILENO);
+}
+
+void db_SetupCrashHandler(void)
+{
+    static u8 log_buffer[0x2000];
+    HSD_LogInit();
+    hsd_80393DA0(log_buffer, sizeof(log_buffer));
+    HSD_SetPanicCallback(fn_HSDPanicHandler);
+}
+#else
 #include <stdarg.h>
 
 #include "db.h"
@@ -79,3 +106,5 @@ void db_SetupCrashHandler(void)
         }
     }
 }
+
+#endif /* MELEE_NATIVE */

@@ -447,7 +447,11 @@ void grKongo_801D577C(Ground_GObj* arg0)
             gp->u.kongo.u.taru.keep = item_gobj;
             gp->u.kongo3.xC6 = 1;
             Ground_801C5440(gp, 0, 0x129U);
+            #ifdef MELEE_NATIVE
+            grMaterial_ApplyColorScript(arg0, yakumono_param->unk84, 0);
+#else
             grMaterial_801C9604(arg0, yakumono_param->unk84, 0);
+#endif
         }
         return;
     }
@@ -1157,7 +1161,12 @@ void grKongo_801D77E0(HSD_GObj* gobj, s32 arg1)
                     q->u.kongo.xC8 = 0.0f;
                 }
             }
+#ifdef MELEE_NATIVE
+            /* Each platform has two floats followed by two native pointers. */
+            q = (Ground*) ((u8*) q + offsetof(struct grKongo_GroundVars, xD4));
+#else
             q = (Ground*) ((u8*) q + 0x10);
+#endif
         }
     }
     HSD_JObjSetRotationZ(gp->u.kongo3.xCC, gp->u.kongo.xC4);
@@ -1426,7 +1435,11 @@ static int fn_801D8134(HSD_GObj* arg0, HSD_GObj* arg1)
     gp->u.kongo3.xD0 = (HSD_JObj*) arg1;
     gp->u.kongo3.xC6 = 1;
     Ground_801C5440(gp, 0, 0x129U);
-    grMaterial_801C9604(arg0, yakumono_param->unk84, 0);
+    #ifdef MELEE_NATIVE
+            grMaterial_ApplyColorScript(arg0, yakumono_param->unk84, 0);
+#else
+            grMaterial_801C9604(arg0, yakumono_param->unk84, 0);
+#endif
     efSync_Spawn(0x405, arg0, &pos_ft);
     ftLib_80086C18(arg1, 0xD, 0x1E);
     return 1;

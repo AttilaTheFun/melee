@@ -140,7 +140,11 @@ typedef struct itWstarAttributes {
     /* +1C */ f32 x1C;
     /* +20 */ f32 x20;
     /* +24 */ s32 x24_count;
+#ifdef MELEE_NATIVE
+    itWstarAttrEntry x28_entries[];
+#else
     /* +28 */ itWstarAttrEntry x28_entries[1];
+#endif
 } itWstarAttributes;
 
 typedef struct itKyasarin_ItemVars {
@@ -359,6 +363,11 @@ typedef struct itLipstickSpore_ItemVars {
     /* +4 */ f32 xDD8;
 } itLipstickSpore_ItemVars;
 
+typedef struct ItEggAttributes {
+    bool x0;
+    s32 rand_max;
+} ItEggAttributes;
+
 /// Eggs spawned on Yoshi stages / by Chansey
 typedef struct itEgg_ItemVars {
     /* +0 */ bool x0;
@@ -366,6 +375,14 @@ typedef struct itEgg_ItemVars {
     /* +8 */ u8 _8[0x60 - 0x8];
     /* +60 */ int heal_amount;
 } itEgg_ItemVars;
+
+#ifdef MELEE_NATIVE
+typedef struct itHeihoAttributes {
+    s32* damage_threshold;
+    f32 values[6];
+    s32 owned_damage_threshold;
+} itHeihoAttributes;
+#endif
 
 typedef struct itHeiho_ItemVars {
     f32 x0;
@@ -435,6 +452,20 @@ typedef struct itFoods_ItemVars {
     /* +4 ip+DD8 */ u32 heal_amount;
 } itFoods_ItemVars;
 
+#ifdef MELEE_NATIVE
+/* Disk data is a count followed by 16-byte records (joint, heal, x, y).
+ * Native pointers require an explicit record layout, not the Vec4 overlay. */
+typedef struct itFoodsNativeEntry {
+    HSD_Joint* joint;
+    s32 heal_amount;
+    f32 offset_x, offset_y;
+} itFoodsNativeEntry;
+typedef struct itFoodsNativeAttributes {
+    s32 count;
+    itFoodsNativeEntry* entries;
+} itFoodsNativeAttributes;
+#endif
+
 typedef struct itFoodsAttributes {
     s32 x0;
     HSD_Joint* x4;
@@ -448,12 +479,19 @@ typedef struct itWhispyApple_ItemVars {
 } itWhispyApple_ItemVars;
 
 typedef struct itWhispyAppleAttributes {
+#ifdef MELEE_NATIVE
+    u32* common;
+#else
     u8 x0[0x4];
+#endif
     s32 x4;
     s32 x8;
     u8 xC[0x8];
     f32 x14;
     f32 x18;
+#ifdef MELEE_NATIVE
+    u32 owned_common[5];
+#endif
 } itWhispyAppleAttributes;
 
 typedef struct itFreeze_ItemVars {
@@ -981,6 +1019,14 @@ typedef struct itKusudamaAttributes {
     /* +2C */ f32 x2C;
 } itKusudamaAttributes;
 
+#ifdef MELEE_NATIVE
+/* Klaptrap's special block is one pointer to five common parameter words. */
+typedef struct itKlapAttributes {
+    u32* common;
+    u32 owned_common[5];
+} itKlapAttributes;
+#endif
+
 typedef struct itKlap_ItemVars {
     /*  +0 ip+DD4 */ f32 x0;
     /*  +4 ip+DD8 */ f32 x4;
@@ -1029,6 +1075,9 @@ typedef struct itHouou_ItemVars {
 typedef struct itChicoritaAttr {
     f32 scale;
     s32 x4; // x60 in item vars gets set to this if -1; max timer/lifetime?
+    f32 x8; // leaf spawn x offset
+    f32 xC; // leaf spawn y offset
+    f32 x10; // leaf horizontal velocity
 } itChicoritaAttr;
 
 typedef struct itMarilAttributes {
@@ -1170,10 +1219,6 @@ typedef struct itMewtwoShadowball_DatAttrs {
     f32 x24;
     f32 x28;
     f32 x2C;
-    f32 x30;
-    f32 x34;
-    f32 x38;
-    f32 x3C;
 } itMewtwoShadowball_DatAttrs;
 
 typedef struct itPokemonSpawn_DatAttrs {
@@ -1281,6 +1326,9 @@ typedef struct it_2E5A_TierEntry {
     /* 0x14 */ s32 threshold;
     /* 0x18 */ f32 scale;
     /* 0x1C */ itECB ecb;
+#ifdef MELEE_NATIVE
+    ItemStateDesc* native_state;
+#endif
 } it_2E5A_TierEntry;
 
 /// Special attributes for it_2E5A items. Base physics parameters followed by
@@ -1708,5 +1756,71 @@ typedef struct ScopeBeamAttrs {
     /* +78 */ f32 x78;
     /* +7C */ f32 x7C;
 } ScopeBeamAttrs;
+
+/* Shared scalar special-attribute layouts used by native archive decoding. */
+typedef struct itCommonGShellAttributes {
+    float x0;
+    float x4;
+    float x8;
+    float xC;
+    float x10;
+    float x14;
+    char pad18[0x1C - 0x18];
+    float x1C;
+    float x20;
+    float x24;
+    float x28;
+    float x2C;
+    float x30;
+    Vec x34;
+} itCommonGShellAttributes;
+
+typedef struct itRShell_Attrs {
+    float x0;
+    float x4;
+    float x8;
+    float xC;
+    float x10;
+    Vec3 x14;
+    float x20;
+    float x24;
+    float x28;
+    float x2C;
+    char pad30[0x38 - 0x30];
+    float x38; // rotation multiplier (gshell x20)
+    float x3C;
+    float x40;
+    float x44;
+    Vec x48;
+    s32 x54;
+} itRShell_Attrs;
+
+typedef struct StarRodAttributes {
+    int x0;
+    Vec x4;
+} StarRodAttributes;
+
+typedef struct {
+    float x0;
+    float x4;
+    itECB x8;
+} itMsBomb_Attrs;
+
+typedef struct itHammerData {
+    u32 x0;
+    u32 x4;
+    f32 x8;
+} itHammerData;
+
+typedef struct StarRodStarAttrs {
+    float x0;
+    float x4;
+    float x8;
+    float xC;
+    float x10;
+    int x14;
+    int x18;
+    float x1C;
+} StarRodStarAttrs;
 
 #endif

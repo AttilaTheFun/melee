@@ -395,7 +395,12 @@ union ftCommon_MotionVars {
         /* fp+2370 */ int x70;
     } unk_800D34E0;
     struct {
+#ifdef MELEE_NATIVE
+        /* Countdown initialized from the numeric PlCo x500 parameter. */
+        u32 x40;
+#else
         /* fp+2340 */ void* x40;
+#endif
         /* fp+2344 */ u8 pad_x44[0x6c - 0x44];
         /* fp+236C */ int x6C;
         /* fp+2370 */ int x70;

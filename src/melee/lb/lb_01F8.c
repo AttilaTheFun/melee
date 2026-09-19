@@ -6,6 +6,10 @@
 #include <sysdolphin/baselib/memory.h>
 #include <sysdolphin/baselib/sobjlib.h>
 #include <sysdolphin/baselib/tobj.h>
+#ifdef MELEE_NATIVE
+#include <melee_thp.h>
+#include <sysdolphin/baselib/debug.h>
+#endif
 
 struct lbl_804335B8_t {
     /* 0x00 */ GXTexObj tex0; /* 0x00-0x20 (size 0x20) */
@@ -73,6 +77,28 @@ void lbMthp8001F928(HSD_GObj* gobj, int arg1)
 
 void lbMthp8001FAA0(const char* filename, int width, int height)
 {
+#ifdef MELEE_NATIVE
+    MeleeTHPInfo info;
+    int status;
+    lbFile_80016760(filename, &lbl_804335B8.unk94, &lbl_804335B8.unk98);
+    status = melee_thp_info(lbl_804335B8.unk94, lbl_804335B8.unk98, &info);
+    HSD_ASSERT(__LINE__, status == 0);
+    HSD_ASSERT(__LINE__, width == info.width && height == info.height);
+    /* The renderer uses half-size chroma textures. Keep the game's dimensions
+     * exact and allocate the complete GX tiles, rather than width*height. */
+    HSD_ASSERT(__LINE__, (width & 1) == 0 && (height & 1) == 0);
+    lbl_804335B8.x20 = HSD_MemAlloc(info.y_bytes);
+    lbl_804335B8.x44 = HSD_MemAlloc(info.uv_bytes);
+    lbl_804335B8.x68 = HSD_MemAlloc(info.uv_bytes);
+    HSD_ASSERT(__LINE__, lbl_804335B8.x20 && lbl_804335B8.x44 && lbl_804335B8.x68);
+    status = melee_thp_decode(lbl_804335B8.unk94, lbl_804335B8.unk98,
+                             lbl_804335B8.x20, info.y_bytes,
+                             lbl_804335B8.x44, info.uv_bytes,
+                             lbl_804335B8.x68, info.uv_bytes);
+    HSD_ASSERT(__LINE__, status == 0);
+    lbl_804335B8.x6C = info.width;
+    lbl_804335B8.x6E = info.height;
+#else
     struct {
         u16 w;
         u16 h;
@@ -114,4 +140,5 @@ void lbMthp8001FAA0(const char* filename, int width, int height)
     }
     HSD_Free(context);
     HSD_Free(decode_buf);
+#endif
 }

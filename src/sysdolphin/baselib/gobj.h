@@ -143,6 +143,12 @@ void HSD_GObj_80391260(HSD_GObjLibInitDataType*);
 void HSD_GObj_803912E0(HSD_GObjLibInitDataType* arg0);
 void HSD_GObj_80390ED0(HSD_GObj* gobj, u32 mask);
 void HSD_GObj_80391304(HSD_GObjLibInitDataType*);
+#ifdef MELEE_NATIVE
+/* Initialize a fresh scheduler with only the supplied object destructors.
+ * Does not register camera/light/joint/fog classes. Like the original init,
+ * this requires a fresh scene heap, with no live objects from a prior init. */
+void HSD_GObjInitWithHandlers(HSD_GObjLibInitDataType*);
+#endif
 
 static inline void* HSD_GObjGetUserData(HSD_GObj* gobj)
 {

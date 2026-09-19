@@ -17,6 +17,10 @@
 #include <sysdolphin/baselib/memory.h>
 #include <sysdolphin/baselib/sislib.h>
 
+#ifdef MELEE_NATIVE
+static MeleeSceneDesc* native_message_scene;
+#endif
+
 static struct unkd4d0 {
     struct unkd4d0* next;
     struct unkd4d0* unk4;
@@ -331,8 +335,12 @@ void gm_801AEBB0(void)
     HSD_GObj* gobj;
     PAD_STACK(4);
 
+#ifdef MELEE_NATIVE
+    gm_804D6868 = lbArchive_NativeLoadScene("NtMsgWin.dat", &native_message_scene);
+#else
     lbArchive_80016DBC("NtMsgWin.dat", &gm_804D6868, "ScNtcCommon_scene_data",
                        0);
+#endif
 
     if (lbLang_IsSavedLanguageUS()) {
         HSD_SisLib_803A62A0(3, "SdMsgBox.usd", "SIS_MessageData");

@@ -1,3 +1,6 @@
+#ifdef MELEE_NATIVE
+#include <string.h>
+#endif
 #include "grvenom.h"
 
 #include <Runtime/platform.h>
@@ -35,18 +38,7 @@ typedef struct grVe_Data {
     } arwing;
 } grVe_Data;
 
-struct grVenom_YakumonoParam {
-    f32 x0;
-    f32 x4;
-    f32 x8;
-    f32 xC;
-    f32 x10;
-    char x14[0x2C - 0x14];
-    f32 x2C;
-    char x30[0x34 - 0x30];
-    f32 x34;
-    s32 x38;
-};
+
 
 static grVe_Data grVe_803E5348 = {
     {
@@ -558,8 +550,12 @@ Ground_GObj* grVenom_80203EAC(int gobj_id)
     Ground_GObj* gobj;
     Ground* gp;
     grVe_Data* base = &grVe_803E5348;
+#ifdef MELEE_NATIVE
+    StageCallbacks* callbacks = &grVe_StageCallbacks[gobj_id];
+#else
     StageCallbacks* callbacks =
         &((StageCallbacks*) ((char*) base + 0x44))[gobj_id];
+#endif
 
     gobj = Ground_GetStageGObj(gobj_id);
 
@@ -746,6 +742,12 @@ void grVenom_80204284(Ground_GObj* gobj)
 
 void grVenom_80204424(Ground_GObj* arg) {}
 
+#ifdef MELEE_NATIVE
+#define VE_ENV_FRAME(gp) ((gp)->u.venom2.previous_environment_frame)
+#else
+#define VE_ENV_FRAME(gp) ((gp)->u.venom.xE4)
+#endif
+
 void grVenom_80204428(Ground_GObj* gobj)
 {
     Ground* gp = GET_GROUND(gobj);
@@ -767,7 +769,7 @@ void grVenom_80204428(Ground_GObj* gobj)
     gp->u.venom2.xE0_state.b5 = 0;
     gp->u.venom2.xE0_state.b6 = 0;
 
-    gp->u.venom.xE4 = 0.0F;
+    VE_ENV_FRAME(gp) = 0.0F;
 
     Ground_801C5440(gp, 0, 0x6B6C3);
     mpLib_80057BC0(2);
@@ -790,6 +792,28 @@ void grVenom_8020454C(Ground_GObj* gobj)
         float lo = 1000.0F;
         float hi = -60000.0F;
 
+#ifdef MELEE_NATIVE
+        HSD_JObj* environment_joints[7] = {
+            gp->u.venom2.xC4, gp->u.venom2.xC8, gp->u.venom2.xCC,
+            gp->u.venom2.xD0, gp->u.venom2.xD4, gp->u.venom2.xD8,
+            gp->u.venom2.xDC,
+        };
+        do {
+            HSD_JObj* joint = environment_joints[i];
+            if (joint != NULL) {
+                lb_8000B1CC(joint, NULL, &position);
+                visible = true;
+                if (!(position.z < lo) && !(position.z > hi)) {
+                    visible = false;
+                }
+                if (HSD_JObjGetFlags(joint) & JOBJ_HIDDEN) {
+                    if (visible) HSD_JObjClearFlagsAll(joint, JOBJ_HIDDEN);
+                } else if (!visible) {
+                    HSD_JObjSetFlagsAll(joint, JOBJ_HIDDEN);
+                }
+            }
+        } while (++i < 7);
+#else
         do {
             if (gp->u.venom2.xC4 != NULL) {
                 lb_8000B1CC(gp->u.venom2.xC4, NULL, &position);
@@ -808,6 +832,7 @@ void grVenom_8020454C(Ground_GObj* gobj)
             i++;
             gp = (Ground*) (&gp->gobj);
         } while (i < 7);
+#endif
         gp = gp_save;
 
         if (grAnime_801C84A4(gobj, 0, 7)) {
@@ -839,78 +864,78 @@ void grVenom_8020454C(Ground_GObj* gobj)
             HSD_AObj* a = grAnime_801C8318(gobj, 0, 7);
             if (a != NULL) {
                 float frame = HSD_AObjGetCurrFrame(a);
-                if ((gp->u.venom.xE4 < 1033.0F && 1033.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1086.0F && 1086.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1185.0F && 1185.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1238.0F && 1238.0F <= frame))
+                if ((VE_ENV_FRAME(gp) < 1033.0F && 1033.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1086.0F && 1086.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1185.0F && 1185.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1238.0F && 1238.0F <= frame))
                 {
                     Ground_801C53EC(0x6B6C5);
                 }
-                if ((gp->u.venom.xE4 < 1063.0F && 1063.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1116.0F && 1116.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1215.0F && 1215.0F <= frame) ||
-                    (gp->u.venom.xE4 < 1268.0F && 1268.0F <= frame))
+                if ((VE_ENV_FRAME(gp) < 1063.0F && 1063.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1116.0F && 1116.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1215.0F && 1215.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 1268.0F && 1268.0F <= frame))
                 {
                     Ground_801C53EC(0x6B6C6);
                 }
-                if ((gp->u.venom.xE4 < 2460.0F && 2460.0F <= frame) ||
-                    (gp->u.venom.xE4 < 6440.0F && 6440.0F <= frame) ||
-                    (gp->u.venom.xE4 < 9330.0F && 9330.0F <= frame))
+                if ((VE_ENV_FRAME(gp) < 2460.0F && 2460.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 6440.0F && 6440.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 9330.0F && 9330.0F <= frame))
                 {
                     gp->u.venom2.xE0_state.b6 = true;
                 }
-                if ((gp->u.venom.xE4 < 2460.0F && 2460.0F <= frame) ||
-                    (gp->u.venom.xE4 < 2747.0F && 2747.0F <= frame) ||
-                    (gp->u.venom.xE4 < 3030.0F && 3030.0F <= frame) ||
-                    (gp->u.venom.xE4 < 3393.0F && 3393.0F <= frame) ||
-                    (gp->u.venom.xE4 < 3727.0F && 3727.0F <= frame) ||
-                    (gp->u.venom.xE4 < 6440.0F && 6440.0F <= frame) ||
-                    (gp->u.venom.xE4 < 6880.0F && 6880.0F <= frame) ||
-                    (gp->u.venom.xE4 < 9330.0F && 9330.0F <= frame) ||
-                    (gp->u.venom.xE4 < 9600.0F && 9600.0F <= frame) ||
-                    (gp->u.venom.xE4 < 9835.0F && 9835.0F <= frame))
+                if ((VE_ENV_FRAME(gp) < 2460.0F && 2460.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 2747.0F && 2747.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 3030.0F && 3030.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 3393.0F && 3393.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 3727.0F && 3727.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 6440.0F && 6440.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 6880.0F && 6880.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 9330.0F && 9330.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 9600.0F && 9600.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 9835.0F && 9835.0F <= frame))
                 {
                     Ground_801C53EC(0x6B6C7);
                 }
-                if ((gp->u.venom.xE4 < 4070.0F && 4070.0F <= frame) ||
-                    (gp->u.venom.xE4 < 7220.0F && 7220.0F <= frame) ||
-                    (gp->u.venom.xE4 > frame))
+                if ((VE_ENV_FRAME(gp) < 4070.0F && 4070.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) < 7220.0F && 7220.0F <= frame) ||
+                    (VE_ENV_FRAME(gp) > frame))
                 {
                     gp->u.venom2.xE0_state.b6 = false;
                 }
-                if (gp->u.venom.xE4 < 4200 && 4200 <= frame) {
+                if (VE_ENV_FRAME(gp) < 4200 && 4200 <= frame) {
                     gp->u.venom2.xE0_state.b0 = true;
                 }
-                if (gp->u.venom.xE4 < 3800 && 3800 <= frame) {
+                if (VE_ENV_FRAME(gp) < 3800 && 3800 <= frame) {
                     gp->u.venom2.xE0_state.b1 = true;
                 }
-                if (gp->u.venom.xE4 < 4400 && 4400 <= frame) {
+                if (VE_ENV_FRAME(gp) < 4400 && 4400 <= frame) {
                     Ground_801C5440(gp, 0, 0x6B6C4);
                     gp->u.venom2.xE0_state.b2 = true;
                     mpJointListAdd(2);
                 }
-                if (gp->u.venom.xE4 < 6100 && 6100 <= frame) {
+                if (VE_ENV_FRAME(gp) < 6100 && 6100 <= frame) {
                     Ground_801C5440(gp, 0, 0x6B6C3);
                     gp->u.venom2.xE0_state.b0 = false;
                     gp->u.venom2.xE0_state.b1 = false;
                     gp->u.venom2.xE0_state.b2 = false;
                     mpLib_80057BC0(2);
                 }
-                if (gp->u.venom.xE4 < 7210 && 7210 <= frame) {
+                if (VE_ENV_FRAME(gp) < 7210 && 7210 <= frame) {
                     gp->u.venom2.xE0_state.b3 = true;
                 }
-                if (gp->u.venom.xE4 < 6810 && 6810 <= frame) {
+                if (VE_ENV_FRAME(gp) < 6810 && 6810 <= frame) {
                     gp->u.venom2.xE0_state.b4 = true;
                 }
-                if (gp->u.venom.xE4 < 7410 && 7410 <= frame) {
+                if (VE_ENV_FRAME(gp) < 7410 && 7410 <= frame) {
                     gp->u.venom2.xE0_state.b5 = true;
                 }
-                if (gp->u.venom.xE4 < 9200 && 9200 <= frame) {
+                if (VE_ENV_FRAME(gp) < 9200 && 9200 <= frame) {
                     gp->u.venom2.xE0_state.b3 = false;
                     gp->u.venom2.xE0_state.b4 = false;
                     gp->u.venom2.xE0_state.b5 = false;
                 }
-                gp->u.venom.xE4 = frame;
+                VE_ENV_FRAME(gp) = frame;
             }
         }
 
@@ -938,7 +963,12 @@ void grVenom_80204B88(Ground_GObj* gobj)
     GXColor color_neutral1;
     GXColor color_neutral2;
 
+#ifdef MELEE_NATIVE
+    env_flags = (gp->u.venom2.xE0_state.b2 << 5) |
+                (gp->u.venom2.xE0_state.b6 << 1);
+#else
     env_flags = *(u8*) &gp->u.venom2.xE0_state.xE0_state_pad;
+#endif
 
     if ((env_flags >> 5) & 1) {
         if (gp->u.venom2.xE0_state.xE0_state_pad.state != 1) {
@@ -1023,6 +1053,24 @@ void grVenom_80204EFC(Ground_GObj* arg)
 
 void grVenom_80204F1C(Ground_GObj* arg) {}
 
+#ifdef MELEE_NATIVE
+static int grVe_803E5644[10];
+static int grVe_803E56A0[6];
+#define VE_OBJECT(slot) (grVe_803E5348.arwing.arwing_gobj[(slot)])
+#define VE_TYPE(slot) (grVe_803E5348.arwing.arwing_type[(slot)])
+#define VE_GROUP(slot) (grVe_803E5380[(slot)])
+#define VE_HELPER(group) (grVe_803E5530[48 + (group)])
+#define VE_ANIMATION(state) (grVe_803E5530[(state)])
+#define VE_JOINT(group) (grVe_803E56A0[(group)])
+#else
+#define VE_OBJECT(slot) (base[(slot) + 8])
+#define VE_TYPE(slot) (base[(slot) + 11])
+#define VE_GROUP(slot) (base[(slot) + 14])
+#define VE_HELPER(group) (base[(group) + 170])
+#define VE_ANIMATION(state) (base[(state) + 0x7A])
+#define VE_JOINT(group) (base[(group) + 0xD6])
+#endif
+
 void grVenom_80204F20(Ground_GObj* arg0)
 {
     s32* base = (s32*) &grVe_803E5348;
@@ -1035,7 +1083,7 @@ void grVenom_80204F20(Ground_GObj* arg0)
 
     grVe_803E5348.arwing.arwing_gobj[gp->u.venom.xC8 = grVe_804D6A34] = arg0;
 
-    other = grVenom_80203EAC(base[base[gp->u.venom.xC8 + 14] + 170]);
+    other = grVenom_80203EAC(VE_HELPER(VE_GROUP(gp->u.venom.xC8)));
     if (other != NULL) {
         Ground* other_gp = other->user_data;
         other_gp->x10_flags.b2 = 0;
@@ -1048,7 +1096,7 @@ void grVenom_80204F20(Ground_GObj* arg0)
     }
 
     scale = Ground_801C0498();
-    state = base[gp->u.venom.xC8 + 11];
+    state = VE_TYPE(gp->u.venom.xC8);
     if (state >= 8) {
         goto check_scale_uniform;
     }
@@ -1087,11 +1135,22 @@ bool grVenom_802052D8(Ground_GObj* arg)
 
 /// @todo VenomSpawnData struct should be defined in gr/types.h or grvenom.h
 typedef struct {
+#ifndef MELEE_NATIVE
     u8 pad[0x218];
+#endif
     f32 x;
     f32 y;
     f32 z;
 } VenomSpawnData;
+#ifdef MELEE_NATIVE
+static VenomSpawnData grVe_NativeSpawnData(unsigned slot)
+{
+    VenomSpawnData value;
+    /* Original +0x218 table begins twelve words into grVe_803E5530. */
+    memcpy(&value, &grVe_803E5530[12 + 3 * VE_TYPE(slot)], sizeof(value));
+    return value;
+}
+#endif
 
 void grVenom_802052E0(Ground_GObj* gobj, Vec3* pos)
 {
@@ -1117,8 +1176,15 @@ void grVenom_802052E0(Ground_GObj* gobj, Vec3* pos)
         new_var2 = (u8*) new_var4;
         new_var3 = &gp->u.venom;
         spawn_idx = (*new_var3).xC8;
+#ifndef MELEE_NATIVE
         data_idx = new_var[spawn_idx + 11];
+#endif
+#ifdef MELEE_NATIVE
+        VenomSpawnData native_spawn = grVe_NativeSpawnData(spawn_idx);
+        spawn_data = &native_spawn;
+#else
         spawn_data = (VenomSpawnData*) (new_var2 + data_idx * 12);
+#endif
         pos->x = jobj_pos.x + spawn_data->x;
         pos->y = jobj_pos.y + spawn_data->y;
         pos->z = jobj_pos.z + spawn_data->z;
@@ -1146,15 +1212,23 @@ void grVenom_802053B0(Ground_GObj* gobj)
     jobj = gobj->hsd_obj;
     ptr = base + gp->u.venom.xC8;
 
+#ifdef MELEE_NATIVE
+    if (VE_OBJECT(gp->u.venom.xC8) == gobj) {
+#else
     if ((u32) ptr[8] == (u32) gobj) {
+#endif
         if (gp->u.venom.xD4 == 1) {
             gp->u.venom.xD4 = 0;
             grAnime_801C8138(gobj, gp->map_id,
-                             base[base[gp->u.venom.xC8 + 11] + 0x7A]);
+                             VE_ANIMATION(VE_TYPE(gp->u.venom.xC8)));
             return;
         }
 
+#ifdef MELEE_NATIVE
+        state = VE_TYPE(gp->u.venom.xC8);
+#else
         state = ptr[11];
+#endif
         if (state >= 8) {
             goto check_far;
         }
@@ -1221,7 +1295,7 @@ void grVenom_802053B0(Ground_GObj* gobj)
 
     type_done:
         if (grAnime_801C83D0(gobj, 0, 7)) {
-            base[gp->u.venom.xC8 + 8] = 0;
+            VE_OBJECT(gp->u.venom.xC8) = 0;
             Ground_801C4A08(gobj);
         }
     } else {
@@ -1389,9 +1463,13 @@ typedef struct grVe_AnimArg {
 static inline s32 grVe_GetAnimArg(s32 fire_kind, Ground* gp,
                                   grVe_AnimData* anim_data)
 {
+#ifdef MELEE_NATIVE
+    return grVe_803E5644[gp->u.venom.xF4 * 2 + fire_kind];
+#else
     anim_data = (grVe_AnimData*) ((s32*) anim_data + gp->u.venom.xF4 * 2);
     anim_data = (grVe_AnimData*) ((s32*) anim_data + fire_kind);
     return ((volatile grVe_AnimArg*) anim_data)->value;
+#endif
 }
 
 void grVenom_80205F30(Ground_GObj* gobj)
@@ -1429,13 +1507,21 @@ void grVenom_80205F30(Ground_GObj* gobj)
     }
 
     entry = base + gp->u.venom.xC8;
+#ifdef MELEE_NATIVE
+    if (VE_OBJECT(gp->u.venom.xC8) != NULL) {
+#else
     if ((u32) entry[8] != 0U) {
+#endif
+#ifdef MELEE_NATIVE
+        if (VE_GROUP(gp->u.venom.xC8) == 4) {
+#else
         if (entry[14] == 4) {
+#endif
             tmp_jobj = Ground_801C3FA4(gobj, 1);
             HSD_JObjSetRotationZ(tmp_jobj, 0.0F);
         }
 
-        state = base[gp->u.venom.xC8 + 11];
+        state = VE_TYPE(gp->u.venom.xC8);
         switch (state) {
         case 1:
         case 2:
@@ -1462,7 +1548,7 @@ void grVenom_80205F30(Ground_GObj* gobj)
                 if (gp->u.venom.xF8 <= 0) {
                     gp->u.venom.xF4 = HSD_Randi(4) + 1;
                     fire_kind = -1;
-                    switch (base[GET_GROUND(gobj)->u.venom.xC8 + 14]) {
+                    switch (VE_GROUP(GET_GROUND(gobj)->u.venom.xC8)) {
                     case 0:
                         break;
                     case 1:
@@ -1476,16 +1562,20 @@ void grVenom_80205F30(Ground_GObj* gobj)
                     }
                     {
                         grVe_AnimData* anim_data = (grVe_AnimData*) base;
-                        s32 idx0 = base[gp->u.venom.xC8 + 14];
+                        s32 idx0 = VE_GROUP(gp->u.venom.xC8);
                         s32 anim_arg =
                             grVe_GetAnimArg(fire_kind, gp, anim_data);
+#ifdef MELEE_NATIVE
+                        s32 anim_id = VE_JOINT(idx0);
+#else
                         s32 anim_id = anim_data->anim_ids[idx0];
+#endif
                         grAnime_801C8098(gobj, anim_id, 7, anim_arg, 0.0F,
                                          1.0F);
                     }
                 } else {
-                    s32 idx0 = base[gp->u.venom.xC8 + 14];
-                    s32 anim_id = base[idx0 + 0xD6];
+                    s32 idx0 = VE_GROUP(gp->u.venom.xC8);
+                    s32 anim_id = VE_JOINT(idx0);
                     tmp_jobj = Ground_801C3FA4(gobj, anim_id);
                     HSD_JObjSetRotationZ(tmp_jobj, 0.0F);
                 }
@@ -1500,15 +1590,21 @@ void grVenom_80205F30(Ground_GObj* gobj)
             venom_80205F30_anim_done:;
             }
 
-            if ((other = (HSD_GObj*) base[gp->u.venom.xC8 + 8]) != NULL) {
+            if ((other = (HSD_GObj*) VE_OBJECT(gp->u.venom.xC8)) != NULL) {
                 other_gp = other->user_data;
                 Ground_GetMapGObj(5);
                 lb_8000B1CC(Ground_801C3FA4(other, 5), NULL, &sp64);
                 {
+#ifdef MELEE_NATIVE
+                    VenomSpawnData native_spawn = grVe_NativeSpawnData(other_gp->u.venom.xC8);
+                    VenomSpawnData* spawn_data = &native_spawn;
+#else
+
                     VenomSpawnData* spawn_data =
                         (VenomSpawnData*) (base +
-                                           base[other_gp->u.venom.xC8 + 11] *
+                                           VE_TYPE(other_gp->u.venom.xC8) *
                                                3);
+#endif
                     sp94.x = sp64.x + spawn_data->x;
                     sp94.y = sp64.y + spawn_data->y;
                     sp94.z = sp64.z + spawn_data->z;
@@ -1520,8 +1616,8 @@ void grVenom_80205F30(Ground_GObj* gobj)
             HSD_JObjSetTranslate(jobj, &sp94);
 
             {
-                s32 idx0 = base[gp->u.venom.xC8 + 14];
-                s32 anim_id = base[idx0 + 0xD6];
+                s32 idx0 = VE_GROUP(gp->u.venom.xC8);
+                s32 anim_id = VE_JOINT(idx0);
                 lb_8000B1CC(Ground_801C3FA4(gobj, anim_id), NULL, &sp94);
             }
             if (gp->u.venom.linked_gobj != NULL) {
@@ -1533,8 +1629,8 @@ void grVenom_80205F30(Ground_GObj* gobj)
 
             {
                 f32 rot_z;
-                s32 idx0 = base[gp->u.venom.xC8 + 14];
-                s32 anim_id = base[idx0 + 0xD6];
+                s32 idx0 = VE_GROUP(gp->u.venom.xC8);
+                s32 anim_id = VE_JOINT(idx0);
                 helper = Ground_801C3FA4(gobj, anim_id);
                 rot_z = HSD_JObjGetRotationZ(helper);
                 if (gp->u.venom.linked_gobj != NULL) {
@@ -1551,7 +1647,7 @@ void grVenom_80205F30(Ground_GObj* gobj)
         case 11:
             if (!(gp->u.venom.xF0 & 7) && HSD_Randi(8) == 0) {
                 gp->u.venom.xFC = 0;
-                type_idx = base[gp->u.venom.xC8 + 11];
+                type_idx = VE_TYPE(gp->u.venom.xC8);
                 switch (type_idx) {
                 case 8:
                     if (gp->u.venom.xF0 > 0x3C && gp->u.venom.xF0 < 0xE6) {
@@ -1582,18 +1678,24 @@ void grVenom_80205F30(Ground_GObj* gobj)
                 HSD_GObj* far_other;
                 Ground* far_other_gp;
 
-                if ((far_other = (HSD_GObj*) base[gp->u.venom.xC8 + 8]) !=
+                if ((far_other = (HSD_GObj*) VE_OBJECT(gp->u.venom.xC8)) !=
                     NULL)
                 {
                     far_other_gp = far_other->user_data;
                     Ground_GetMapGObj(5);
                     lb_8000B1CC(Ground_801C3FA4(far_other, 5), NULL, &sp50);
                     {
+#ifdef MELEE_NATIVE
+                    VenomSpawnData native_spawn = grVe_NativeSpawnData(far_other_gp->u.venom.xC8);
+                    VenomSpawnData* spawn_data = &native_spawn;
+#else
+
                         VenomSpawnData* spawn_data =
                             (VenomSpawnData*) (base +
                                                base[far_other_gp->u.venom.xC8 +
                                                     11] *
                                                    3);
+#endif
                         sp94.x = sp50.x + spawn_data->x;
                         sp94.y = sp50.y + spawn_data->y;
                         sp94.z = sp50.z + spawn_data->z;
@@ -1623,7 +1725,7 @@ void grVenom_80205F30(Ground_GObj* gobj)
                     sp88.y += 5.0F;
                     lbAudioAx_800237A8(0x6B6C9, 0x7F, 0x40);
                     fire_kind = -1;
-                    switch (base[GET_GROUND(gobj)->u.venom.xC8 + 14]) {
+                    switch (VE_GROUP(GET_GROUND(gobj)->u.venom.xC8)) {
                     case 0:
                         break;
                     case 1:
@@ -1648,7 +1750,11 @@ void grVenom_80205F30(Ground_GObj* gobj)
                         }
                         gp->u.venom.x100 = (gp->u.venom.x100 + 1) & 1;
                     }
+                    #ifdef MELEE_NATIVE
+                    grMaterial_ApplyColorScript(gobj, yakumono_param->x38, 0);
+#else
                     grMaterial_801C9604(gobj, yakumono_param->x38, 0);
+#endif
                 }
             }
             break;

@@ -27,7 +27,7 @@ typedef struct ftPe_DatAttrs {
     /* +C */ float xC;
     /* +10 */ int speciallw_item_table_count;
     /* +14 */ int x14;
-    /* +1C */ struct ftPe_ItemChance {
+    /* +18 */ struct ftPe_ItemChance {
         /* +0 */ int randi_max;
         /* +4 */ ItemKind kind;
     } speciallw_item_table[3];

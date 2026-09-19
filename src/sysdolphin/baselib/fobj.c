@@ -124,11 +124,19 @@ static f32 parseFloat(u8** pos, u8 frac)
         u.d = (s32) ((*pos)++)[0];
         u.d |= ((*pos)++)[0] << 8;
         u.d |= ((*pos)++)[0] << 16;
+#ifdef MELEE_NATIVE
+        u.d |= (u32) ((*pos)++)[0] << 24;
+#else
         u.d |= ((*pos)++)[0] << 24;
+#endif
         return u.f;
     }
 
+#ifdef MELEE_NATIVE
+    denom = (s32) ((u32) 1 << (frac & 0x1F));
+#else
     denom = (1 << (frac & 0x1F));
+#endif
     switch (frac & 0xE0) {
     case HSD_A_FRAC_S8:
         numer = (s8) (*pos)[0];
@@ -139,7 +147,11 @@ static f32 parseFloat(u8** pos, u8 frac)
         *pos += 1;
         break;
     case HSD_A_FRAC_S16:
+#ifdef MELEE_NATIVE
+        numer = (s16) (((u16) (*pos)[1] << 8) | (*pos)[0]);
+#else
         numer = ((s8) (*pos)[1] << 8) | (*pos)[0];
+#endif
         *pos += 2;
         break;
     case HSD_A_FRAC_U16:
@@ -382,7 +394,12 @@ void FObjUpdateAnim(HSD_FObj* fobj, void* obj, HSD_ObjUpdateFunc obj_update)
         }
         break;
     default:
+#ifdef MELEE_NATIVE
+        /* An empty track has no value to deliver. */
+        return;
+#else
         break;
+#endif
     }
     obj_update(obj, fobj->obj_type, &fobjdata);
 }

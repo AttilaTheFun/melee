@@ -57,6 +57,10 @@ struct HSD_VtxDescList {
     u8 frac;
     u16 stride;
     void* vertex;
+#if defined(MELEE_NATIVE) && defined(MELEE_AURORA)
+    u32 native_size;
+    GXBool native_little_endian;
+#endif
 };
 
 struct HSD_Envelope {

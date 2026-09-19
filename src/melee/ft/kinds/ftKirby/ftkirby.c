@@ -1,4 +1,26 @@
 #include "ftkirby.h"
+#ifdef MELEE_NATIVE
+#include "melee_kirby_copy.h"
+#include "melee_kirby_composite_copy.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <dolphin/dvd.h>
+static MeleeKirbyCopy* native_copy_owners[Ft_Kind_Max];
+static MeleeKirbyCompositeCopy* native_composite_copy_owners[Ft_Kind_Max];
+static MeleeKirbyCompositeCopyDesc* native_composite_hat(KirbyHatStruct* hat)
+{
+    for (unsigned kind = 0; kind < Ft_Kind_Max; kind++) {
+        MeleeKirbyCompositeCopyDesc* desc = melee_kirby_composite_copy_descriptor(native_composite_copy_owners[kind]);
+        if (desc && (void*) desc == (void*) hat) return desc;
+    }
+    return NULL;
+}
+static struct ftData_x8_x8* native_copy_textures(KirbyHatStruct* hat)
+{
+    MeleeKirbyCompositeCopyDesc* desc = native_composite_hat(hat);
+    return desc ? &desc->textures : (struct ftData_x8_x8*) &hat->desc.vis_table;
+}
+#endif
 
 #include <stddef.h>
 
@@ -2505,14 +2527,23 @@ MotionState ftKb_Init_UnkMotionStates0[] = {
 
 void ftKb_Init_800EE528(void)
 {
+#ifdef MELEE_NATIVE
+    /* The retail word loop truncates pointer clearing on 64-bit hosts. */
+    ft_80459B88.x0 = NULL;
+    for (unsigned slot = 0; slot < Ft_Kind_Max; slot++)
+        ft_80459B88.hats[slot] = NULL;
+#else
     /// @todo Bad cast.
     s32* number_list = (s32*) &ft_80459B88.x0;
+#endif
     ftKirby_CostumeArchive** struct_list = ftKb_Init_803C9FC8;
 
     s32 i;
     for (i = 0; i < Ft_Kind_Max; i++) {
         ftKirby_CostumeArchive* unk_struct;
+#ifndef MELEE_NATIVE
         number_list[i] = 0;
+#endif
         unk_struct = struct_list[i];
         if (unk_struct) {
             unk_struct[0].joint = NULL;
@@ -2542,11 +2573,25 @@ void ftKb_Init_800EE528(void)
     }
 }
 
+#ifdef MELEE_NATIVE
+/* Shared model-default portion of OnDeath. Native scene diagnostics do not yet
+ * have player/copy-ability state, so they call only this portion. */
+void ftKb_Init_ResetModelParts(HSD_GObj* gobj)
+{
+    ftParts_80074A4C(gobj, 0, 0);
+    ftParts_80074A4C(gobj, 1, 0);
+}
+#endif
+
 void ftKb_Init_OnDeath(HSD_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
+#ifdef MELEE_NATIVE
+    ftKb_Init_ResetModelParts(gobj);
+#else
     ftParts_80074A4C(gobj, 0, 0);
     ftParts_80074A4C(gobj, 1, 0);
+#endif
     fp->u.kb.hat.x0 = 0;
     fp->u.kb.hat.x4 = HSD_Randi(5) + 1;
     fp->u.kb.hat.jobj = NULL;
@@ -2680,12 +2725,25 @@ void ftKb_Init_LoadSpecialAttrs(HSD_GObj* gobj)
 
 void ftKb_Init_800EEB00(Fighter_GObj* gobj, ArticleDynamicBones** arg1)
 {
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* desc = native_composite_hat(ft_80459B88.hats[Ft_Kind_Pichu]);
+    HSD_ASSERT(__LINE__, desc);
+    /* The retail pointer-typed field actually contains four RGBA bytes. */
+    memcpy(arg1, desc->fill_rgba, 4);
+#else
     *arg1 = ft_80459B88.hats[Ft_Kind_Pichu]->hat_dynamics[4]->ftDynamicBones;
+#endif
 }
 
 void ftKb_Init_800EEB1C(Fighter_GObj* gobj, s32* arg1)
 {
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* desc = native_composite_hat(ft_80459B88.hats[Ft_Kind_Pichu]);
+    HSD_ASSERT(__LINE__, desc);
+    memcpy(arg1, desc->outline_rgba, 4);
+#else
     *arg1 = ft_80459B88.hats[Ft_Kind_Pichu]->hat_dynamics[4]->x4;
+#endif
 }
 
 void ftKb_Init_OnKnockbackEnter(HSD_GObj* gobj)
@@ -2772,9 +2830,45 @@ void ftKb_SpecialN_800EED50(s32 arg0, s32 arg1)
     if (arg0 != -1 && arg0 != 4) {
         if (ftKb_Init_803CA9D0[arg0].filename != NULL) {
             if (((HSD_Archive**) &ft_80459B88)[arg0] == NULL) {
+#ifdef MELEE_NATIVE
+                if (arg0 == Ft_Kind_Falco || arg0 == Ft_Kind_Donkey || arg0 == Ft_Kind_Mewtwo || arg0 == Ft_Kind_Purin || arg0 == Ft_Kind_GameWatch) {
+                    if (!native_composite_copy_owners[arg0]) {
+                        size_t size; void* owned = NULL;
+                        const char* filename = ftKb_Init_803CA9D0[arg0].filename;
+                        const void* bytes = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename), &size);
+                        if (!bytes) { lbFile_80016760(filename, &owned, &size); bytes = owned; }
+                        MeleeArchive archive;
+                        HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+                        native_composite_copy_owners[arg0] = melee_kirby_composite_copy_decode(&archive, arg0);
+                        if (owned) lbHeap_80015CA8(0, owned);
+                        HSD_ASSERT(__LINE__, native_composite_copy_owners[arg0]);
+                    }
+                    ft_80459B88.hats[arg0 - 1] = (KirbyHatStruct*) melee_kirby_composite_copy_descriptor(native_composite_copy_owners[arg0]);
+                } else if (arg0 == Ft_Kind_Yoshi || arg0 == Ft_Kind_Link || arg0 == Ft_Kind_CLink || arg0 == Ft_Kind_Koopa || arg0 == Ft_Kind_Pikachu || arg0 == Ft_Kind_Pichu || arg0 == Ft_Kind_Samus || arg0 == Ft_Kind_Popo || arg0 == Ft_Kind_Peach || arg0 == Ft_Kind_Seak || arg0 == Ft_Kind_Zelda || arg0 == Ft_Kind_Mars || arg0 == Ft_Kind_Emblem || arg0 == Ft_Kind_Ganon || arg0 == Ft_Kind_Captain || arg0 == Ft_Kind_Fox || arg0 == Ft_Kind_Ness || arg0 == Ft_Kind_Mario ||
+                    arg0 == Ft_Kind_DrMario || arg0 == Ft_Kind_Luigi) {
+                    if (!native_copy_owners[arg0]) {
+                        size_t size; void* owned = NULL;
+                        const char* filename = ftKb_Init_803CA9D0[arg0].filename;
+                        const void* bytes = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename), &size);
+                        if (!bytes) { lbFile_80016760(filename, &owned, &size); bytes = owned; }
+                        MeleeArchive archive;
+                        HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+                        native_copy_owners[arg0] = melee_kirby_copy_decode(&archive, arg0);
+                        if (owned) lbHeap_80015CA8(0, owned);
+                        HSD_ASSERT(__LINE__, native_copy_owners[arg0]);
+                    }
+                    /* Preserve the original table's leading Mario slot. */
+                    if (arg0 == Ft_Kind_Mario)
+                        ft_80459B88.x0 = (Kirby_Unk*) melee_kirby_copy_descriptor(native_copy_owners[arg0]);
+                    else
+                        ft_80459B88.hats[arg0 - 1] = melee_kirby_copy_descriptor(native_copy_owners[arg0]);
+                } else
+#endif
+                {
                 lbArchive_80017040(NULL, ftKb_Init_803CA9D0[arg0].filename,
                                    &((HSD_Archive**) &ft_80459B88)[arg0],
                                    ftKb_Init_803CA9D0[arg0].name, 0);
+                }
             }
         }
         if (ftKb_Init_803CB3E8[arg0] != NULL) {
@@ -2782,6 +2876,20 @@ void ftKb_SpecialN_800EED50(s32 arg0, s32 arg1)
             if (item->joint == NULL) {
                 costumes = ftKb_Init_803CB3E8[arg0];
                 cs = &ftKb_Init_803CB3E8[arg0][arg1];
+#ifdef MELEE_NATIVE
+                if (arg0 == Ft_Kind_Falco || arg0 == Ft_Kind_Donkey || arg0 == Ft_Kind_Mewtwo || arg0 == Ft_Kind_Purin || arg0 == Ft_Kind_GameWatch) {
+                    size_t size; void* owned = NULL;
+                    const void* bytes = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(cs->dat_filename), &size);
+                    if (!bytes) { lbFile_80016760(cs->dat_filename, &owned, &size); bytes = owned; }
+                    MeleeArchive archive;
+                    HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+                    HSD_ASSERT(__LINE__, melee_kirby_composite_copy_bind_costume(native_composite_copy_owners[arg0], &archive, arg1));
+                    if (owned) lbHeap_80015CA8(0, owned);
+                    MeleeKirbyCompositeCopyDesc* desc = melee_kirby_composite_copy_descriptor(native_composite_copy_owners[arg0]);
+                    item->joint = desc->costume_joints[arg1];
+                    item->matanim = desc->costume_materials[arg1];
+                } else
+#endif
                 if (cs->matanim_joint_name != NULL) {
                     lbArchive_80017040(NULL, costumes[arg1].dat_filename, item,
                                        cs->joint_name, &item->matanim,
@@ -2848,7 +2956,13 @@ HSD_JObj* ftKb_Init_UnkMotionStates6(Fighter_GObj* gobj)
 
 void ftKb_SpecialN_800EF040(Fighter_GObj* gobj, int arg1, KirbyHatStruct* hat)
 {
-    u32 mask = (u32) hat->hat_dynamics[1];
+    u32 mask;
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* native_hat = native_composite_hat(hat);
+    mask = native_hat ? native_hat->replacement_mask : (u32) hat->hat_dynamics[1];
+#else
+    mask = (u32) hat->hat_dynamics[1];
+#endif
     if (mask != 0) {
         Fighter* fp = GET_FIGHTER(gobj);
         struct Fighter_804D6540_t* ft_data = Fighter_804D6540[fp->kind];
@@ -2881,7 +2995,7 @@ ftKb_SpecialN_insert_joint_refs(s32* total_dobjs, HSD_Joint* root, Fighter* fp,
             bone++;
             (*part_idx)++;
         }
-        HSD_IDInsertToTable(NULL, (u32) *joint, parts[*part_idx].joint);
+        HSD_IDInsertToTable(NULL, (HSD_IDKey) *joint, parts[*part_idx].joint);
         (*part_idx)++;
         ftAnim_GetNextJointInTree(joint, joint_idx);
     }
@@ -2967,7 +3081,11 @@ void ftKb_SpecialN_800EF0E4(Fighter_GObj* gobj, int arg1, u8* arg2)
                     HSD_ASSERT(0x43E, 0);
                 }
                 dst = fp->u.kb.hat.x14.data;
+#ifdef MELEE_NATIVE
+                dst[total_dobjs] = dobj;
+#else
                 *(HSD_DObj**) ((u8*) dst + dst_off) = dobj;
+#endif
                 mobj = dobj->mobj;
                 if (mobj != NULL) {
                     hsdChangeClass(mobj, &ftMObj);
@@ -3020,7 +3138,12 @@ void ftKb_SpecialN_800EF438(Fighter_GObj* gobj, KirbyHatStruct* hat)
     HSD_Joint* current_joint;
     s32 joint_idx;
     HSD_JObj* jobj;
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* native_hat = native_composite_hat(hat);
+    HSD_Joint* root = native_hat ? native_hat->shared_joint : (HSD_Joint*) hat->hat_dynamics[2];
+#else
     HSD_Joint* root = (HSD_Joint*) (jobj = (HSD_JObj*) hat->hat_dynamics[2]);
+#endif
     s32 byte_off;
     Fighter* fp = GET_FIGHTER(gobj);
     s32 total_dobjs;
@@ -3075,7 +3198,11 @@ void ftKb_SpecialN_800EF438(Fighter_GObj* gobj, KirbyHatStruct* hat)
                         HSD_ASSERT(0x4B9, 0);
                     }
                     dst = fp->u.kb.hat.x1C.data;
+#ifdef MELEE_NATIVE
+                    dst[total_dobjs] = dobj;
+#else
                     *(HSD_DObj**) ((u8*) dst + dst_off) = dobj;
+#endif
                     mobj = dobj->mobj;
                     if (mobj != NULL) {
                         hsdChangeClass(mobj, &ftMObj);
@@ -3130,9 +3257,14 @@ void ftKb_SpecialN_800EF69C(Fighter_GObj* gobj, int arg1, KirbyHatStruct* hat)
             jobj = bone->joint;
             dobj = (HSD_DObj*) jobj;
             if (jobj != NULL && (bone->flags_b6 || bone->flags2_b7)) {
+#ifdef MELEE_NATIVE
+                if (bone->flags2_b6) {
+                    if (bone->flags2_b5) {
+#else
                 u8* b9p = &((u8*) bone)[9];
                 if ((*b9p >> 1) & 1) {
                     if ((*b9p >> 2) & 1) {
+#endif
                         dobj = fp->x203C.data[bone->xD];
                     } else {
                         dobj = fp->dobj_list.data[bone->xD];
@@ -3150,7 +3282,12 @@ void ftKb_SpecialN_800EF69C(Fighter_GObj* gobj, int arg1, KirbyHatStruct* hat)
         HSD_ObjFree(&fighter_x2040_alloc_data, fp->u.kb.hat.x1C.data);
         fp->u.kb.hat.x14.data = NULL;
     }
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* native_hat = native_composite_hat(hat);
+    mask = native_hat ? native_hat->replacement_mask : (u32) hat->hat_dynamics[1];
+#else
     mask = (u32) hat->hat_dynamics[1];
+#endif
     if (mask != 0) {
         ftKb_RemoveHatParts(gobj, mask);
     }
@@ -3575,6 +3712,11 @@ void ftKb_SpecialN_800F0F5C(Fighter_GObj* gobj)
 /// @p kind and start its animation.
 /// @todo Should be an inline function (which would also allow removing the
 /// callers' @c dont_inline pragmas), but that shifts register allocation.
+#ifdef MELEE_NATIVE
+#define COPY_TEXTURES(hat) native_copy_textures(hat)
+#else
+#define COPY_TEXTURES(hat) ((ftData_x8_x8*) &(hat)->desc.vis_table)
+#endif
 #define LOAD_HAT(gobj, fp, fp2, kind, hat, part_dobj_indices)                 \
     do {                                                                      \
         (hat) = ft_80459B88.hats[kind];                                       \
@@ -3587,7 +3729,7 @@ void ftKb_SpecialN_800F0F5C(Fighter_GObj* gobj)
         ftParts_8007487C((FtPartsDesc*) (hat), &(fp)->u.kb.hat.x24,           \
                          (fp)->x619_costume_id, &(fp)->u.kb.hat.x14,          \
                          &(fp)->u.kb.hat.x1C);                                \
-        ftAnim_80070200(fp, (ftData_x8_x8*) &(hat)->desc.vis_table,           \
+        ftAnim_80070200(fp, COPY_TEXTURES(hat),           \
                         &(fp)->u.kb.x44, &(fp)->u.kb.hat.x14);                \
     } while (0)
 
@@ -3748,12 +3890,25 @@ void ftKb_SpecialN_800F14B4(Fighter_GObj* gobj)
         return;
     }
     LOAD_HAT(gobj, fp, fp, Ft_Kind_Pichu, hat, part_dobj_indices);
+#ifdef MELEE_NATIVE
+    MeleeKirbyCompositeCopyDesc* desc = native_composite_hat(hat);
+    HSD_ASSERT(__LINE__, desc);
+    lookup = desc->outline;
+#else
     lookup = (FtPartsVisLookup*) hat->hat_dynamics[3];
+#endif
     fp->u.kb.hat.x24.xC[4] = lookup;
     fp->x5AC.xC[4] = lookup;
     ftParts_80074D7C(&fp->u.kb.hat.x24, 4, &fp->u.kb.hat.x14);
+#ifdef MELEE_NATIVE
+    u32 fill;
+    memcpy(&fill, desc->fill_rgba, 4);
+    ftKb_SpecialN_800F1420(gobj, &fill);
+    memcpy(&fp->x610_color_rgba[1], desc->outline_rgba, 4);
+#else
     ftKb_SpecialN_800F1420(gobj, (u32*) ((u8*) hat->hat_dynamics[4] + 4));
     *(u32*) &fp->x610_color_rgba[1] = *(u32*) ((u8*) hat->hat_dynamics[4] + 8);
+#endif
     Fighter_UpdateModelScale(gobj);
 }
 #ifdef MUST_MATCH
@@ -3822,9 +3977,14 @@ void ftKb_SpecialN_800F16D0(Fighter_GObj* gobj, FighterKind kind)
         break;
     case Ft_Kind_Falco:
         hat = g->hats[21];
+#ifdef MELEE_NATIVE
+        it_8026B3F8(native_composite_hat(hat)->laser, It_Kind_Kirby_FalcoLaser);
+        it_8026B3F8(native_composite_hat(hat)->blaster, It_Kind_Kirby_FalcoBlaster);
+#else
         it_8026B3F8((Article*) hat->hat_dynamics[3], It_Kind_Kirby_FalcoLaser);
         it_8026B3F8((Article*) hat->hat_dynamics[4],
                     It_Kind_Kirby_FalcoBlaster);
+#endif
         break;
     case Ft_Kind_Link:
         hat = g->hats[5];
@@ -3837,8 +3997,13 @@ void ftKb_SpecialN_800F16D0(Fighter_GObj* gobj, FighterKind kind)
         it_8026B3F8((Article*) hat->hat_dynamics[1], It_Kind_Kirby_CLinkBow);
         break;
     case Ft_Kind_Mewtwo:
+#ifdef MELEE_NATIVE
+        it_8026B3F8(native_composite_hat(g->hats[15])->laser,
+                    It_Kind_Kirby_MewtwoShadowBall);
+#else
         it_8026B3F8((Article*) g->hats[15]->hat_dynamics[3],
                     It_Kind_Kirby_MewtwoShadowBall);
+#endif
         break;
     case Ft_Kind_Ness:
         hat = g->hats[7];
@@ -3886,10 +4051,15 @@ void ftKb_SpecialN_800F16D0(Fighter_GObj* gobj, FighterKind kind)
         break;
     case Ft_Kind_GameWatch:
         hat = g->hats[23];
+#ifdef MELEE_NATIVE
+        it_8026B3F8(native_composite_hat(hat)->laser, It_Kind_Kirby_GameWatchChef);
+        it_8026B3F8(native_composite_hat(hat)->blaster, It_Kind_Kirby_GameWatchChefPan);
+#else
         it_8026B3F8((Article*) hat->hat_dynamics[5],
                     It_Kind_Kirby_GameWatchChef);
         it_8026B3F8((Article*) hat->hat_dynamics[6],
                     It_Kind_Kirby_GameWatchChefPan);
+#endif
         break;
     case Ft_Kind_Yoshi:
         it_8026B3F8((Article*) g->hats[13]->hat_dynamics[5],

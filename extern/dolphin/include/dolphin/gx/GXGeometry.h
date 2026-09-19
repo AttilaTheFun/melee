@@ -13,7 +13,13 @@ void GXSetVtxDescv(const GXVtxDescList *attrPtr);
 void GXClearVtxDesc(void);
 void GXSetVtxAttrFmt(GXVtxFmt vtxfmt, GXAttr attr, GXCompCnt cnt, GXCompType type, u8 frac);
 void GXSetVtxAttrFmtv(GXVtxFmt vtxfmt, const GXVtxAttrFmtList *list);
+#if defined(MELEE_NATIVE) && defined(MELEE_AURORA)
+void GXSetArray(GXAttr attr, const void *base_ptr, u32 size, u8 stride, GXBool little_endian);
+#define GXSETARRAY(attr, data, size, stride, le) GXSetArray((attr), (data), (size), (stride), (le))
+#else
 void GXSetArray(GXAttr attr, const void *base_ptr, u8 stride);
+#define GXSETARRAY(attr, data, size, stride, le) GXSetArray((attr), (data), (stride))
+#endif
 void GXInvalidateVtxCache(void);
 void GXSetTexCoordGen2(GXTexCoordID dst_coord, GXTexGenType func, GXTexGenSrc src_param, u32 mtx, GXBool normalize, u32 pt_texmtx);
 void GXSetNumTexGens(u8 nTexGens);

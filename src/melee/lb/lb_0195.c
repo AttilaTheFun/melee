@@ -57,6 +57,15 @@ void fn_800195FC(void)
     lbSnap_8001D2BC();
 }
 
+#ifdef MELEE_NATIVE
+static void native_input_alarm(OSAlarm* alarm, OSContext* context)
+{
+    (void) alarm;
+    (void) context;
+    fn_800195FC();
+}
+#endif
+
 void lb_80019628(void)
 {
     int i;
@@ -108,7 +117,11 @@ void lb_80019628(void)
     }
     OSCreateAlarm(&lb_804329F0.alarm);
     OSSetPeriodicAlarm(&lb_804329F0.alarm, lb_804329F0.x40, lb_804329F0.x40,
+#ifdef MELEE_NATIVE
+                       native_input_alarm);
+#else
                        (OSAlarmHandler) fn_800195FC);
+#endif
     lb_804329F0.x48 = 1;
 }
 

@@ -332,7 +332,7 @@ void lbDvd_80017CC4(void)
     }
 }
 
-void lbDvd_80017E64(int key, int index, void* value, bool cancelflag)
+void lbDvd_80017E64(int key, HSD_DevComArg index, void* value, bool cancelflag)
 {
     PreloadEntry* preloadEntry = &preloadCache.entries[index];
     if (cancelflag != 0) {
@@ -650,6 +650,43 @@ void lbDvd_800189EC(int entry_num)
         lb_800195D0();
     }
 }
+
+#ifdef MELEE_NATIVE
+const void* lbDvd_NativeGetRawData(int entry_num, size_t* length)
+{
+    if (!length || entry_num < 0) return NULL;
+    lbDvd_800189EC(entry_num);
+    int enabled = OSDisableInterrupts();
+    const void* result = NULL;
+    for (size_t i = 0; i < ARRAY_SIZE(preloadCache.entries); ++i) {
+        PreloadEntry* e = &preloadCache.entries[i];
+        if (e->state == 4 && e->load_score > 0 && e->entry_num == entry_num &&
+            e->raw_data && (uintptr_t)e->raw_data->addr >= 0x80000000U) {
+            result = e->raw_data->addr;
+            *length = e->size;
+            break;
+        }
+    }
+    OSRestoreInterrupts(enabled);
+    return result;
+}
+
+/* Startup diagnostics: serialize with the preload callbacks before reading. */
+void lbDvd_NativeReportPreloads(void)
+{
+    int enabled = OSDisableInterrupts();
+    OSReport("Native preload cache: persistent heap=%d\n", preloadCache.persistent_heap);
+    for (size_t i = 0; i < ARRAY_SIZE(preloadCache.entries); ++i) {
+        PreloadEntry* e = &preloadCache.entries[i];
+        if (e->state) {
+            OSReport("preload[%zu] file=%d state=%d load=%d score=%d heap=%d bytes=%zu\n",
+                     i, e->entry_num, e->state, e->load_state,
+                     e->load_score, e->heap, e->size);
+        }
+    }
+    OSRestoreInterrupts(enabled);
+}
+#endif
 
 int lbDvd_80018A2C(u8 arg0)
 {

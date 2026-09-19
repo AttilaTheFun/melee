@@ -112,18 +112,70 @@ struct ToySubStructS_ {
     s16 x10;
 };
 
-struct ToyGlobalsS_ {
+/// @todo = ToyGlobalsS_
+/// @todo = TyArchiveData
+/// @todo = tyLightData
+struct
+#ifdef MELEE_NATIVE
+__attribute__((may_alias))
+#endif
+ToyED8Data {
+    /*  +0 */ HSD_JObj** x0;
+    /*  +4 */ HSD_GObj* gobj;
+    /*  +8 */ ToyDataX8* x8;
+    /*  +C */ Toy26B8_2* xC;
+    /* +10 */ u8 pad_10[0x18 - 0x10];
+    /* +18 */ HSD_JObj* jobjs[3];
+    /* +24 */ u8 pad_24[0x30 - 0x24];
+    /* +30 */ HSD_JObj* x30;
+    u8 pad_34[0x50 - 0x34];
+    /* 0x50 */ HSD_Archive* archive;
+#ifdef MELEE_NATIVE
+    HSD_Archive* x54;
+#else
+    /* 0x54 */ u32 x54;
+#endif
+    UNK_T x58;
+};
+#ifndef MELEE_NATIVE
+STATIC_ASSERT(offsetof(struct ToyED8Data, x0) == 0x0);
+STATIC_ASSERT(offsetof(struct ToyED8Data, gobj) == 0x4);
+STATIC_ASSERT(offsetof(struct ToyED8Data, xC) == 0xC);
+STATIC_ASSERT(offsetof(struct ToyED8Data, jobjs) == 0x18);
+STATIC_ASSERT(offsetof(struct ToyED8Data, x30) == 0x30);
+STATIC_ASSERT(offsetof(struct ToyED8Data, archive) == 0x50);
+STATIC_ASSERT(offsetof(struct ToyED8Data, x54) == 0x54);
+ASSERT_SIZE(struct ToyED8Data, 0x5C);
+#endif
+
+struct
+#ifdef MELEE_NATIVE
+__attribute__((may_alias))
+#endif
+ToyGlobalsS_ {
     HSD_GObj* x0;
     u8 x4;
     HSD_GObj* x8;
     HSD_GObj* xC;
     s32 x10;
+#ifdef MELEE_NATIVE
+    u8 pad14[offsetof(ToyED8Data, x30) - 4 * sizeof(void*) - sizeof(s32)];
+#else
     u8 pad14[0x1C];
+#endif
     void* x30;
+#ifdef MELEE_NATIVE
+    u8 pad34[offsetof(ToyED8Data, archive) - offsetof(ToyED8Data, x30) - sizeof(void*)];
+#else
     u8 pad34[0x1C];
+#endif
     void* x50;
     HSD_Archive* x54;
+#ifdef MELEE_NATIVE
+    union { s32 x58; void* native_x58; };
+#else
     s32 x58;
+#endif
     u8 pad0[0x140 - 0x5C];
     ToySubStructS_* x140;
     void* x144;
@@ -428,10 +480,22 @@ struct ToyDataX8 {
     /* 0x28 */ ToyDataJObj* x28;
 };
 
-struct tyLightData {
+struct
+#ifdef MELEE_NATIVE
+__attribute__((may_alias))
+#endif
+tyLightData {
+#ifdef MELEE_NATIVE
+    char _pad0[offsetof(ToyED8Data, xC)];
+#else
     /* 0x00 */ char _pad0[0x0C];
+#endif
     /* 0x0C */ HSD_GObj* x0C;
+#ifdef MELEE_NATIVE
+    char _pad1[offsetof(ToyED8Data, x58) - offsetof(ToyED8Data, xC) - sizeof(void*)];
+#else
     /* 0x10 */ char _pad1[0x48];
+#endif
     /* 0x58 */ void* x58;
 };
 
@@ -552,36 +616,42 @@ struct TyListWaitData {
     s32 x24;
 };
 
-/// @todo = ToyGlobalsS_
-/// @todo = TyArchiveData
-/// @todo = tyLightData
-struct ToyED8Data {
-    /*  +0 */ HSD_JObj** x0;
-    /*  +4 */ HSD_GObj* gobj;
-    /*  +8 */ ToyDataX8* x8;
-    /*  +C */ Toy26B8_2* xC;
-    /* +10 */ u8 pad_10[0x18 - 0x10];
-    /* +18 */ HSD_JObj* jobjs[3];
-    /* +24 */ u8 pad_24[0x30 - 0x24];
-    /* +30 */ HSD_JObj* x30;
-    u8 pad_34[0x50 - 0x34];
-    /* 0x50 */ HSD_Archive* archive;
-    /* 0x54 */ u32 x54;
-    UNK_T x58;
-};
-STATIC_ASSERT(offsetof(struct ToyED8Data, x0) == 0x0);
-STATIC_ASSERT(offsetof(struct ToyED8Data, gobj) == 0x4);
-STATIC_ASSERT(offsetof(struct ToyED8Data, xC) == 0xC);
-STATIC_ASSERT(offsetof(struct ToyED8Data, jobjs) == 0x18);
-STATIC_ASSERT(offsetof(struct ToyED8Data, x30) == 0x30);
-STATIC_ASSERT(offsetof(struct ToyED8Data, archive) == 0x50);
-STATIC_ASSERT(offsetof(struct ToyED8Data, x54) == 0x54);
-ASSERT_SIZE(struct ToyED8Data, 0x5C);
-struct TyArchiveData {
+struct
+#ifdef MELEE_NATIVE
+__attribute__((may_alias))
+#endif
+TyArchiveData {
     HSD_GObj* gobj;
+#ifdef MELEE_NATIVE
+    u8 pad[offsetof(ToyED8Data, archive) - sizeof(void*)];
+#else
     u8 pad[0x4C];
+#endif
     void* data;
 };
+
+#ifdef MELEE_NATIVE
+/* Reserve the complete object size of every view, including the larger
+ * general-purpose view. Prefix-only allocation is not valid native C. */
+union ToyArchiveStorage {
+    ToyED8Data state;
+    ToyGlobalsS_ globals;
+    struct tyLightData light;
+    TyArchiveData archive;
+};
+/* Shared archive-state overlays must agree after pointer widening. */
+STATIC_ASSERT(offsetof(ToyED8Data, x0) == offsetof(ToyGlobalsS_, x0));
+STATIC_ASSERT(offsetof(ToyED8Data, x8) == offsetof(ToyGlobalsS_, x8));
+STATIC_ASSERT(offsetof(ToyED8Data, xC) == offsetof(ToyGlobalsS_, xC));
+STATIC_ASSERT(offsetof(ToyED8Data, x30) == offsetof(ToyGlobalsS_, x30));
+STATIC_ASSERT(offsetof(ToyED8Data, archive) == offsetof(ToyGlobalsS_, x50));
+STATIC_ASSERT(offsetof(ToyED8Data, x54) == offsetof(ToyGlobalsS_, x54));
+STATIC_ASSERT(offsetof(ToyED8Data, xC) == offsetof(struct tyLightData, x0C));
+STATIC_ASSERT(offsetof(ToyED8Data, x58) == offsetof(struct tyLightData, x58));
+STATIC_ASSERT(offsetof(ToyED8Data, archive) == offsetof(TyArchiveData, data));
+STATIC_ASSERT(offsetof(ToyED8Data, x0) == offsetof(TyArchiveData, gobj));
+STATIC_ASSERT(sizeof(((ToyED8Data*) 0)->x54) == sizeof(void*));
+#endif
 
 struct TyFiguponInner {
     u8 pad[0x4D];

@@ -5,6 +5,10 @@
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/jobj.h>
 
+#ifdef MELEE_NATIVE
+int mnEvent_NativeSelected(void);
+#endif
+
 typedef struct MnEventData {
     /* 0x00 */ u8 page;
     /* 0x01 */ u8 pad_01[3];

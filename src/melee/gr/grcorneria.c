@@ -38,38 +38,7 @@
 #include <sysdolphin/baselib/random.h>
 #include <sysdolphin/baselib/sislib.h>
 
-struct grCorneria_YakumonoParam {
-    /* 0x00 */ f32 x0;
-    /* 0x04 */ f32 x4;
-    /* 0x08 */ f32 x8;
-    /* 0x0C */ f32 xC;
-    /* 0x10 */ f32 x10;
-    /* 0x14 */ f32 x14;
-    /* 0x18 */ f32 x18;
-    /* 0x1C */ f32 x1C;
-    /* 0x20 */ f32 x20;
-    /* 0x24 */ f32 x24;
-    /* 0x28 */ f32 x28;
-    /* 0x2C */ f32 x2C;
-    /* 0x30 */ f32 x30;
-    /* 0x34 */ f32 x34;
-    /* 0x38 */ f32 x38;
-    /* 0x3C */ f32 x3C;
-    /* 0x40 */ f32 x40;
-    /* 0x44 */ f32 x44;
-    /* 0x48 */ f32 x48;
-    /* 0x4C */ f32 x4C;
-    /* 0x50 */ u8 pad50[0x18];
-    /* 0x68 */ f32 x68;
-    /* 0x6C */ u8 pad6C[0x4];
-    /* 0x70 */ f32 x70;
-    /* 0x74 */ s32 x74;
-    /* 0x78 */ s32 x78;
-    /* 0x7C */ s32 x7C;
-    /* 0x80 */ s32 x80;
-    /* 0x84 */ s32 x84;
-    /* 0x88 */ f32 x88;
-};
+
 
 /* 1DD654 */ static void grCorneria_801DD654(Ground_GObj*);
 /* 1DD658 */ static void grCorneria_801DD658(Ground_GObj*);
@@ -1347,8 +1316,11 @@ void grCorneria_801DED50(Ground_GObj* gobj)
                                     it_802E72E0(gobj, Ground_801C3FA4(gobj, 5),
                                                 0, -1.0f, yakumono_param->x70);
                                 }
-                                grMaterial_801C9604(gobj, yakumono_param->x84,
-                                                    0);
+                                #ifdef MELEE_NATIVE
+                grMaterial_ApplyColorScript(gobj, yakumono_param->x84, 0);
+#else
+                grMaterial_801C9604(gobj, yakumono_param->x84, 0);
+#endif
                             }
                         }
                     }
@@ -1432,7 +1404,11 @@ void grCorneria_801DED50(Ground_GObj* gobj)
                         gp->u.corneria2.x100 = (gp->u.corneria2.x100 + 1) & 1;
                     }
                 }
+                #ifdef MELEE_NATIVE
+                grMaterial_ApplyColorScript(gobj, yakumono_param->x84, 0);
+#else
                 grMaterial_801C9604(gobj, yakumono_param->x84, 0);
+#endif
             }
         }
         }

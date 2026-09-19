@@ -22,6 +22,17 @@
 typedef union UnkFlagStruct {
     u8 u8;
     struct {
+#if defined(MELEE_NATIVE) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+        /* Raw bytes retain PowerPC's b0=0x80 ... b7=0x01 convention. */
+        u8 b7 : 1;
+        u8 b6 : 1;
+        u8 b5 : 1;
+        u8 b4 : 1;
+        u8 b3 : 1;
+        u8 b2 : 1;
+        u8 b1 : 1;
+        u8 b0 : 1;
+#else
         u8 b0 : 1;
         u8 b1 : 1;
         u8 b2 : 1;
@@ -30,6 +41,7 @@ typedef union UnkFlagStruct {
         u8 b5 : 1;
         u8 b6 : 1;
         u8 b7 : 1;
+#endif
     };
 } UnkFlagStruct;
 
@@ -418,7 +430,7 @@ ASSERT_SIZE(struct gmm_x0, 0x8518);
 
 /// @todo ::MatchEnd
 struct lbl_8046B6A0_24C_t {
-    UNK_T x0;
+    u32 x0; ///< frame counter, aliases MatchEnd::x0; not a pointer
     u8 x4; ///< MatchOutcome
     u8 x5; ///< match mode
     u8 is_teams;
@@ -1233,7 +1245,11 @@ struct lbl_8046B488_t {
     /* 0x1B2 */ u8 x1B2;
     /* 0x1AE */ s8 x1B3[0x1B8 - 0x1B3];
     /* 0x1B8 */ GmRouteCallback x1B8;
+#ifdef MELEE_NATIVE
+    void (*native_event_player_init_cb)(s32, u8);
+#else
     /* 0x1BC */ char pad_1BC[0x1C0 - 0x1BC];
+#endif
     /* 0x1C0 */ s8 x1C0[0x1B];
     /* 0x1DB */ char pad_1DB[0x1E0 - 0x1DB];
 }; /* size = 0x1E0 */

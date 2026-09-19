@@ -469,11 +469,15 @@ void ftPr_Init_8013C360(HSD_GObj* gobj)
         UNK_T* items_shifted = items[1];
 
         if (!joints[fp->x619_costume_id]) {
+#ifdef MELEE_NATIVE
+            joints[fp->x619_costume_id]=ftData_NativeCostumeJoint(fp->kind,fp->x619_costume_id,ftPr_Init_803D05B4[fp->x619_costume_id]);
+#else
             UnkCostumeStruct* costume_list =
                 CostumeListsForeachCharacter[fp->kind].costume_list;
             joints[fp->x619_costume_id] = HSD_ArchiveGetPublicAddress(
                 costume_list[fp->x619_costume_id].x14_archive,
                 ftPr_Init_803D05B4[fp->x619_costume_id]);
+#endif
         }
 
         fp->u.pr.x2240.data = HSD_ObjAlloc(&fighter_x2040_alloc_data);

@@ -86,7 +86,7 @@ HSD_Text* HSD_SisLib_803A6754(int font_idx, int context_id)
 
     text = HSD_SisLib_803A5ACC(font_idx, context_id, 0.0F, 0.0F, 0.0F, 640.0F,
                                480.0F);
-    alloc = HSD_SisLib_Alloc(0x10);
+    alloc = HSD_SisLib_Alloc(sizeof(sisLib_803A7664_t));
     text->alloc_data = alloc;
     buffer = HSD_SisLib_Alloc(0x80);
     alloc->data = buffer;
@@ -96,7 +96,7 @@ HSD_Text* HSD_SisLib_803A6754(int font_idx, int context_id)
     // maybe this is a different struct.
     *(u8*) &alloc->next->next =
         0; ///< @todo Do any other Data struct usages have a 0xC member?
-    *(&alloc->size + 1) = 0;
+    ((sisLib_803A7664_t*) alloc)->xC = 0;
     HSD_SisLib_803A6368(text, 0);
     text->sis_buffer = (SIS*) alloc->data;
     return text;
@@ -221,7 +221,12 @@ s32 HSD_SisLib_803A67EC(u8* data, u8* string)
 int HSD_SisLib_803A6B98(HSD_Text* text, float x, float y, const char* fmt, ...)
 {
     u8 buffer[128];
+#ifdef MELEE_NATIVE
+    /* Each input byte can emit a five-byte kerning command and a glyph pair. */
+    u8 encoded[128 * 7 + 2];
+#else
     u8 encoded[128];
+#endif
     s32 x_coord;
     s32 y_coord;
     HSD_Text* old_buf;
@@ -241,7 +246,13 @@ int HSD_SisLib_803A6B98(HSD_Text* text, float x, float y, const char* fmt, ...)
     encoded[0] = 0;
     if (fmt) {
         va_start(args, fmt);
+#ifdef MELEE_NATIVE
+        if (vsnprintf((char*) buffer, sizeof(buffer), fmt, args) < 0) {
+            buffer[0] = 0;
+        }
+#else
         vsnprintf((char*) buffer, -1, fmt, args);
+#endif
         va_end(args);
         encoded_len = HSD_SisLib_803A67EC(encoded, buffer);
     }
@@ -352,7 +363,11 @@ end:
 s32 HSD_SisLib_803A70A0(HSD_Text* text, s32 entry_idx, char* fmt, ...)
 {
     u8 buffer[128];
+#ifdef MELEE_NATIVE
+    u8 encoded[128 * 7 + 2];
+#else
     u8 encoded[128];
+#endif
     HSD_Text* old_buf;
     u8* playhead;
     SisBlock* alloc;
@@ -375,7 +390,13 @@ s32 HSD_SisLib_803A70A0(HSD_Text* text, s32 entry_idx, char* fmt, ...)
         playhead = entry + 0xE;
         if (fmt != NULL) {
             va_start(args, fmt);
+#ifdef MELEE_NATIVE
+            if (vsnprintf((char*) buffer, sizeof(buffer), fmt, args) < 0) {
+                buffer[0] = 0;
+            }
+#else
             vsnprintf((char*) buffer, -1, fmt, args);
+#endif
             va_end(args);
             new_size = HSD_SisLib_803A67EC(encoded, buffer);
         } else {

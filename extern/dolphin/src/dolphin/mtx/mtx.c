@@ -27,6 +27,7 @@ void C_MTXIdentity(Mtx m)
     m[2][3] = 0;
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXIdentity(register Mtx m)
 {
     // clang-format off
@@ -47,6 +48,7 @@ void PSMTXIdentity(register Mtx m)
     }
     // clang-format on
 }
+#endif
 
 void C_MTXCopy(Mtx src, Mtx dst)
 {
@@ -68,6 +70,7 @@ void C_MTXCopy(Mtx src, Mtx dst)
     }
 }
 
+#ifndef MELEE_NATIVE
 asm void PSMTXCopy(register Mtx src, register Mtx dst)
 {
     // clang-format off
@@ -85,6 +88,7 @@ asm void PSMTXCopy(register Mtx src, register Mtx dst)
     psq_st f5, 40(dst), 0, qr0
     // clang-format on
 }
+#endif
 
 void C_MTXConcat(Mtx a, Mtx b, Mtx ab)
 {
@@ -133,6 +137,7 @@ void C_MTXConcat(Mtx a, Mtx b, Mtx ab)
     }
 }
 
+#ifndef MELEE_NATIVE
 asm void PSMTXConcat(register Mtx mA, register Mtx mB, register Mtx mAB)
 {
     // clang-format off
@@ -190,6 +195,7 @@ asm void PSMTXConcat(register Mtx mA, register Mtx mB, register Mtx mAB)
     blr
     // clang-format on
 }
+#endif
 
 void C_MTXTranspose(Mtx src, Mtx xPose)
 {
@@ -222,6 +228,7 @@ void C_MTXTranspose(Mtx src, Mtx xPose)
     }
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXTranspose(register Mtx src, register Mtx xPose)
 {
     // clang-format off
@@ -260,6 +267,7 @@ void PSMTXTranspose(register Mtx src, register Mtx xPose)
     xPose[2][2] = row0b;
     // clang-format on
 }
+#endif
 
 u32 C_MTXInverse(Mtx src, Mtx inv)
 {
@@ -310,6 +318,7 @@ u32 C_MTXInverse(Mtx src, Mtx inv)
     return 1;
 }
 
+#ifndef MELEE_NATIVE
 asm u32 PSMTXInverse(register Mtx src, register Mtx inv){
     // clang-format off
     psq_l f0, 0(src), 1, qr0
@@ -376,6 +385,7 @@ skip_return:
     psq_st f7, 44(inv), 1, qr0
     // clang-format on
 }
+#endif
 
 u32 C_MTXInvXpose(Mtx src, Mtx invX)
 {
@@ -423,6 +433,7 @@ u32 C_MTXInvXpose(Mtx src, Mtx invX)
     return 1;
 }
 
+#ifndef MELEE_NATIVE
 asm u32 PSMTXInvXpose(register Mtx src, register Mtx invX)
 {
     // clang-format off
@@ -481,6 +492,7 @@ skip_return:
 	psq_st f8, 40(invX), 1, qr0
     // clang-format on
 }
+#endif
 
 void MTXRotRad(Mtx m, char axis, f32 rad)
 {
@@ -493,6 +505,7 @@ void MTXRotRad(Mtx m, char axis, f32 rad)
     MTXRotTrig(m, axis, sinA, cosA);
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXRotTrig(register Mtx m, register char axis, register f32 sinA,
                   register f32 cosA)
 {
@@ -553,6 +566,7 @@ _case_z:
 _end:
     }
 }
+#endif
 
 void C_MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA)
 {
@@ -609,6 +623,7 @@ void C_MTXRotTrig(Mtx m, char axis, f32 sinA, f32 cosA)
     }
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXRotAxisRad(register Mtx m, Vec* axis, register f32 rad)
 {
     register f32 tmp0, tmp1, tmp2, tmp3, tmp4;
@@ -662,6 +677,7 @@ void PSMTXRotAxisRad(register Mtx m, Vec* axis, register f32 rad)
   }
 #endif // clang-format on
 }
+#endif
 
 void C_MTXRotAxisRad(Mtx m, Vec* axis, f32 rad)
 {
@@ -703,6 +719,7 @@ void C_MTXRotAxisRad(Mtx m, Vec* axis, f32 rad)
     m[2][3] = 0;
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXTrans(register Mtx m, register f32 xT, register f32 yT,
                 register f32 zT)
 {
@@ -721,6 +738,7 @@ void PSMTXTrans(register Mtx m, register f32 xT, register f32 yT,
     m[2][3] = zT;
     m[0][0] = c1;
 }
+#endif
 
 void MTXTransApply(Mtx src, Mtx dst, f32 xT, f32 yT, f32 zT)
 {
@@ -745,6 +763,7 @@ void MTXTransApply(Mtx src, Mtx dst, f32 xT, f32 yT, f32 zT)
     dst[2][3] = (src[2][3] + zT);
 }
 
+#ifndef MELEE_NATIVE
 asm void PSMTXScale(register Mtx m, register f32 xS, register f32 yS,
                     register f32 zS)
 {
@@ -762,6 +781,7 @@ asm void PSMTXScale(register Mtx m, register f32 xS, register f32 yS,
     blr
     // clang-format on
 }
+#endif
 
 void C_MTXScale(Mtx m, f32 xS, f32 yS, f32 zS)
 {
@@ -798,6 +818,7 @@ void MTXScaleApply(Mtx src, Mtx dst, f32 xS, f32 yS, f32 zS)
     dst[2][3] = (src[2][3] * zS);
 }
 
+#ifndef MELEE_NATIVE
 void PSMTXQuat(register Mtx m, register Quaternion* q)
 {
     register f32 c_zero, c_one, c_two, scale;
@@ -847,6 +868,7 @@ void PSMTXQuat(register Mtx m, register Quaternion* q)
         psq_st      tmp9, 32(m), 0, 0
     }
 }
+#endif
 
 void C_MTXQuat(Mtx m, QuaternionPtr q)
 {

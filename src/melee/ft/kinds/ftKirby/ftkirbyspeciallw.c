@@ -146,8 +146,14 @@ void ftKb_SpecialHi_800F3570(Fighter_GObj* gobj)
     f32 floor_normal_x_sign;
     f32 normal_y_slide;
     Fighter* fp = GET_FIGHTER(gobj);
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     ftKb_DatAttrs* dat_attr = fp->dat_attrs;
     {
         UNUSED u8 pad2[12];
@@ -192,8 +198,14 @@ void ftKb_SpecialHi_800F3570(Fighter_GObj* gobj)
 void ftKb_SpecialHi_800F36DC(Fighter_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     fp->mv.kb.speciallw.x24[0] = p->vec;
     fp->mv.kb.speciallw.x54[0] = fp->mv.kb.speciallw.x24[0];
     fp->mv.kb.speciallw.x88[0] = 0.0f;
@@ -598,8 +610,14 @@ void ftKb_SpecialLw1_Coll(Fighter_GObj* gobj)
     Fighter* fp2;
     Fighter* fp3;
     s32 temp;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(16);
 
     if (ft_80082708(gobj) == GA_Ground) {
@@ -644,8 +662,14 @@ void ftKb_SpecialLw_Coll(Fighter_GObj* gobj)
     Fighter* fp2;
     Fighter* fp3;
     s32 temp;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(16);
 
     if (ft_80082708(gobj) == GA_Ground) {
@@ -689,8 +713,14 @@ void ftKb_SpecialLwEnd_Coll(Fighter_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
     Fighter* fp2;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(8);
     ft_80081D0C(gobj);
     fp2 = GET_FIGHTER(gobj);
@@ -761,8 +791,14 @@ void ftKb_SpecialAirLwStart_Coll(Fighter_GObj* gobj)
     Fighter* fp2;
     s32 temp;
     ftKb_DatAttrs* da = fp->dat_attrs;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(16);
 
     if (ft_80081D0C(gobj) == GA_Air) {
@@ -811,8 +847,14 @@ void ftKb_SpecialAirLw_Coll(Fighter_GObj* gobj)
     ftKb_DatAttrs* da = fp->dat_attrs;
     Fighter* fp2;
     s32 temp;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(16);
 
     if (ft_80081D0C(gobj) == GA_Air) {
@@ -860,8 +902,14 @@ void ftKb_SpecialAirLwEnd_Coll(Fighter_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
     Fighter* fp2;
+#ifdef MELEE_NATIVE
+    /* Retail globals are adjacent: 0x5C flag bytes + 0x18 indices reach
+     * this vector at +0x74. Native linking need not preserve adjacency. */
+    struct ftKb_Init_803CB4EC_t* p = &ftKb_Init_803CB4EC;
+#else
     struct ftKb_Init_803CB490_layout* p =
         (struct ftKb_Init_803CB490_layout*) ftKb_Init_803CB490;
+#endif
     PAD_STACK(8);
     ft_80081D0C(gobj);
     fp2 = GET_FIGHTER(gobj);

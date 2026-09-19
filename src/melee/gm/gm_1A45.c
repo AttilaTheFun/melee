@@ -347,9 +347,13 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
                 }
             }
             HSD_PerfSetCPUTime();
+#ifndef MELEE_NATIVE
+            /* This inspects the SDK scheduler's private queues and stack fill
+             * words. Native threads are owned by Darwin, not that scheduler. */
             if (DbLevel >= DbLKind_DebugRom) {
                 OSCheckActiveThreads();
             }
+#endif
             gmMainLib_8046B0F0.xC = false;
             if (temp_r25->unk_C != 0) {
                 break;

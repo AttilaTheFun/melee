@@ -92,6 +92,14 @@
 #include <sysdolphin/baselib/mtx.h>
 #include <sysdolphin/baselib/random.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_fighter_data.h"
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <dolphin/dvd.h>
+static MeleeFighterData* native_fighter_data;
+#endif
 extern MotionState* ftData_CharacterStateTables[Ft_Kind_Max];
 
 /// ==== fighter.c variables ====
@@ -126,7 +134,11 @@ struct Fighter_804D6520_t* Fighter_804D6520 = NULL;
 struct Fighter_804D6524_t* Fighter_804D6524 = NULL;
 struct Fighter_ShakeTable_t* Fighter_SmashChargeShakeTable = NULL;
 struct Fighter_ShakeTable_t* Fighter_GrabMashShake = NULL;
+#ifdef MELEE_NATIVE
+struct Fighter_ShakeTable_t* Fighter_804D6530 = NULL;
+#else
 Vec2** Fighter_804D6530 = NULL;
+#endif
 UNK_T Fighter_804D6534 = NULL;
 struct Fighter_804D653C_t* Fighter_804D6538 = NULL;
 struct Fighter_804D653C_t* Fighter_804D653C = NULL;
@@ -179,7 +191,18 @@ void Fighter_FirstInitialize_80067A84(void)
 void Fighter_LoadCommonData(void)
 {
     void** pData;
+#ifdef MELEE_NATIVE
+    size_t length=0;void* owned=NULL;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("PlCo.dat"),&length);
+    if(!bytes){lbFile_80016760("PlCo.dat",&owned,&length);bytes=owned;}
+    MeleeArchive view;HSD_ASSERT(__LINE__,melee_archive_open(&view,bytes,length));
+    MeleeFighterData* fresh=melee_fighter_data_decode(&view);HSD_ASSERT(__LINE__,fresh);
+    if(owned)lbHeap_80015CA8(0,owned);
+    melee_fighter_data_free(native_fighter_data);native_fighter_data=fresh;
+    pData=melee_fighter_data_entries(fresh);
+#else
     lbArchive_LoadSymbols("PlCo.dat", (void**) &pData, "ftLoadCommonData", 0);
+#endif
 
     // copy 23 4-byte chunks from pData to p_ftCommonData in reverse order,
     // equivalent to this: for(i=0; i<23; i++)

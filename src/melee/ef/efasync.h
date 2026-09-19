@@ -20,4 +20,8 @@
                                 ...);
 /* 0676F0 */ void efAsync_QueueInit(void);
 
+#ifdef MELEE_NATIVE
+void efAsync_NativeReset(void);
+EF_EffectDesc* efAsync_NativeModel(int gfx_id);
+#endif
 #endif

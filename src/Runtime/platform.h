@@ -6,6 +6,15 @@
 
 #include <dolphin/types.h> // IWYU pragma: export
 
+#ifdef MELEE_NATIVE
+/* The original MSL stdbool.h typedefs bool to int. Keep that game ABI on
+ * native builds: using C _Bool changes fields, arrays and callback types.
+ * Host interfaces must use their own explicit boolean type. */
+typedef int MeleeGameBool;
+#undef bool
+#define bool MeleeGameBool
+#endif
+
 /// @typedef bool
 /// @note Dolphin's #BOOL macro is not supported.
 /// @typedef BOOL
@@ -28,7 +37,12 @@
 typedef int enum_t;
 
 /// Signed variant of ::size_t
+#ifdef MELEE_NATIVE
+#include <sys/types.h>
+#include <stdint.h>
+#else
 typedef signed int ssize_t;
+#endif
 
 /// A @c void callback with no arguments.
 typedef void (*Event)(void);

@@ -72,7 +72,11 @@ void ftCo_800C08A0(Fighter_GObj* gobj, Fighter_GObj* arg1, DynamicsDesc* arg2,
     struct SmallerHitCapsule hit;
     int hurt_idx;
     Fighter* fp = GET_FIGHTER(gobj);
+#ifdef MELEE_NATIVE
+    f = ftColl_800765F0(fp, NULL, ((lbColl_80008D30_arg1*) arg2)->damage);
+#else
     f = ftColl_800765F0(fp, NULL, arg2->count);
+#endif
     hurt_idx = 0;
     switch (arg3) {
     case BuryType_Unk2:
@@ -189,7 +193,12 @@ void ftCo_800C0B20(Fighter_GObj* gobj)
             HitCapsule hit;
             float f;
             fp = GET_FIGHTER(gobj);
+#ifdef MELEE_NATIVE
+            f = ftColl_800765F0(fp, NULL,
+                               ((lbColl_80008D30_arg1*) unk_anim)->damage);
+#else
             f = ftColl_800765F0(fp, NULL, unk_anim->count);
+#endif
             hurt_idx = 0;
             fp->bury_timer_1 = p_ftCommonData->bury_timer_unk1;
             if (ftColl_80076640(fp, &f)) {

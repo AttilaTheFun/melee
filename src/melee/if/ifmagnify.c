@@ -550,11 +550,16 @@ void ifMagnify_802FC750(void)
     /// @todo Member accesses in the body fold into the condition's address.
     for (i = 0; i < 6; i++) {
         if (base->player[i].gobj != NULL) {
+#ifdef MELEE_NATIVE
+            HSD_GObjFree(base->player[i].gobj);
+            base->player[i].gobj = NULL;
+#else
             HSD_GObjFree(*(HSD_GObj**) ((u32) base +
                                         i * (s32) sizeof(ifMagnifyPlayer) +
                                         (s32) offsetof(ifMagnify, player)));
             *(HSD_GObj**) ((u32) base + i * (s32) sizeof(ifMagnifyPlayer) +
                            (s32) offsetof(ifMagnify, player)) = NULL;
+#endif
         }
     }
 }
@@ -598,7 +603,9 @@ void ifMagnify_802FC870(void)
     HSD_Archive** archive;
     s32 i;
 
-    memzero(&ifMagnify_804A1DE0, 0x74);
+    /* Clear all player handles; the pointer-bearing prefix grows on ARM64.
+     * Image descriptors follow this prefix and retain the original lifetime. */
+    memzero(&ifMagnify_804A1DE0, offsetof(ifMagnify, image_descs));
     ifMagnify_802FC7C0(&ifMagnify_804A1DE0);
     archive = ifAll_GetArchive();
     lbArchive_LoadSections(*archive, (void**) &ifMagnify_804A1DE0,

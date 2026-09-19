@@ -44,13 +44,13 @@ typedef struct OSSramEx {
     unsigned char _padding1[4];
 } OSSramEx;
 
-unsigned long OSGetSoundMode();
-void OSSetSoundMode(unsigned long mode);
+u32 OSGetSoundMode(void);
+void OSSetSoundMode(u32 mode);
 unsigned long OSGetVideoMode();
 void OSSetVideoMode(unsigned long mode);
 unsigned char OSGetLanguage();
 void OSSetLanguage(unsigned char language);
-unsigned long OSGetProgressiveMode(void);
+u32 OSGetProgressiveMode(void);
 void OSSetProgressiveMode(u32 mode);
 u16 OSGetWirelessID(s32);
 

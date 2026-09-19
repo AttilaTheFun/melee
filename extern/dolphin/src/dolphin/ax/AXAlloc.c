@@ -2,6 +2,9 @@
 
 #include <dolphin.h>
 #include <dolphin/ax.h>
+#ifdef MELEE_NATIVE
+#include "melee_ax_voice.h"
+#endif
 
 static AXVPB* __AXStackHead[AX_PRIORITY_STACKS];
 static AXVPB* __AXStackTail[AX_PRIORITY_STACKS];
@@ -19,6 +22,9 @@ void __AXServiceCallbackStack(void)
     AXVPB* p;
     int old;
 
+#ifdef MELEE_NATIVE
+    int callback_gate = OSDisableInterrupts();
+#endif
     for (p = __AXPopCallbackStack(); p; p = __AXPopCallbackStack()) {
         if (p->callback) {
             p->callback(p);
@@ -28,6 +34,9 @@ void __AXServiceCallbackStack(void)
         __AXPushFreeStack(p);
         OSRestoreInterrupts(old);
     }
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(callback_gate);
+#endif
 }
 
 void __AXInitVoiceStacks(void)
@@ -67,7 +76,11 @@ AXVPB* __AXPopFreeStack(void)
 {
     AXVPB* p;
 
+#ifdef MELEE_NATIVE
+    p = __AXStackHead[0];
+#else
     p = (void*) (u32) &__AXStackHead[0]->next;
+#endif
     if (p) {
         __AXStackHead[0] = p->next;
     }
@@ -84,7 +97,11 @@ AXVPB* __AXPopCallbackStack(void)
 {
     AXVPB* p;
 
+#ifdef MELEE_NATIVE
+    p = __AXCallbackStack;
+#else
     p = (void*) (u32) &__AXCallbackStack[0];
+#endif
     if (p) {
         __AXCallbackStack = p->next1;
     }
@@ -163,6 +180,10 @@ void AXFreeVoice(AXVPB* p)
 
     ASSERTLINE(0x11C, p);
     old = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p) || p->priority <= 0 || p->priority >= AX_PRIORITY_STACKS)
+        OSPanic(__FILE__, __LINE__, "Freeing an unowned or inactive native AX voice");
+#endif
     __AXRemoveFromStack(p);
     if (p->pb.state == 1) {
         p->depop = 1;
@@ -178,6 +199,9 @@ AXVPB* AXAcquireVoice(u32 priority, void (*callback)(void*), u32 userContext)
     AXVPB* p;
     u32 i;
 
+#ifdef MELEE_NATIVE
+    if (!priority || priority >= AX_PRIORITY_STACKS) return NULL;
+#endif
     ASSERTLINE(0x13D, priority);
     ASSERTLINE(0x13E, priority < AX_PRIORITY_STACKS);
 
@@ -215,6 +239,11 @@ void AXSetVoicePriority(AXVPB* p, u32 priority)
     ASSERTLINE(0x17B, priority);
     ASSERTLINE(0x17C, priority < AX_PRIORITY_STACKS);
     old = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p) || p->priority <= 0 || p->priority >= AX_PRIORITY_STACKS ||
+        !priority || priority >= AX_PRIORITY_STACKS)
+        OSPanic(__FILE__, __LINE__, "Invalid native AX voice priority change");
+#endif
     __AXRemoveFromStack(p);
     __AXPushStackHead(p, priority);
     OSRestoreInterrupts(old);

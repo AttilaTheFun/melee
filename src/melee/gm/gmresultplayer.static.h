@@ -118,9 +118,17 @@ extern u32 gmResultScoreTableInit[0x20 / sizeof(u32)];
 extern ResultsCharacterData gmResultCharacterData;
 extern HSD_CameraDescPerspective gmResultCameraDesc;
 
+#ifdef MELEE_NATIVE
+extern ResultsDisplayLayout melee_results_display;
+#define lbl_8046E1B0 melee_results_display
+#define lbl_8046E38C (melee_results_display.gobjs)
+#define lbl_8046E39C (melee_results_display.jobjs)
+#define lbl_8046E3AC (melee_results_display.state)
+#else
 extern ResultsDisplayData lbl_8046E1B0;
 extern HSD_GObj* lbl_8046E38C[4];
 extern HSD_JObj* lbl_8046E39C[4];
 extern lbl_8046E3AC_t lbl_8046E3AC;
+#endif
 
 #endif

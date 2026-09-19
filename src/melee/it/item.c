@@ -532,6 +532,9 @@ static bool Item_8026784C(enum_t dropItem, int _)
 void Item_80267978(HSD_GObj* gobj)
 {
     Item* item_data = gobj->user_data;
+#ifdef MELEE_NATIVE
+    if(item_data->kind<It_Kind_Old_Kuri)itNative_RequireArticle(item_data->kind);
+#endif
     if (item_data->kind < It_Kind_Kuriboh) {
         // Common items
         item_data->xC4_article_data = it_804D6D24[item_data->kind];

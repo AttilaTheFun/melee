@@ -38,6 +38,16 @@
 #include <sysdolphin/baselib/sislib.h>
 #include <sysdolphin/baselib/wobj.h>
 
+#ifdef MELEE_NATIVE
+/* Windowless fixture only; zero preserves the retail random selection. */
+static int native_test_form;
+void grStadium_NativeTestNextForm(int form)
+{
+    HSD_ASSERT(__LINE__,form==3||form==4||form==6||form==9);
+    native_test_form=form;
+}
+#endif
+
 static struct grPStadium_YakumonoParam {
     int x0;
     int x4;
@@ -1192,7 +1202,11 @@ HSD_GObj* grStadium_801D2BEC(void)
     gobj->gxlink_prios = 2;
     text = HSD_MemAlloc(sizeof(*text));
     GObj_InitUserData(gobj, 3, HSD_Free, text);
+#ifdef MELEE_NATIVE
+    memzero(text, sizeof(*text));
+#else
     memzero(text, 0x18);
+#endif
     lb_800121FC(&text->desc, 0xFA, 0xA0, 4, 0x7D2);
     archive = grDatFiles_GetArchive();
     HSD_SisLib_803A611C(1, gobj, 9, 0xD, 0, 1, 0, 1);
@@ -1215,7 +1229,11 @@ HSD_GObj* grStadium_801D2D78(void)
 
     temp_r3 = GObj_Create(0x11, 0x12, 0);
     GObj_SetupGXLinkMax(temp_r3, grStadium_801D2FD0, 3);
+#ifdef MELEE_NATIVE
+    wrapper = HSD_MemAlloc(sizeof(*wrapper));
+#else
     wrapper = HSD_MemAlloc(0x1C);
+#endif
     GObj_InitUserData(temp_r3, 3, HSD_Free, wrapper);
     memzero(&wrapper->desc, sizeof(wrapper->desc));
     lb_800121FC(&wrapper->desc, 0x280, 0x196, 4, 0x7D3);
@@ -1867,7 +1885,7 @@ void grStadium_801D4194(Ground_GObj* arg0)
 }
 
 /// HSD_DevComCallback
-static void fn_801D4220(int dcreq, int args, void* buf, bool cancelflag)
+static void fn_801D4220(int dcreq, HSD_DevComArg args, void* buf, bool cancelflag)
 {
     Ground_GObj* map_gobj;
     Ground* gp;
@@ -2065,6 +2083,9 @@ void grStadium_801D4548(Ground_GObj* gobj)
                 do {
                     idx = HSD_Randi(ARRAY_SIZE(sp60));
                 } while (temp_r31->u.stadium.xE2 == (var_r4 = sp60[idx]));
+#ifdef MELEE_NATIVE
+                if(native_test_form){var_r4=native_test_form;native_test_form=0;}
+#endif
             } else {
                 var_r4 = 5;
             }
@@ -2106,7 +2127,11 @@ void grStadium_801D4548(Ground_GObj* gobj)
         }
         break;
     case 2:
+#ifdef MELEE_NATIVE
+        temp_r31->u.stadium.xD8 = 0;
+#else
         temp_r31->u.display.xD8 = NULL;
+#endif
         temp_r3_6 = Ground_GetMapGObj(1);
         if (temp_r3_6 != NULL) {
             temp_r0_2 = temp_r31->u.stadium.xDE;
@@ -2221,7 +2246,12 @@ void grStadium_801D4548(Ground_GObj* gobj)
         if (temp_r31->u.stadium.xDE == 5) {
             temp_r31->u.stadium.xD8 =
                 randi_between_2(yakumono_param->x0, yakumono_param->x4);
+#ifdef MELEE_NATIVE
+            grAnime_801C65B0(temp_r31->u.stadium.xD0);
+            temp_r31->u.stadium.xD0 = NULL;
+#else
             grAnime_801C65B0((void*) temp_r31->u.stadium.xCC);
+#endif
             mpLib_800575B0(0x55);
             mpLib_800575B0(0x6F);
         } else {

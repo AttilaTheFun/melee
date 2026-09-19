@@ -4,6 +4,14 @@
 #include <Runtime/platform.h>
 
 #include <placeholder.h>
+#include "hsd_3B27.h"
+#ifdef MELEE_NATIVE
+struct HSD_NativeCardCommands {
+    HSD_CardWord context[4];
+    HSD_CardWord commands[128][9];
+};
+extern struct HSD_NativeCardCommands hsd_native_card_commands;
+#endif
 
 #include <dolphin/card.h>
 #include <Runtime/Gecko_setjmp.h>
@@ -38,7 +46,7 @@ typedef struct CardState {
 
 /* 3AA790 */ s32 fn_803AA790(void);
 /* 3AAA48 */ void hsd_803AAA48(void);
-/* 3AC168 */ s32 fn_803AC168(s32* cmd_buf);
+/* 3AC168 */ s32 fn_803AC168(HSD_CardWord* cmd_buf);
 /* 3AC258 */ s32 fn_803AC258(CardState* card_state, s32 block_idx);
 /* 3AC2A4 */ s32 fn_803AC2A4(CardState* card_state);
 /* 3AC2D4 */ UNK_RET fn_803AC2D4(UNK_PARAMS);
@@ -63,28 +71,42 @@ typedef struct CardState {
                              s32 seq_num, void* payload, s32 payload_size,
                              s32 version);
 /* 3AD16C */ s32 fn_803AD16C(CardState* state);
-/* 3ADE4C */ s32 fn_803ADE4C(s32 card_state, s32 channel, s32 callback);
+/* 3ADE4C */ s32 fn_803ADE4C(HSD_CardWord card_state, s32 channel, HSD_CardWord callback);
 /* 3ADF90 */ s32 fn_803ADF90(struct CardState*, s32, u8*, s32,
                              void (*)(s32, s32));
-/* 3AE7F8 */ s32 fn_803AE7F8(struct CardState*, s32, s32, s32, s32);
-/* 3AF3F0 */ s32 fn_803AF3F0(CardState* state, s32, s32, s32, s32);
-/* 3B0120 */ s32 fn_803B0120(CardState* state, s32, s32, s32, s32);
-/* 3B0E9C */ s32 fn_803B0E9C(struct CardState*, s32, s32, s32, s32);
+/* 3AE7F8 */ s32 fn_803AE7F8(struct CardState*, s32, HSD_CardWord, s32, HSD_CardWord);
+/* 3AF3F0 */ s32 fn_803AF3F0(CardState* state, s32, HSD_CardWord, s32, HSD_CardWord);
+/* 3B0120 */ s32 fn_803B0120(CardState* state, s32, HSD_CardWord, s32, HSD_CardWord);
+/* 3B0E9C */ s32 fn_803B0E9C(struct CardState*, HSD_CardWord, HSD_CardWord, s32, s32);
 /* 3B1338 */ s32 fn_803B1338(CardState* state, s32);
-/* 3B1F78 */ s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id,
-                             s32 seq_num, s32 callback);
-/* 3B21E8 */ s32 fn_803B21E8(s32 card_state, s32 file_id, s32 seq_num,
-                             s32 callback);
+/* 3B1F78 */ s32 fn_803B1F78(CardState* state, HSD_CardWord channel, HSD_CardWord file_id,
+                             HSD_CardWord seq_num, HSD_CardWord callback);
+/* 3B21E8 */ s32 fn_803B21E8(HSD_CardWord card_state, HSD_CardWord file_id, HSD_CardWord seq_num,
+                             HSD_CardWord callback);
 /* 3B2374 */ void hsd_803B2374(void);
 /* 3B24E4 */ void hsd_803B24E4(s32* ctx, int channel, int file_no,
                                void* work_buf);
 /* 3B2550 */ int hsd_803B2550(s32*, const char*, void (*)(int, int));
 /* 3B2674 */ s32 hsd_803B2674(CardState* state);
-/* 3B26CC */ s32 fn_803B26CC(CardState* state, s32 file_id, s32 seq_num,
-                             s32 version, void (*callback)(s32, s32));
+/* 3B26CC */ s32 fn_803B26CC(CardState* state, HSD_CardWord file_id, HSD_CardWord seq_num,
+                             HSD_CardWord version, void (*callback)(s32, s32));
 /* 4D1138 */ extern u8 hsd_804D1138[0x10];
+#ifdef MELEE_NATIVE
+union HSD_NativeJpegWork {
+    __jmp_buf jump;
+    u8 bytes[0x828];
+};
+extern union HSD_NativeJpegWork hsd_native_jpeg_work;
+#define hsd_804D2648 (hsd_native_jpeg_work.jump)
+#else
 /* 4D2648 */ extern __jmp_buf hsd_804D2648;
-/* 4D2E70 */ extern u8 hsd_804D2E70[2084];
+#endif
+/* 4D2E70 */
+#ifdef MELEE_NATIVE
+extern u8 hsd_804D2E70[0x828];
+#else
+extern u8 hsd_804D2E70[2084];
+#endif
 /* 4D7990 */ extern s32 hsd_804D7990;
 /* 4D7994 */ extern s32 hsd_804D7994;
 /* 4D79A0 */ extern u8* hsd_804D79A0;

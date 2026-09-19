@@ -86,6 +86,25 @@ static inline void lbAnim_JObjSortAnim(HSD_AObj* aobj)
     }
 }
 
+#ifdef MELEE_NATIVE
+/* Load a fighter's tracks before the native joint/renderer bridge is ready.
+ * The caller owns the AObj and must keep the FigaTree bytecode alive. */
+HSD_AObj* lbAnim_LoadAObj(FigaTree* tree, FigaTrack* track, s8 frames)
+{
+    HSD_AObj* aobj;
+    if (tree == NULL || track == NULL || frames <= 0) {
+        return NULL;
+    }
+    aobj = HSD_AObjAlloc();
+    HSD_AObjSetFlags(aobj, tree->flags);
+    HSD_AObjSetRewindFrame(aobj, 0.0F);
+    HSD_AObjSetEndFrame(aobj, tree->frames);
+    HSD_AObjSetFObj(aobj, lbAnim_InitFrames(track, frames));
+    lbAnim_JObjSortAnim(aobj);
+    return aobj;
+}
+#endif
+
 void lbAnim_8001E6D8(HSD_JObj* jobj, FigaTree* tree, FigaTrack* track,
                      s8 frames)
 {
@@ -96,6 +115,10 @@ void lbAnim_8001E6D8(HSD_JObj* jobj, FigaTree* tree, FigaTrack* track,
         if (jobj->aobj != NULL) {
             HSD_AObjRemove(jobj->aobj);
         }
+#ifdef MELEE_NATIVE
+        aobj = lbAnim_LoadAObj(tree, track, frames);
+        jobj->aobj = aobj;
+#else
         aobj = HSD_AObjAlloc();
         HSD_AObjSetFlags(aobj, tree->flags);
         HSD_AObjSetRewindFrame(aobj, 0.0F);
@@ -103,6 +126,7 @@ void lbAnim_8001E6D8(HSD_JObj* jobj, FigaTree* tree, FigaTrack* track,
         HSD_AObjSetFObj(aobj, lbAnim_InitFrames(track, frames));
         jobj->aobj = aobj;
         lbAnim_JObjSortAnim(jobj->aobj);
+#endif
         if (tree->type & 1) {
             HSD_JObjSetFlags(jobj, JOBJ_CLASSICAL_SCALE);
         } else {

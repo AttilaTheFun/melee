@@ -6,8 +6,13 @@
 #include <sysdolphin/baselib/debug.h>
 
 typedef struct _objheap {
+#ifdef MELEE_NATIVE
+    uintptr_t top;
+    uintptr_t curr;
+#else
     u32 top;
     u32 curr;
+#endif
     u32 size;
     u32 remain;
 } objheap;

@@ -6,6 +6,11 @@
 #include <sysdolphin/baselib/forward.h>
 
 #include <sysdolphin/baselib/archive.h>
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+/* Replace only after objects borrowing the previous scene have been removed. */
+SceneDesc* lbArchive_NativeLoadScene(const char* basename,MeleeSceneDesc** owner);
+#endif
 
 void lbArchive_InitializeDAT(HSD_Archive* archive, void* data, size_t length);
 void lbArchive_LoadSections(HSD_Archive* archive, void** symbols, ...);

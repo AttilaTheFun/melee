@@ -3,6 +3,21 @@
 #include <dolphin.h>
 #include <dolphin/ax.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_ax_voice.h"
+#include <math.h>
+#include <string.h>
+/* Output mode is consumed here only to construct the original mixer flags.
+ * Native mixing/output has not yet been implemented. */
+u32 __AXClMode;
+static int native_voice_lock(AXVPB* voice)
+{
+    int old = OSDisableInterrupts();
+    if (!melee_ax_voice_owned(voice) || voice->priority <= 0)
+        OSPanic(__FILE__, __LINE__, "Updating an unowned or inactive native AX voice");
+    return old;
+}
+#else
 static unsigned long __AXSrcCycles[5] = { 0x00000DF8, 0x00000F78, 0x000014B8,
                                           0x000019F8, 0x000019F8 };
 
@@ -726,14 +741,23 @@ void __AXVPBQuit(void)
 #endif
 }
 
+#endif
+
 void AXSetVoiceSrcType(AXVPB* p, u32 type)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     AXPB* ppb;
 
     ASSERTLINE(0x35E, p);
     ASSERTLINE(0x35F, type <= AX_SRC_TYPE_4TAP_16K);
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     ppb = &p->pb;
     switch (type) {
     case AX_SRC_TYPE_NONE:
@@ -761,9 +785,16 @@ void AXSetVoiceSrcType(AXVPB* p, u32 type)
 
 void AXSetVoiceState(AXVPB* p, u16 state)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.state = state;
     p->sync |= AX_SYNC_FLAG_COPYSTATE;
     if (state == 0) {
@@ -774,9 +805,16 @@ void AXSetVoiceState(AXVPB* p, u16 state)
 
 void AXSetVoiceType(AXVPB* p, u16 type)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.type = type;
     p->sync |= AX_SYNC_FLAG_COPYTYPE;
     OSRestoreInterrupts(old);
@@ -784,6 +822,9 @@ void AXSetVoiceType(AXVPB* p, u16 type)
 
 void AXSetVoiceMix(AXVPB* p, AXPBMIX* mix)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u16 mixerCtrl;
     u16* dst;
@@ -792,8 +833,15 @@ void AXSetVoiceMix(AXVPB* p, AXPBMIX* mix)
     src = (u16*) mix;
     dst = (u16*) &p->pb.mix;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
 
+#ifdef MELEE_NATIVE
+    p->pb.mix = *mix;
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -850,6 +898,7 @@ void AXSetVoiceMix(AXVPB* p, AXPBMIX* mix)
         dst += 1;
         src += 1;
     }
+#endif
     mixerCtrl = 0;
     if (__AXClMode == 4) {
         if ((mix->vAuxAL != 0) || (mix->vAuxAR != 0)) {
@@ -891,9 +940,16 @@ void AXSetVoiceMix(AXVPB* p, AXPBMIX* mix)
 
 void AXSetVoiceItdOn(AXVPB* p)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.itd.flag = 1;
     p->pb.itd.shiftL = p->pb.itd.shiftR = p->pb.itd.targetShiftL =
         p->pb.itd.targetShiftR = 0;
@@ -904,9 +960,16 @@ void AXSetVoiceItdOn(AXVPB* p)
 
 void AXSetVoiceItdTarget(AXVPB* p, u16 lShift, u16 rShift)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.itd.targetShiftL = lShift;
     p->pb.itd.targetShiftR = rShift;
     p->sync |= AX_SYNC_FLAG_COPYTSHIFT;
@@ -915,9 +978,20 @@ void AXSetVoiceItdTarget(AXVPB* p, u16 lShift, u16 rShift)
 
 void AXSetVoiceUpdateIncrement(AXVPB* p)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    if (p->updateMS >= 4)
+        OSPanic(__FILE__, __LINE__, "Native AX updates exceed the five-millisecond block");
+#endif
     p->updateMS++;
     p->sync |= AX_SYNC_FLAG_COPYUPDATE;
     ASSERTMSGLINE(0x431, p->updateMS <= 4, "PB updates cannot exceed 5ms\n");
@@ -926,9 +1000,20 @@ void AXSetVoiceUpdateIncrement(AXVPB* p)
 
 void AXSetVoiceUpdateWrite(AXVPB* p, u16 param, u16 data)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    if (p->updateCounter > 126 || p->updateWrite != p->updateData + p->updateCounter)
+        OSPanic(__FILE__, __LINE__, "Native AX update buffer exhausted");
+#endif
     p->updateCounter += 2;
     ASSERTMSGLINE(0x43F, p->updateCounter <= 128,
                   "PB update block exceeded 128 words\n");
@@ -942,6 +1027,9 @@ void AXSetVoiceUpdateWrite(AXVPB* p, u16 param, u16 data)
 
 void AXSetVoiceDpop(AXVPB* p, AXPBDPOP* dpop)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u16* dst;
     u16* src;
@@ -949,7 +1037,14 @@ void AXSetVoiceDpop(AXVPB* p, AXPBDPOP* dpop)
     dst = (void*) &p->pb.dpop;
     src = (void*) dpop;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    p->pb.dpop = *dpop;
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -979,15 +1074,23 @@ void AXSetVoiceDpop(AXVPB* p, AXPBDPOP* dpop)
         dst += 1;
         src += 1;
     }
+#endif
     p->sync |= AX_SYNC_FLAG_COPYDPOP;
     OSRestoreInterrupts(old);
 }
 
 void AXSetVoiceVe(AXVPB* p, AXPBVE* ve)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.ve.currentVolume = ve->currentVolume;
     p->pb.ve.currentDelta = ve->currentDelta;
     p->sync |= AX_SYNC_FLAG_COPYVOL;
@@ -996,9 +1099,16 @@ void AXSetVoiceVe(AXVPB* p, AXPBVE* ve)
 
 void AXSetVoiceVeDelta(AXVPB* p, s16 delta)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.ve.currentDelta = delta;
     p->sync |= AX_SYNC_FLAG_SWAPVOL;
     OSRestoreInterrupts(old);
@@ -1006,9 +1116,16 @@ void AXSetVoiceVeDelta(AXVPB* p, s16 delta)
 
 void AXSetVoiceFir(AXVPB* p, AXPBFIR* fir)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.fir.numCoefs = fir->numCoefs;
     p->pb.fir.coefsHi = fir->coefsHi;
     p->pb.fir.coefsLo = fir->coefsLo;
@@ -1018,6 +1135,9 @@ void AXSetVoiceFir(AXVPB* p, AXPBFIR* fir)
 
 void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u32* dst;
     u32* src;
@@ -1025,7 +1145,23 @@ void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr)
     dst = (void*) &p->pb.addr;
     src = (void*) addr;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    if (!addr || (addr->format != 0 && addr->format != 10 && addr->format != 25))
+        OSPanic(__FILE__, __LINE__, "Invalid native AX sample format");
+    if (addr->format == 0 && ((addr->loopAddressLo & 15) < 2 ||
+        (addr->endAddressLo & 15) < 2 || (addr->currentAddressLo & 15) < 2))
+        OSPanic(__FILE__, __LINE__, "Native AX ADPCM address points into a frame header");
+    p->pb.addr = *addr;
+    if (addr->format != 0) {
+        memset(&p->pb.adpcm, 0, sizeof(p->pb.adpcm));
+        p->pb.adpcm.gain = addr->format == 10 ? 0x0800 : 0x0100;
+    }
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -1097,6 +1233,7 @@ void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr)
         ASSERTMSGLINE(0x4F0, 0, "unknown addr->formaqt in PB\n");
         break;
     }
+#endif
     p->sync &= ~(AX_SYNC_FLAG_COPYLOOP | AX_SYNC_FLAG_COPYLOOPADDR |
                  AX_SYNC_FLAG_COPYENDADDR | AX_SYNC_FLAG_COPYCURADDR);
     p->sync |= (AX_SYNC_FLAG_COPYADDR | AX_SYNC_FLAG_COPYADPCM);
@@ -1105,9 +1242,16 @@ void AXSetVoiceAddr(AXVPB* p, AXPBADDR* addr)
 
 void AXSetVoiceLoop(AXVPB* p, u16 loop)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.addr.loopFlag = loop;
     p->sync |= AX_SYNC_FLAG_COPYLOOP;
     OSRestoreInterrupts(old);
@@ -1115,9 +1259,16 @@ void AXSetVoiceLoop(AXVPB* p, u16 loop)
 
 void AXSetVoiceLoopAddr(AXVPB* p, u32 addr)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.addr.loopAddressHi = (addr >> 0x10U);
     p->pb.addr.loopAddressLo = (addr);
     p->sync |= AX_SYNC_FLAG_COPYLOOPADDR;
@@ -1126,9 +1277,16 @@ void AXSetVoiceLoopAddr(AXVPB* p, u32 addr)
 
 void AXSetVoiceEndAddr(AXVPB* p, u32 addr)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.addr.endAddressHi = (addr >> 0x10U);
     p->pb.addr.endAddressLo = (addr);
     p->sync |= AX_SYNC_FLAG_COPYENDADDR;
@@ -1137,9 +1295,16 @@ void AXSetVoiceEndAddr(AXVPB* p, u32 addr)
 
 void AXSetVoiceCurrentAddr(AXVPB* p, u32 addr)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
     p->pb.addr.currentAddressHi = (addr >> 0x10U);
     p->pb.addr.currentAddressLo = (addr);
     p->sync |= AX_SYNC_FLAG_COPYCURADDR;
@@ -1148,6 +1313,9 @@ void AXSetVoiceCurrentAddr(AXVPB* p, u32 addr)
 
 void AXSetVoiceAdpcm(AXVPB* p, AXPBADPCM* adpcm)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u32* dst;
     u32* src;
@@ -1155,8 +1323,15 @@ void AXSetVoiceAdpcm(AXVPB* p, AXPBADPCM* adpcm)
     dst = (void*) &p->pb.adpcm;
     src = (void*) adpcm;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
 
+#ifdef MELEE_NATIVE
+    p->pb.adpcm = *adpcm;
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -1189,12 +1364,16 @@ void AXSetVoiceAdpcm(AXVPB* p, AXPBADPCM* adpcm)
         dst += 1;
         src += 1;
     }
+#endif
     p->sync |= AX_SYNC_FLAG_COPYADPCM;
     OSRestoreInterrupts(old);
 }
 
 void AXSetVoiceSrc(AXVPB* p, AXPBSRC* src_)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u16* dst;
     u16* src;
@@ -1202,7 +1381,14 @@ void AXSetVoiceSrc(AXVPB* p, AXPBSRC* src_)
     dst = (void*) &p->pb.src;
     src = (void*) src_;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    p->pb.src = *src_;
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -1226,6 +1412,7 @@ void AXSetVoiceSrc(AXVPB* p, AXPBSRC* src_)
         dst += 1;
         src += 1;
     }
+#endif
     p->sync &= ~(AX_SYNC_FLAG_COPYRATIO);
     p->sync |= AX_SYNC_FLAG_COPYSRC;
     OSRestoreInterrupts(old);
@@ -1233,14 +1420,27 @@ void AXSetVoiceSrc(AXVPB* p, AXPBSRC* src_)
 
 void AXSetVoiceSrcRatio(AXVPB* p, float ratio)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     u32 r;
     int old;
 
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    if (!isfinite(ratio) || ratio < 0)
+        OSPanic(__FILE__, __LINE__, "Invalid native AX sample-rate ratio");
+    r = ratio >= 4.0f ? 0x40000 : (u32) (65536.0f * ratio);
+#else
     r = 65536.0f * ratio;
     if (r > 0x40000) {
         r = 0x40000;
     }
+#endif
     p->pb.src.ratioHi = ((u32) r >> 0x10);
     p->pb.src.ratioLo = ((u32) r);
     p->sync |= AX_SYNC_FLAG_COPYRATIO;
@@ -1249,13 +1449,23 @@ void AXSetVoiceSrcRatio(AXVPB* p, float ratio)
 
 void AXSetVoiceAdpcmLoop(AXVPB* p, AXPBADPCMLOOP* adpcmloop)
 {
+#ifdef MELEE_NATIVE
+    if (!melee_ax_voice_owned(p)) OSPanic(__FILE__, __LINE__, "Invalid native AX voice");
+#endif
     int old;
     u16* dst;
     u16* src;
 
     dst = (void*) &p->pb.adpcmLoop;
     src = (void*) adpcmloop;
+    #ifdef MELEE_NATIVE
+    old = native_voice_lock(p);
+#else
     old = OSDisableInterrupts();
+#endif
+#ifdef MELEE_NATIVE
+    p->pb.adpcmLoop = *adpcmloop;
+#else
     {
         *(dst) = *(src);
         dst += 1;
@@ -1267,10 +1477,12 @@ void AXSetVoiceAdpcmLoop(AXVPB* p, AXPBADPCMLOOP* adpcmloop)
         dst += 1;
         src += 1;
     }
+#endif
     p->sync |= AX_SYNC_FLAG_COPYADPCMLOOP;
     OSRestoreInterrupts(old);
 }
 
+#ifndef MELEE_NATIVE
 void AXSetMaxDspCycles(u32 cycles)
 {
     __AXMaxDspCycles = cycles;
@@ -1285,3 +1497,5 @@ u32 AXGetDspCycles(void)
 {
     return __AXRecDspCycles;
 }
+
+#endif

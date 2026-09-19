@@ -23,7 +23,13 @@ typedef struct {
     u8 b7 : 1, b6 : 1, b5 : 1, b4 : 1, b3 : 1, b2 : 1, b1 : 1, b0 : 1;
 } u8_bits;
 
+#ifdef MELEE_NATIVE
+/* Callback pointers grow on 64-bit hosts; use the complete runtime type. */
+static UnkAllstarData native_allstar_data;
+#define lbl_80472CB0 ((u8*) &native_allstar_data)
+#else
 static u8 lbl_80472CB0[0x78];
+#endif
 
 AllstarStageEntry lbl_803D85F0[55] = {
     { 4, 0, 0x3c, 0xaf, { 0, 0, 9 } },
@@ -162,7 +168,7 @@ bool fn_8017EDDC(void)
 #pragma push
 #pragma dont_inline on
 #endif
-void fn_8017EE40(int arg0_int)
+void fn_8017EE40(intptr_t arg0_int)
 {
     MatchEnd* arg0 = (MatchEnd*) arg0_int;
     struct StartMeleeRules* rules;

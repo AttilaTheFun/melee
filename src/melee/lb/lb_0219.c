@@ -7,6 +7,14 @@
  */
 
 #include "lb_0219.h"
+#ifdef MELEE_NATIVE
+#include "melee_item_colors.h"
+#include "lbdvd.h"
+#include "lbfile.h"
+#include "lbheap.h"
+#include <dolphin/dvd.h>
+static MeleeItemColors* native_bg_colors;
+#endif
 
 #include <placeholder.h>
 
@@ -43,12 +51,22 @@ void lbBgFlash_80021A10(f32 arg8)
     lbl_804D63D8 = arg8;
 }
 
+typedef struct BgFlashUserData {
+    u8 x0;
+    u8 pad_01[3];
+    ColorOverlay x4;
+} BgFlashUserData;
+
 void lbBgFlash_80021A18(int arg0)
 {
     HSD_GObj* gobj;
     u8* user_data;
 
+#ifdef MELEE_NATIVE
+    HSD_ObjAllocInit(&lbl_804336A0, sizeof(BgFlashUserData), _Alignof(BgFlashUserData));
+#else
     HSD_ObjAllocInit(&lbl_804336A0, 0x84, 4);
+#endif
     gobj = GObj_Create(0xE, 0xE, 0);
     if (gobj != NULL) {
         user_data = HSD_ObjAlloc(&lbl_804336A0);
@@ -57,8 +75,23 @@ void lbBgFlash_80021A18(int arg0)
             lbl_804D63E0 = (BgFlashGlobal*) gobj;
             lbl_804D63D8 = 1.0f;
             *user_data = (u8) arg0;
+#ifdef MELEE_NATIVE
+            if(!native_bg_colors){
+                size_t size=0;void* owned=NULL;
+                const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("LbBf.dat"),&size);
+                if(!bytes){lbFile_80016760("LbBf.dat",&owned,&size);bytes=owned;}
+                MeleeArchive archive;u32 root;
+                HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,size));
+                HSD_ASSERT(__LINE__,melee_archive_find(&archive,"lbBgFlashColAnimData",&root));
+                native_bg_colors=melee_item_colors_decode(&archive,root,16);
+                if(owned)lbHeap_80015CA8(0,owned);
+                HSD_ASSERT(__LINE__,native_bg_colors);
+            }
+            lbl_804D63DC=melee_item_colors_entries(native_bg_colors);
+#else
             lbArchive_LoadSymbols("LbBf.dat", &lbl_804D63DC,
                                   "lbBgFlashColAnimData", NULL);
+#endif
             lbBgFlash_800208EC(6);
             fn_80021C1C();
             HSD_GObj_SetupProc(gobj, (HSD_GObjEvent) fn_80021B04, 1);
@@ -68,11 +101,6 @@ void lbBgFlash_80021A18(int arg0)
     }
 }
 
-typedef struct BgFlashUserData {
-    u8 x0;
-    u8 pad_01[3];
-    ColorOverlay x4;
-} BgFlashUserData;
 
 #ifdef MUST_MATCH
 #pragma push
@@ -113,7 +141,7 @@ void fn_80021C1C(void)
 {
     HSD_GObj* gobj = (HSD_GObj*) lbl_804D63E0;
     u8* user_data = gobj->user_data;
-    lb_80014498((ColorOverlay*) (user_data + 4));
+    lb_80014498(&((BgFlashUserData*)user_data)->x4);
 }
 
 void lbBgFlash_80021C48(u32 arg0, u32 arg1)
@@ -121,7 +149,12 @@ void lbBgFlash_80021C48(u32 arg0, u32 arg1)
     struct {
         u8 unk0[4];
         ColorOverlay x4;
-    }* data = lbl_804D63E0->x2C;
+    }* data =
+#ifdef MELEE_NATIVE
+        ((HSD_GObj*)lbl_804D63E0)->user_data;
+#else
+        lbl_804D63E0->x2C;
+#endif
     lb_800144C8(&data->x4, lbl_804D63DC, arg0, arg1);
 }
 

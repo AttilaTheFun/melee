@@ -3,6 +3,10 @@
 
 #include <sysdolphin/baselib/forward.h>
 
+#ifdef MELEE_NATIVE
+bool mnCharSel_NativeTargetDelta(unsigned slot,unsigned kind,float* dx,float* dy);
+#endif
+
 /* 25BC20 */ TextKerning* mnCharSel_8025BC20(TextKerning* arg0, u32 arg1);
 /* 25BD30 */ void mnCharSel_8025BD30(void);
 /* 25C020 */ void mnCharSel_8025C020(int);

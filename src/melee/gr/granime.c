@@ -47,16 +47,22 @@
                                           u32 type, void* param, int arg5);
 ///* 1C7B24 */ static void grAnime_801C7B24(HSD_GObj* gobj, int arg1, u32 arg2,
 ///                                          f32 arg8);
+#ifdef MELEE_NATIVE
+static void fn_801C82E8(HSD_AObj* aobj, void* context);
+#else
 /* 1C82E8 */ static void fn_801C82E8(int arg0, int* arg1);
+#endif
 /* 4D6958 */ static float grAnime_804D6958;
 /* 4D695C */ static float grAnime_804D695C;
 
+#ifndef MELEE_NATIVE
 struct padded_jmp_buf {
     __jmp_buf buf;
     u8 pad[0x118 - 0xF8];
 };
 
 /* 49EE40 */ struct padded_jmp_buf grAnime_8049EE40;
+#endif
 
 /// @todo .sdata order hack
 #ifdef MUST_MATCH
@@ -73,6 +79,9 @@ void grAnime_801C65B0(UnkArchiveStruct* arg0)
     if (arg0 == NULL) {
         return;
     }
+#ifdef MELEE_NATIVE
+    if(grDatFiles_NativeRelease(arg0->unk0)){memzero(arg0,sizeof(*arg0));return;}
+#endif
     if ((uintptr_t) arg0->unk0 != -1U) {
         if (arg0->unk8 == 0) {
             lbArchive_80016EFC(arg0->unk0);
@@ -136,6 +145,9 @@ void grAnime_801C6710(HSD_TObj* tobj, HSD_TexAnim* texanim)
         }
         tobj->aobj = HSD_AObjLoadDesc(texanim->aobjdesc);
         tobj->imagetbl = texanim->imagetbl;
+#ifdef MELEE_NATIVE
+        tobj->native_image_count = texanim->n_imagetbl;
+#endif
     }
 }
 
@@ -886,6 +898,22 @@ void grAnime_801C7BA0(HSD_GObj* gobj, int arg1, u32 arg2, f32 arg8)
     HSD_JObjReqAnimByFlags(jobj, var_r31, arg8);
 }
 
+#ifdef MELEE_NATIVE
+/* Retail descriptor arrays use depth-first joint order. Native descriptors
+ * are separately owned tree nodes, so pointer arithmetic cannot select them. */
+#define NATIVE_ANIM_INDEX(name, type) \
+static type* name(type* node, int* index) { \
+    if (!node || *index < 0) return NULL; \
+    if ((*index)-- == 0) return node; \
+    type* found = name(node->child, index); \
+    return found ? found : name(node->next, index); \
+}
+NATIVE_ANIM_INDEX(native_joint_animation, HSD_AnimJoint)
+NATIVE_ANIM_INDEX(native_material_animation, HSD_MatAnimJoint)
+NATIVE_ANIM_INDEX(native_shape_animation, HSD_ShapeAnimJoint)
+#undef NATIVE_ANIM_INDEX
+#endif
+
 void grAnime_801C7C1C(HSD_JObj* jobj, s32 map_id, s32 arg2, s32 arg3, s32 arg4,
                       int arg5, f32 farg0, f32 farg1)
 {
@@ -909,7 +937,13 @@ void grAnime_801C7C1C(HSD_JObj* jobj, s32 map_id, s32 arg2, s32 arg3, s32 arg4,
     if ((arg3 & 1) && (ajp = archive->unk4->unk8[map_id].unk4, ajp != NULL) &&
         ((aj = ajp[arg4]) != NULL))
     {
+#ifdef MELEE_NATIVE
+        int index = arg2;
+        aj = native_joint_animation(aj, &index);
+        HSD_ASSERT(__LINE__, aj);
+#else
         aj = &aj[arg2];
+#endif
         req_flags |= 0x81;
         anim_flags |= 0x220;
     } else {
@@ -918,7 +952,13 @@ void grAnime_801C7C1C(HSD_JObj* jobj, s32 map_id, s32 arg2, s32 arg3, s32 arg4,
     if ((arg3 & 2) && (mjp = archive->unk4->unk8[map_id].unk8, mjp != NULL) &&
         ((mj = mjp[arg4]) != NULL))
     {
+#ifdef MELEE_NATIVE
+        int index = arg2;
+        mj = native_material_animation(mj, &index);
+        HSD_ASSERT(__LINE__, mj);
+#else
         mj = &mj[arg2];
+#endif
         req_flags |= 0x416;
         anim_flags |= 0x7484;
     } else {
@@ -927,7 +967,13 @@ void grAnime_801C7C1C(HSD_JObj* jobj, s32 map_id, s32 arg2, s32 arg3, s32 arg4,
     if ((arg3 & 4) && (sjp = archive->unk4->unk8[map_id].unkC, sjp != NULL) &&
         ((sj = sjp[arg4]) != NULL))
     {
+#ifdef MELEE_NATIVE
+        int index = arg2;
+        sj = native_shape_animation(sj, &index);
+        HSD_ASSERT(__LINE__, sj);
+#else
         sj = &sj[arg2];
+#endif
         req_flags |= 8;
         anim_flags |= 0x100;
     } else {
@@ -1047,17 +1093,43 @@ void grAnime_801C8138(HSD_GObj* gobj, enum_t arg1, bool arg2)
     HSD_JObjAnimAll(jobj);
 }
 
+#ifdef MELEE_NATIVE
+typedef struct NativeAnimeSearch {
+    jmp_buf escape;
+    HSD_AObj* volatile result;
+} NativeAnimeSearch;
+
+static void fn_801C82E8(HSD_AObj* aobj, void* context)
+{
+    NativeAnimeSearch* search = context;
+    search->result = aobj;
+    longjmp(search->escape, 1);
+}
+
+HSD_AObj* grAnime_FindFirstAObj(HSD_JObj* jobj, u32 mask)
+{
+    NativeAnimeSearch search = {0};
+    if (setjmp(search.escape) == 0) {
+        HSD_ForeachAnim(jobj, JOBJ_TYPE, mask, fn_801C82E8, AOBJ_ARG_AV,
+                       &search);
+    }
+    return search.result;
+}
+#else
 void fn_801C82E8(int arg0, int* arg1)
 {
     *arg1 = arg0;
     longjmp(&grAnime_8049EE40.buf, 1);
 }
+#endif
 
 HSD_AObj* grAnime_801C8318(HSD_GObj* gobj, int arg1, u32 arg2)
 {
     HSD_JObj* jobj;
     enum _HSD_TypeMask var_r30 = 0;
+#ifndef MELEE_NATIVE
     HSD_AObj* sp14 = NULL;
+#endif
     jobj = Ground_801C3FA4(gobj, arg1);
     if (jobj == NULL) {
         return 0;
@@ -1071,11 +1143,15 @@ HSD_AObj* grAnime_801C8318(HSD_GObj* gobj, int arg1, u32 arg2)
     if (arg2 & 4) {
         var_r30 |= 0x100;
     }
+#ifdef MELEE_NATIVE
+    return grAnime_FindFirstAObj(jobj, var_r30);
+#else
     if (__setjmp(&grAnime_8049EE40.buf) == 0) {
         HSD_ForeachAnim(jobj, JOBJ_TYPE, var_r30, fn_801C82E8, AOBJ_ARG_AV,
                         &sp14);
     }
     return sp14;
+#endif
 }
 
 bool grAnime_801C83D0(HSD_GObj* gobj, bool arg1, enum_t arg2)

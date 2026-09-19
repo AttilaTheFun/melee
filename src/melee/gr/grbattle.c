@@ -24,8 +24,13 @@
  * @copydoc ::grBattle_YakumonoParam::bg_curr_color_overlay
  */
 struct grBattle_YakumonoParam {
+#ifdef MELEE_NATIVE
+    union ColorOverlay_x8_t* bg_curr_color_overlay;
+    union ColorOverlay_x8_t* bg_prev_color_overlay;
+#else
     int bg_curr_color_overlay;
     int bg_prev_color_overlay;
+#endif
 };
 
 /* 219C98 */ static void grBattle_OnDemoInit(int);
@@ -398,12 +403,22 @@ void grBattle_BG_Callback2(Ground_GObj* gobj)
 
             bg_gobj = Ground_GetMapGObj(gp->u.battle_bg.prev);
             HSD_ASSERT(535, bg_gobj);
-            grMaterial_801C9604(bg_gobj, yakumono_param->bg_prev_color_overlay,
+#ifdef MELEE_NATIVE
+            grMaterial_ApplyColorScript(bg_gobj,
+#else
+            grMaterial_801C9604(bg_gobj,
+#endif
+                                     yakumono_param->bg_prev_color_overlay,
                                 0);
 
             bg_gobj = grBattle_80219D84(gp->u.battle_bg.curr);
             HSD_ASSERT(539, bg_gobj);
-            grMaterial_801C9604(bg_gobj, yakumono_param->bg_curr_color_overlay,
+#ifdef MELEE_NATIVE
+            grMaterial_ApplyColorScript(bg_gobj,
+#else
+            grMaterial_801C9604(bg_gobj,
+#endif
+                                     yakumono_param->bg_curr_color_overlay,
                                 0);
 
             gp->u.battle_bg.state = BG_Done;

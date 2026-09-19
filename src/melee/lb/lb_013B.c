@@ -1,3 +1,11 @@
+#ifdef MELEE_NATIVE
+#include <stddef.h>
+#include <melee/lb/types.h>
+_Static_assert(sizeof(union ColorOverlay_x8_t)==sizeof(union CmdUnion),"Color command stride");
+_Static_assert(offsetof(ColorOverlay,x8_ptr1)==offsetof(CommandInfo,u),"Color command pointer");
+_Static_assert(offsetof(ColorOverlay,xC_loop)==offsetof(CommandInfo,loop_count),"Color command depth");
+_Static_assert(offsetof(ColorOverlay,event_return)==offsetof(CommandInfo,event_return),"Color command stack");
+#endif
 #include <melee/ft/forward.h>
 
 #include "forward.h"
@@ -6,6 +14,15 @@
 #include "types.h"
 #include <dolphin/pad.h>
 #include <sysdolphin/baselib/rumble.h>
+#ifdef MELEE_NATIVE
+#include "lbdvd.h"
+#include "lbfile.h"
+#include "lbheap.h"
+#include <dolphin/dvd.h>
+#include <melee_rumble_bank.h>
+#include <sysdolphin/baselib/debug.h>
+static MeleeRumbleBank* native_rumble_bank;
+#endif
 
 typedef bool (*lb_803BA248_fn)(ColorOverlay*);
 /* 013BB8 */ static bool lb_80013BB8(ColorOverlay* arg);
@@ -156,6 +173,14 @@ lb_803BA248_fn lb_803BA248[] = {
     NULL,        NULL,
 };
 
+#ifdef MELEE_NATIVE
+/* PPC converts via an integer before storing the low byte. A direct native
+ * float-to-u8 conversion is undefined when a blend crosses 255 or zero. */
+static u8 color_byte(float value) { return (u8)(s32)value; }
+#else
+#define color_byte(value) ((u8)(value))
+#endif
+
 bool lb_80014258(Fighter_GObj* gobj, void* arg1, FtCmd2 cmd)
 {
     ColorOverlay* co = arg1;
@@ -186,20 +211,20 @@ bool lb_80014258(Fighter_GObj* gobj, void* arg1, FtCmd2 cmd)
         co->x34_color_green += co->x44_colorblend_green;
         co->x38_color_blue += co->x48_colorblend_blue;
         co->x3C_color_alpha += co->x4C_colorblend_alpha;
-        co->x2C_hex.r = (u8) co->x30_color_red;
-        co->x2C_hex.g = (u8) co->x34_color_green;
-        co->x2C_hex.b = (u8) co->x38_color_blue;
-        co->x2C_hex.a = (u8) co->x3C_color_alpha;
+        co->x2C_hex.r = color_byte(co->x30_color_red);
+        co->x2C_hex.g = color_byte(co->x34_color_green);
+        co->x2C_hex.b = color_byte(co->x38_color_blue);
+        co->x2C_hex.a = color_byte(co->x3C_color_alpha);
     }
     if (co->x7C_flag2) {
         co->x54_light_red += co->x64_lightblend_red;
         co->x58_light_green += co->x68_lightblend_green;
         co->x5C_light_blue += co->x6C_lightblend_blue;
         co->x60_light_alpha += co->x70_lightblend_alpha;
-        co->x50_light_color.r = (u8) co->x54_light_red;
-        co->x50_light_color.g = (u8) co->x58_light_green;
-        co->x50_light_color.b = (u8) co->x5C_light_blue;
-        co->x50_light_color.a = (u8) co->x60_light_alpha;
+        co->x50_light_color.r = color_byte(co->x54_light_red);
+        co->x50_light_color.g = color_byte(co->x58_light_green);
+        co->x50_light_color.b = color_byte(co->x5C_light_blue);
+        co->x50_light_color.a = color_byte(co->x60_light_alpha);
     }
     {
         s32 fc = co->x4_pri;
@@ -238,11 +263,33 @@ bool lb_800144C8(ColorOverlay* arg0, Fighter_804D653C_t* arg1, int arg2,
 
 void lb_80014534(void)
 {
+#ifdef MELEE_NATIVE
+    size_t length = 0;
+    void* owned = NULL;
+    const void* bytes = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("LbRb.dat"), &length);
+    if (!bytes) {
+        lbFile_80016760("LbRb.dat", &owned, &length);
+        bytes = owned;
+    }
+    MeleeArchive view;
+    HSD_ASSERT(__LINE__, melee_archive_open(&view, bytes, length));
+    MeleeRumbleBank* fresh = melee_rumble_bank_create(&view);
+    HSD_ASSERT(__LINE__, fresh);
+    if (owned) lbHeap_80015CA8(0, owned);
+    HSD_PadRumbleRemoveAll();
+    melee_rumble_bank_free(native_rumble_bank);
+    native_rumble_bank = fresh;
+    lb_804D63C0 = melee_rumble_bank_entries(fresh);
+#else
     lbArchive_80017040(NULL, "LbRb.dat", &lb_804D63C0, "lbRumbleData", 0);
+#endif
 }
 
 void lb_80014574(u8 arg0, int arg1, int arg2, int arg3)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(__LINE__, arg2 >= 0 && (size_t)arg2 < melee_rumble_bank_count(native_rumble_bank));
+#endif
     HSD_PadRumbleAdd(arg0, arg1, arg3 != 0 ? arg3 : -2, lb_804D63C0[arg2].unk4,
                      lb_804D63C0[arg2].unk);
 }

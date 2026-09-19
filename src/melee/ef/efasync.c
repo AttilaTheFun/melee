@@ -7,6 +7,14 @@
 #include "eflib.h"
 #include "efsync.h"
 #include "types.h"
+#ifdef MELEE_NATIVE
+#include "melee_effects.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <dolphin/dvd.h>
+static MeleeEffects* native_effects[50];
+void efAsync_NativeReset(void){for(unsigned i=0;i<50;i++){melee_effects_free(native_effects[i]);native_effects[i]=NULL;}}
+#endif
 #include <melee/cm/camera.h>
 #include <melee/lb/lb_00B0.h>
 #include <melee/lb/lbarchive.h>
@@ -1299,6 +1307,19 @@ void efAsync_LoadSync(int idx)
     if (lookup->data) {
         return;
     }
+#ifdef MELEE_NATIVE
+    size_t length=0;void* owned=NULL;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(lookup->ef_DAT_file),&length);
+    if(!bytes){lbFile_80016760(lookup->ef_DAT_file,&owned,&length);bytes=owned;}
+    MeleeArchive archive;HSD_ASSERT(__LINE__, melee_archive_open(&archive,bytes,length));
+    MeleeEffects* fresh=melee_effects_decode(&archive,lookup->effDataTable_name);
+    if(owned)lbHeap_80015CA8(0,owned);HSD_ASSERT(__LINE__, fresh);
+    melee_effects_free(native_effects[idx]);native_effects[idx]=fresh;
+    MeleeParticleBank* bank=melee_effects_particles(fresh);
+    if(bank)psInitDataBankNative(idx,melee_particle_bank_commands(bank),melee_particle_bank_command_count(bank),
+        melee_particle_bank_textures(bank),melee_particle_bank_texture_count(bank));
+    lookup->data=fresh;
+#else
     {
         bool chk = lbArchive_80017040(NULL, lookup->ef_DAT_file, &spC,
                                       lookup->effDataTable_name, 0);
@@ -1313,7 +1334,15 @@ void efAsync_LoadSync(int idx)
         }
         lookup->data = &spC->data;
     }
+#endif
 }
+#ifdef MELEE_NATIVE
+EF_EffectDesc* efAsync_NativeModel(int gfx_id){
+    if(gfx_id<0||gfx_id/1000>=50)return NULL;
+    efAsync_LoadSync(gfx_id/1000);
+    return melee_effects_model(native_effects[gfx_id/1000],gfx_id%1000);
+}
+#endif
 
 void efAsync_QueueProcessDeferred(HSD_GObj* gobj,
                                   EF_QueuedEffect* queued_effect)

@@ -20,7 +20,23 @@ struct ftMasterhand_FighterVars {
     /* 0x2250 */ s32 x2250;
     /* 0x2254 */ s32 x2254;
     /* 0x2258 */ s32 x2258;
+#ifdef MELEE_NATIVE
+    /* Laser objects persist while motion-local sound IDs are updated. The
+     * retail overlapping layouts cannot hold both after pointer expansion. */
+    union {
+        struct { Item_GObj* x34;Item_GObj* x38;Item_GObj* x3C;Item_GObj* x40; } master;
+        struct { Item_GObj* x28;Item_GObj* x2C;Item_GObj* x30;Item_GObj* x34; } crazy;
+    } native_lasers;
+#endif
 };
+
+#ifdef MELEE_NATIVE
+#define FT_MH_LASER(fp, field) ((fp)->u.mh.native_lasers.master.field)
+#define FT_CH_LASER(fp, field) ((fp)->u.ch.native_lasers.crazy.field)
+#else
+#define FT_MH_LASER(fp, field) ((fp)->mv.mh.fingerbeam.field)
+#define FT_CH_LASER(fp, field) ((fp)->mv.ch.grab.field)
+#endif
 
 struct ftMasterHand_SpecialAttrs {
     s32 x0;

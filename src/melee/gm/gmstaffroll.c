@@ -728,6 +728,12 @@ static inline void gm_801AB200_ptcl(s32 idx, GXColor* color)
 
     if (idx < 7) {
         lb_80011E24(gm_804D682C, &jobj, gm_803DD1C8[idx], -1);
+#ifdef MELEE_NATIVE
+        HSD_DObj* dobj = jobj->u.dobj;
+        unsigned skip = idx == 0 ? 3 : (idx == 2 || idx == 3) ? 1 : 0;
+        while (skip--) dobj = dobj->next;
+        dobj->mobj->mat->diffuse = *color;
+#else
         if (idx == 0) {
             p = (StaffRollPtclNode*) jobj->u.ptcl;
             p = p->x4.ptr;
@@ -748,6 +754,7 @@ static inline void gm_801AB200_ptcl(s32 idx, GXColor* color)
             p = p->xC;
             p->x4.color = *(s32*) color;
         }
+#endif
     } else {
         staffInfo[idx].win[0]->active_color = *color;
         staffInfo[idx].win[1]->active_color = *color;
@@ -1211,8 +1218,13 @@ void gm_Scene_StaffRoll_OnEnter(void* unused)
 
     efLib_Init();
     efAsync_LoadSync(0);
+#ifdef MELEE_NATIVE
+    staffInfo = HSD_MemAlloc(198 * sizeof(*staffInfo));
+    staffInfoSortBuf = HSD_MemAlloc(198 * sizeof(*staffInfoSortBuf));
+#else
     staffInfo = HSD_MemAlloc(sizeof(struct staffInfo_t));
     staffInfoSortBuf = HSD_MemAlloc(sizeof(struct staffInfoSortBuf_t));
+#endif
     HSD_SisLib_803A62A0(0, "SdStRoll.dat", "SIS_StRollData");
     HSD_SisLib_803A611C(0, (HSD_GObj*) -1, 9, 13, 0, 18, 0, 19);
     lbAudioAx_80026F2C(28);
@@ -1316,7 +1328,11 @@ void gm_Scene_StaffRoll_OnEnter(void* unused)
         lbAudioAx_80023F28(lbAudioAx_8002305C(gm_801BEFB0(), !-r));
         lbBgFlash_800209F4();
         gm_804D6804.x0 = gm_804D6804.x4 = 0.0F;
+#ifdef MELEE_NATIVE
+        memzero(staffInfo, 198 * sizeof(*staffInfo));
+#else
         memzero(staffInfo, sizeof(struct staffInfo_t));
+#endif
         gm_80480D58[0] = 0;
         gm_80480D58[1] = 0;
         gm_80480D58[2] = 0;

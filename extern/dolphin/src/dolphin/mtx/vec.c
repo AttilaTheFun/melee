@@ -15,6 +15,7 @@ void C_VECAdd(Vec* a, Vec* b, Vec* c)
     c->z = a->z + b->z;
 }
 
+#ifndef MELEE_NATIVE
 asm void PSVECAdd(register Vec* a, register Vec* b, register Vec* c)
 {
     // clang-format off
@@ -28,6 +29,7 @@ asm void PSVECAdd(register Vec* a, register Vec* b, register Vec* c)
     psq_st f7, Vec.z(c), 1, qr0
     // clang-format on
 }
+#endif
 
 void C_VECSubtract(Vec* a, Vec* b, Vec* c)
 {
@@ -39,6 +41,7 @@ void C_VECSubtract(Vec* a, Vec* b, Vec* c)
     c->z = a->z - b->z;
 }
 
+#ifndef MELEE_NATIVE
 asm void PSVECSubtract(register Vec* a, register Vec* b, register Vec* c)
 {
     // clang-format off
@@ -52,6 +55,7 @@ asm void PSVECSubtract(register Vec* a, register Vec* b, register Vec* c)
     psq_st f7, Vec.z(c), 1, qr0
     // clang-format on
 }
+#endif
 
 void C_VECScale(Vec* src, Vec* dst, f32 scale)
 {
@@ -62,6 +66,7 @@ void C_VECScale(Vec* src, Vec* dst, f32 scale)
     dst->z = (src->z * scale);
 }
 
+#ifndef MELEE_NATIVE
 asm void PSVECScale(register Vec* src, register Vec* dst, register f32 mult)
 {
     // clang-format off
@@ -73,6 +78,7 @@ asm void PSVECScale(register Vec* src, register Vec* dst, register f32 mult)
     psq_st f0, Vec.z(dst), 1, qr0
     // clang-format on
 }
+#endif
 
 void C_VECNormalize(Vec* src, Vec* unit)
 {
@@ -89,6 +95,7 @@ void C_VECNormalize(Vec* src, Vec* unit)
     unit->z = src->z * mag;
 }
 
+#ifndef MELEE_NATIVE
 void PSVECNormalize(register Vec* vec1, register Vec* dst)
 {
     register float c_half = 0.5f;
@@ -121,6 +128,7 @@ void PSVECNormalize(register Vec* vec1, register Vec* dst)
     }
     // clang-format on
 }
+#endif
 
 f32 C_VECSquareMag(Vec* v)
 {
@@ -132,6 +140,7 @@ f32 C_VECSquareMag(Vec* v)
     return sqmag;
 }
 
+#ifndef MELEE_NATIVE
 asm f32 PSVECSquareMag(register Vec* vec1){
     // clang-format off
     psq_l f2, Vec.x(vec1), 0, qr0
@@ -142,7 +151,9 @@ asm f32 PSVECSquareMag(register Vec* vec1){
     blr //! whoops! an extra blr is added by the compiler since 1 is added automatically.
     // clang-format on
 }
+#endif
 
+#ifndef MELEE_NATIVE
 asm float PSVECMag(register Vec* v)
 {
 #ifdef __MWERKS__ // clang-format off
@@ -162,6 +173,7 @@ asm float PSVECMag(register Vec* v)
 	fmuls   f1, f1, f0
 #endif // clang-format on
 }
+#endif
 
 f32 C_VECMag(Vec* v)
 {
@@ -178,6 +190,7 @@ f32 C_VECDotProduct(Vec* a, Vec* b)
     return dot;
 }
 
+#ifndef MELEE_NATIVE
 asm f32 PSVECDotProduct(register Vec* vec1, register Vec* vec2)
 {
     // clang-format off
@@ -190,6 +203,7 @@ asm f32 PSVECDotProduct(register Vec* vec1, register Vec* vec2)
     ps_sum0 f1, f3, f2, f2
     // clang-format on
 }
+#endif
 
 void C_VECCrossProduct(Vec* a, Vec* b, Vec* axb)
 {
@@ -207,6 +221,7 @@ void C_VECCrossProduct(Vec* a, Vec* b, Vec* axb)
     axb->z = vTmp.z;
 }
 
+#ifndef MELEE_NATIVE
 asm void PSVECCrossProduct(register Vec* vec1, register Vec* vec2,
                            register Vec* dst)
 {
@@ -227,6 +242,7 @@ asm void PSVECCrossProduct(register Vec* vec1, register Vec* vec2,
     psq_st f10, Vec.y(dst), 0, qr0
     // clang-format on
 }
+#endif
 
 void VECHalfAngle(Vec* a, Vec* b, Vec* half)
 {
@@ -285,6 +301,7 @@ f32 C_VECSquareDistance(Vec* a, Vec* b)
     return (diff.z * diff.z) + ((diff.x * diff.x) + (diff.y * diff.y));
 }
 
+#ifndef MELEE_NATIVE
 asm f32 PSVECSquareDistance(register Vec* vec1, register Vec* vec2){
     // clang-format off
     psq_l f2, Vec.y(vec1), 0, qr0
@@ -298,6 +315,7 @@ asm f32 PSVECSquareDistance(register Vec* vec1, register Vec* vec2){
     ps_sum0 f1, f5, f4, f4
     // clang-format on
 }
+#endif
 
 f32 VECDistance(Vec* a, Vec* b)
 {

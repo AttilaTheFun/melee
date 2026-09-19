@@ -4,6 +4,9 @@
 #include <Runtime/platform.h>
 
 #include <math.h>
+#ifdef MELEE_NATIVE
+#include <string.h>
+#endif
 
 #include <dolphin/mtx.h>
 #include <sysdolphin/baselib/objalloc.h>
@@ -37,7 +40,14 @@ void HSD_MtxInitAllocData(void);
 
 static inline f32 fabsf_bitwise(f32 v)
 {
+#ifdef MELEE_NATIVE
+    u32 bits;
+    memcpy(&bits, &v, sizeof(bits));
+    bits &= 0x7FFFFFFF;
+    memcpy(&v, &bits, sizeof(v));
+#else
     *(u32*) &v &= ~0x80000000;
+#endif
     return v;
 }
 

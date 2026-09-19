@@ -10,7 +10,14 @@ typedef void (*jmp_t)(void);
 typedef jmp_t jtbl_t[];
 
 #ifndef MWERKS_GEKKO
+#ifdef MELEE_NATIVE
+/* PowerPC frsqrte estimates the reciprocal square root, not the square root.
+ * Host libm supplies its mathematical value; PPC estimate-bit fidelity still
+ * needs differential validation against the original executable. */
+#define __frsqrte(x) (1.0 / sqrt(x))
+#else
 #define __frsqrte(x) sqrt(x)
+#endif
 #define sqrtf__Ff(x) sqrtf(x)
 #define sqrtf_accurate(x) sqrtf(x)
 #define __fabs(f) fabsf(f)

@@ -168,7 +168,13 @@ int HSD_PadRumbleInterpret1(HSD_PadRumbleListData* a, u8* b)
         return 0;
     }
     while (a->wait == 0) {
+#ifdef MELEE_NATIVE
+        /* Commands have already been decoded to host-endian u16 values.
+         * Reading the first byte selects the low byte on Apple ARM. */
+        switch ((*a->listp >> 13) & 7) {
+#else
         switch ((*(u8*) a->listp >> 5) & 7) {
+#endif
         case 0:
             if (a->frame == -2) {
                 return 1;

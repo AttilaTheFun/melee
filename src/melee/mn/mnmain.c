@@ -1204,7 +1204,11 @@ void fn_8022AFEC(HSD_GObj* gp)
     u8 state;
     u8 option_count;
     u8 pad[0x20];
+#ifdef MELEE_NATIVE
+    HSD_JObj* sp20[sizeof(mn_803EAE68)/sizeof(*mn_803EAE68)];
+#else
     HSD_JObj* sp20[4];
+#endif
     PAD_STACK(18);
 
     var_r26 = 0;
@@ -1292,6 +1296,9 @@ void fn_8022AFEC(HSD_GObj* gp)
         }
         data2 = HSD_GObjGetUserData(gp);
         option_count = mn_803EB6B0[data2->menu_kind].selection_count & 0xFF;
+#ifdef MELEE_NATIVE
+        HSD_ASSERT(__LINE__, option_count <= sizeof(sp20)/sizeof(*sp20));
+#endif
         {
             int i;
             for (i = 0; i < option_count; i++) {
@@ -1664,7 +1671,11 @@ static inline HSD_GObj* mn_8022BE34_OnEnter(void)
 
     mn_804D6BAC = gobj;
     cobj = HSD_CObjLoadDesc(MenMain_cam);
+#ifdef MELEE_NATIVE
+    HSD_CObjGetEyePosition(cobj, &pos);
+#else
     HSD_CObjGetEyePosition(cobj, (Vec3*) ((u8*) &pos + 0x14));
+#endif
     HSD_GObjObject_80390A70(gobj, HSD_GObj_CameraKind, cobj);
     GObj_SetupGXLinkMax(gobj, fn_8022BDB4, 0);
     gobj->gxlink_prios = 0x7F;

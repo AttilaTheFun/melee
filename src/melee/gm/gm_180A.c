@@ -35,8 +35,20 @@ struct lbl_80472E48_t {
 }; /* size = 0x80 */
 ASSERT_SIZE(struct lbl_80472E48_t, 0x80);
 
+#ifdef MELEE_NATIVE
+/* Retail code addresses these two adjacent globals through one state view.
+ * Keep that storage in one allocation on native builds, where the linker and
+ * sanitizers need not preserve adjacency between separate globals. */
+static struct {
+    struct lbl_80472E48_t state;
+    s32 distance[4];
+} native_homerun_state;
+#define lbl_80472E48 native_homerun_state.state
+#define lbl_80472EC8 native_homerun_state.distance
+#else
 static struct lbl_80472E48_t lbl_80472E48;
 static s32 lbl_80472EC8[4];
+#endif
 
 static HSD_Archive* lbl_804D65C8;
 static DynamicModelDesc** lbl_804D65CC;

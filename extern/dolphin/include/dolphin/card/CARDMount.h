@@ -3,7 +3,11 @@
 
 #include <dolphin/types.h>
 
+#ifdef MELEE_NATIVE
+int CARDProbe(s32 chan);
+#else
 int CARDProbe(long chan);
+#endif
 s32 CARDProbeEx(s32 chan, s32* memSize, s32* sectorSize);
 s32 CARDMountAsync(s32 chan, void* workArea, CARDCallback detachCallback,
                    CARDCallback attachCallback);

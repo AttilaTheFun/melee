@@ -5,6 +5,13 @@
 #include <string.h>
 
 #include "lbarchive.h"
+#ifdef MELEE_NATIVE
+#include "melee_refraction.h"
+#include "lbdvd.h"
+#include "lbfile.h"
+#include "lbheap.h"
+#include <dolphin/dvd.h>
+#endif
 #include "types.h"
 #include <dolphin/gx/GXBump.h>
 #include <dolphin/gx/GXEnum.h>
@@ -34,10 +41,12 @@ static struct {
     Mtx texture_mtx;
 } lbl_804336D0;
 
-static struct {
-    u8 x0;
-    f32* x4;
-}* refract_data;
+typedef struct { u8 x0;f32* x4; } RefractData;
+static RefractData* refract_data;
+#ifdef MELEE_NATIVE
+static float native_refraction_pairs[510];
+static RefractData native_refraction;
+#endif
 
 static inline void lbRefract_WriteTexCoord(lbRefract_CallbackData* cb, s32 row,
                                            u32 col, f32 y, f32 x, f32 param0)
@@ -364,7 +373,18 @@ void lbRefract_800222A4(void)
     PAD_STACK(4);
 
     lbl_804336D0.refractionUserCount = 0;
+#ifdef MELEE_NATIVE
+    size_t length=0;void* owned=NULL;unsigned count=0;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("LbRf.dat"),&length);
+    if(!bytes){lbFile_80016760("LbRf.dat",&owned,&length);bytes=owned;}
+    MeleeArchive archive;
+    HSD_ASSERT(__LINE__, melee_archive_open(&archive,bytes,length));
+    HSD_ASSERT(__LINE__, melee_refraction_decode(&archive,native_refraction_pairs,510,&count));
+    if(owned)lbHeap_80015CA8(0,owned);
+    native_refraction=(RefractData){count,native_refraction_pairs};refract_data=&native_refraction;
+#else
     lbArchive_LoadSymbols("LbRf.dat", &refract_data, "lbRefData", 0);
+#endif
     {
         size_t buf_size =
             GXGetTexBufferSize(image_width, image_height, GX_TF_RGB565, 0, 0);
@@ -381,7 +401,11 @@ void lbRefract_800222A4(void)
         lbRefract_8002219C(&cb, buf, GX_TF_IA8, 32, 32);
         lbRefract_80021CE8(&cb, i);
 
+#ifdef MELEE_NATIVE
+        lbl_804336D0.imagedesc[i] = imagedesc0;
+#else
         lbl_804336D0.imagedesc[i] = data->imagedesc0;
+#endif
         tobjdesc1.imagedesc = &lbl_804336D0.imagedesc[i];
         lbl_804336D0.tobj_list[i] = HSD_TObjLoadDesc(&tobjdesc1);
 

@@ -15,11 +15,7 @@
 #include <melee/mp/mpcoll.h>
 #include <sysdolphin/baselib/jobj.h>
 
-typedef struct {
-    float x0;
-    float x4;
-    itECB x8;
-} itMsBomb_Attrs;
+
 ASSERT_SIZE(itMsBomb_Attrs, 24);
 
 ItemStateTable ItemStateTable_MsBomb[] = {

@@ -1,6 +1,19 @@
 #ifndef RUNTIME_GECKO_SETJMP_H
 #define RUNTIME_GECKO_SETJMP_H
 
+#ifdef MELEE_NATIVE
+#include <setjmp.h>
+/* Keep the codec's reserved prefix; save host registers, never PPC registers. */
+typedef union __jmp_buf {
+    jmp_buf native;
+    double alignment;
+    unsigned char reserved[248];
+} __jmp_buf;
+_Static_assert(sizeof(jmp_buf) <= 248, "Host jump state exceeds codec prefix");
+_Static_assert(sizeof(__jmp_buf) == 248, "Preserve JPEG workspace offsets");
+#define HSD_SETJMP(env) setjmp((env)->native)
+#define HSD_LONGJMP(env, value) longjmp((env)->native, (value))
+#else
 typedef struct __jmp_buf {
     unsigned long pc;       /*	0: saved PC			*/
     unsigned long cr;       /*	4: saved CR			*/
@@ -31,5 +44,9 @@ typedef struct __jmp_buf {
 
 int __setjmp(register __jmp_buf*);
 void longjmp(register __jmp_buf* env, register int val);
+
+#define HSD_SETJMP(env) __setjmp(env)
+#define HSD_LONGJMP(env, value) longjmp((env), (value))
+#endif
 
 #endif

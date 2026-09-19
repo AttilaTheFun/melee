@@ -60,7 +60,11 @@ u32 OSGetConsoleSimulatedMemSize(void);
 #define OS_BASE_CACHED (OS_CACHED_REGION_PREFIX << 16)
 #define OS_BASE_UNCACHED (OS_UNCACHED_REGION_PREFIX << 16)
 
-#if defined(__MWERKS__) && !defined(M2CTX)
+#ifdef MELEE_NATIVE
+/* GameCube rates define game tick units, not the host CPU frequency. */
+#define __OSBusClock 162000000u
+#define __OSCoreClock 486000000u
+#elif defined(__MWERKS__) && !defined(M2CTX)
 u32 __OSPhysicalMemSize : (OS_BASE_CACHED | 0x0028);
 volatile int __OSTVMode : (OS_BASE_CACHED | 0x00CC);
 OSThread* __gUnkThread1 : (OS_BASE_CACHED | 0x00D8);
@@ -177,8 +181,14 @@ void OSSetSoundMode(u32 mode);
 void OSReport(char*, ...);
 DOLPHIN_ATTRIBUTE_NORETURN void OSPanic(char* file, int line, char* msg, ...);
 
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+#define OSRoundUp32B(x) (((uintptr_t) (x) + 31) & ~(uintptr_t) 31)
+#define OSRoundDown32B(x) ((uintptr_t) (x) & ~(uintptr_t) 31)
+#else
 #define OSRoundUp32B(x) (((u32) (x) + 32 - 1) & ~(32 - 1))
 #define OSRoundDown32B(x) (((u32) (x)) & ~(32 - 1))
+#endif
 
 void* OSPhysicalToCached(u32 paddr);
 void* OSPhysicalToUncached(u32 paddr);

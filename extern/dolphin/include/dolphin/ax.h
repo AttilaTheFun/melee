@@ -187,9 +187,9 @@ typedef struct _AXPROFILE {
 } AXPROFILE;
 
 struct AX_AUX_DATA {
-    /* 0x00 */ long* l;
-    /* 0x00 */ long* r;
-    /* 0x00 */ long* s;
+    /* 0x00 */ s32* l;
+    /* 0x00 */ s32* r;
+    /* 0x00 */ s32* s;
 };
 
 #define AX_DSP_SLAVE_LENGTH 3312
@@ -202,7 +202,7 @@ struct AX_AUX_DATA {
 #define AX_SRC_TYPE_4TAP_16K 4
 
 // sync flags
-#define AX_SYNC_FLAG_COPYALL (1 << 31)
+#define AX_SYNC_FLAG_COPYALL (1U << 31)
 #define AX_SYNC_FLAG_UNK1 (1 << 30)  // reserved, unused?
 #define AX_SYNC_FLAG_UNK2 (1 << 29)  // reserved, unused?
 #define AX_SYNC_FLAG_UNK3 (1 << 28)  // reserved, unused?

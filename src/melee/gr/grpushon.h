@@ -3,6 +3,33 @@
 
 #include <melee/gr/forward.h>
 
+struct grPushOn_Entry {
+    s32 x0;
+    s16 x4;
+    s16 x6;
+};
+
+struct grPushOn_Lookup {
+    s32 key;
+    s32 value;
+};
+
+struct grPushon_YakumonoParam {
+#ifdef MELEE_NATIVE
+    void* x0;
+#else
+    s32 x0;
+#endif
+    DynamicsDesc* x4;
+    DynamicsDesc* x8;
+    DynamicsDesc* xC;
+    DynamicsDesc* x10;
+    DynamicsDesc* x14;
+    bool x18;
+    struct grPushOn_Entry x1c[0x1E];
+    struct grPushOn_Lookup x10c[0x21];
+};
+
 /* 2182C4 */ void grPushOn_802182C4(bool);
 /* 2182C8 */ void grPushOn_802182C8(void);
 /* 218330 */ void grPushOn_80218330(void);
@@ -27,7 +54,7 @@
 /* 2190D0 */ void grPushOn_802190D0(HSD_GObj*);
 /* 219204 */ void grPushOn_80219204(int arg0, int* out1, int* out2);
 /* 219230 */ int grPushOn_80219230(int);
-/* 2192A4 */ s32 fn_802192A4(void*, HSD_GObj*, s32*);
+/* 2192A4 */ s32 fn_802192A4(void*, HSD_GObj*, void*);
 /* 219458 */ DynamicsDesc* grPushOn_80219458(enum_t);
 /* 219528 */ bool grPushOn_80219528(Vec3*, int arg, HSD_JObj* jobj);
 /* 3E7B10 */ extern StageData grPushOn_StageData;

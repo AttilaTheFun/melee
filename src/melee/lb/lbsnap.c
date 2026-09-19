@@ -19,6 +19,14 @@
 #include <sysdolphin/baselib/debug.h>
 #include <sysdolphin/baselib/hsd_3B34.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_card_icons.h"
+#include "lbdvd.h"
+#include "lbfile.h"
+#include "lbheap.h"
+static MeleeCardIcons* native_snapshot_icons;
+#endif
+
 #define _p(x) (lbSnap_80433380.x)
 
 struct Unk80433380_48 {
@@ -44,8 +52,8 @@ struct Unk80433380_0 {
 
 typedef union LbMcSnapMemSnapIconData {
     u8* ptr;
-    int offset;
-    int size;
+    HSD_CardWord offset;
+    HSD_CardWord size;
 } LbMcSnapMemSnapIconData;
 
 struct Unk80433380 {
@@ -391,7 +399,11 @@ int lbSnap_8001DE8C(void* arg0)
 
 static inline int lbSnap_GetSaveDataOffset(struct Unk80433380_0* snap)
 {
+#ifdef MELEE_NATIVE
+    return snap->xC + (int)((u8*)&snap->x38 - (u8*)snap);
+#else
     return snap->xC + ((int) &snap->x38 - (int) snap);
+#endif
 }
 
 #ifdef MUST_MATCH
@@ -470,8 +482,24 @@ void lbSnap_8001E218(void* snap, struct Unk80433380_48* slot)
     _p(slot) = slot;
     _p(slot)->card_result = 8;
     _p(slot)[1].card_result = 8;
+#ifdef MELEE_NATIVE
+    static LbMcSnapMemSnapIconData pointers[3];
+    size_t length=0;void* owned=NULL;
+    const char* filename=lbFileGetFullName("LbMcSnap.");
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename),&length);
+    if(!bytes){lbFile_80016760("LbMcSnap.",&owned,&length);bytes=owned;}
+    MeleeArchive archive;
+    HSD_ASSERT(__LINE__, melee_archive_open(&archive,bytes,length));
+    MeleeCardIcons* fresh=melee_card_snapshot_icons_create(&archive);
+    HSD_ASSERT(__LINE__, fresh);
+    if(owned)lbHeap_80015CA8(0,owned);
+    melee_card_icons_free(native_snapshot_icons);native_snapshot_icons=fresh;
+    for(unsigned i=0;i<2;i++)pointers[i].ptr=(u8*)melee_card_icons_data(fresh,i);
+    _p(icon_data)=pointers;
+#else
     lbArchive_80016DBC("LbMcSnap.", (void**) &_p(icon_data), "MemSnapIconData",
                        0);
+#endif
 }
 
 void lbSnap_8001E27C(void)

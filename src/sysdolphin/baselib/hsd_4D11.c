@@ -6,11 +6,25 @@
  */
 
 #include <Runtime/platform.h>
+#ifdef MELEE_NATIVE
+#include "hsd_3A94.h"
+#include "hsd_3B27.h"
+HsdCmdEntry hsd_native_card_requests[32];
+struct HSD_NativeCardCommands hsd_native_card_commands;
+#endif
 
+#ifdef MELEE_NATIVE
+_Alignas(__jmp_buf) u8 hsd_804D2E70[0x828];
+#else
 /* 4D2E70 */ u8 hsd_804D2E70[2084];
+#endif
 /// @todo Declared as `__jmp_buf` (0xF8 bytes) by users, but the object is
 /// 0x828 bytes: a JpegWork whose first member is the jmp_buf (see hsd_3B34.c).
+#ifdef MELEE_NATIVE
+union HSD_NativeJpegWork hsd_native_jpeg_work;
+#else
 /* 4D2648 */ u8 hsd_804D2648[0x828];
+#endif
 /* 4D2348 */ u8 hsd_804D2348[0x300];
 /* 4D1148 */ u32 hsd_804D1148[0x80][0x9];
 /* 4D1138 */ u8 hsd_804D1138[0x10];

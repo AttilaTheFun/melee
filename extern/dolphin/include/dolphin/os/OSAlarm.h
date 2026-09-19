@@ -5,6 +5,7 @@
 #include <dolphin/os/OSContext.h>
 
 typedef struct OSAlarm OSAlarm;
+/* Native delivery uses the cooperative interrupt gate and passes NULL context. */
 typedef void (*OSAlarmHandler)(OSAlarm* alarm, OSContext* context);
 
 struct OSAlarm {

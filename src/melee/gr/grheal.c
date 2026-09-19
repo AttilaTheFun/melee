@@ -312,7 +312,7 @@ void onJointCollision(void* user_data, int joint_id, CollData* coll,
                       float delta_y)
 {
     Ground* gp = user_data;
-    if ((((*(u8*) ((u8*) coll + 0x34) >> 3U) & 0xF) == 1) &&
+    if ((coll->x34_flags.b1234 == 1) &&
         ((ground_kind - 1) <= 1U))
     {
         gp->u.unk.xC4 = 1;
@@ -448,3 +448,14 @@ bool grHeal_8021F838(Vec3* arg0, int arg1, HSD_JObj* jobj)
 {
     return true;
 }
+
+#ifdef MELEE_NATIVE
+int grHeal_NativeContactTest(void)
+{
+    Ground gp={0};CollData coll={0};coll.x34_flags.b1234=1;
+    onJointCollision(&gp,0,&coll,0,1,0);HSD_ASSERT(__LINE__,gp.u.unk.xC4==1);
+    gp.u.unk.xC4=0;onJointCollision(&gp,0,&coll,0,3,0);HSD_ASSERT(__LINE__,!gp.u.unk.xC4);
+    coll.x34_flags.b1234=2;onJointCollision(&gp,0,&coll,0,1,0);HSD_ASSERT(__LINE__,!gp.u.unk.xC4);
+    return 0;
+}
+#endif

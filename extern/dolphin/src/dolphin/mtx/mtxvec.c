@@ -22,6 +22,7 @@ void C_MTXMultVec(Mtx44 m, Vec* src, Vec* dst)
     dst->z = vTmp.z;
 }
 
+#ifndef MELEE_NATIVE
 asm void PSMTXMultVec(register Mtx44 m, register Vec* src, register Vec* dst)
 {
     // clang-format off
@@ -49,7 +50,9 @@ asm void PSMTXMultVec(register Mtx44 m, register Vec* src, register Vec* dst)
     blr
     // clang-format on
 }
+#endif
 
+#ifndef MELEE_NATIVE
 asm void PSMTXMultVecSR(register Mtx44 m, register Vec* src, register Vec* dst)
 {
     // clang-format off
@@ -75,6 +78,7 @@ asm void PSMTXMultVecSR(register Mtx44 m, register Vec* src, register Vec* dst)
     psq_st  f13, Vec.z(dst), 1, qr0
     // clang-format on
 }
+#endif
 
 void C_MTXMultVecArray(Mtx m, Vec* srcBase, Vec* dstBase, u32 count)
 {
@@ -100,6 +104,7 @@ void C_MTXMultVecArray(Mtx m, Vec* srcBase, Vec* dstBase, u32 count)
     }
 }
 
+#ifndef MELEE_NATIVE
 asm void PSMTXMultVecArray(register Mtx m, register Vec* srcBase,
                            register Vec* dstBase, register u32 count)
 {
@@ -149,6 +154,7 @@ loop:
 	psq_stu f13, Vec.y(dstBase), 1, qr0
     // clang-format on
 }
+#endif
 
 void C_MTXMultVecSR(Mtx44 m, Vec* src, Vec* dst)
 {

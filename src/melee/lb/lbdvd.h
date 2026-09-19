@@ -5,6 +5,9 @@
 #include <sysdolphin/baselib/forward.h>
 
 typedef void (*lbDvd_Callback)(int, int index, int, int);
+#ifdef MELEE_NATIVE
+const void* lbDvd_NativeGetRawData(int entry_num, size_t* length);
+#endif
 
 /* 015BD0 */ void* lbDvd_80015BD0(s8, s32);
 /* 01634C */ u32 lbDvd_8001634C(s16);
@@ -20,7 +23,7 @@ typedef void (*lbDvd_Callback)(int, int index, int, int);
 /* 017960 */ void lbDvd_80017960(void);
 /* 017AB0 */ void lbDvd_CachePreloadedFile(s32 index);
 /* 017CC4 */ void lbDvd_80017CC4(void);
-/* 017E64 */ void lbDvd_80017E64(int, int, void*, bool);
+/* 017E64 */ void lbDvd_80017E64(int, HSD_DevComArg, void*, bool);
 /* 017EBC */ void* lbDvd_GetPreloadedArchive(ssize_t entry_num);
 /* 01819C */ HSD_Archive* lbDvd_8001819C(const char* basename);
 /* 01822C */ PreloadedGameModeState* lbDvd_GetPreloadCacheScene(void);

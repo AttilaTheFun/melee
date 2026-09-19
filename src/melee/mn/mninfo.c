@@ -277,6 +277,9 @@ static inline s32 mnInfo_CountUnlocked(void)
     return count;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void mnInfo_CreateEntries(u32 id)
 {
     u8* trophy;

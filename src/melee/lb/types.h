@@ -325,6 +325,9 @@ struct ColorOverlay_UnkInner {
 };
 
 union ColorOverlay_x8_t {
+#ifdef MELEE_NATIVE
+    union CmdUnion* branch;
+#endif
     GXColor light_color;
     struct {
         s32 unk : 6;
@@ -355,12 +358,16 @@ struct ColorOverlay {
     s32 x4_pri;   // 0x4  this colanims priority, lower = will persist
     union ColorOverlay_x8_t* x8_ptr1; // 0x8
     s32 xC_loop;                      // 0xc
+#ifdef MELEE_NATIVE
+    union CmdUnion* event_return[5];
+#else
     s32* x10_ptr2;                    // 0x10
     s32 x14;                          // 0x14
     s32* x18_alloc;                   // 0x18
     s32 x1c;                          // 0x1c
     s32 x20;                          // 0x20
     s32 x24;                          // 0x24
+#endif
     union {
         enum_t i;
         struct ColorOverlay_UnkInner* ptr;
@@ -488,7 +495,11 @@ struct DynamicsData {
 ASSERT_SIZE(struct DynamicsData, 0x98);
 
 struct DynamicsDesc {
-    /* +0 */ struct DynamicsData* data;
+    /* Runtime chains and serialized parameter arrays share this pointer slot. */
+    union {
+        struct DynamicsData* data;
+        struct lb_00F9_UnkDesc1Inner* params;
+    };
     /* +4 */ unsigned int count;
     /* +8 */ Vec3 pos;
 };
@@ -770,6 +781,10 @@ struct spawn_hitbox_0 {
     u32 bone : 8;
     u32 use_common_bone_ids : 1;
     u32 damage : 10;
+#ifdef MELEE_NATIVE
+    /* Retail handler reads bit 12 of the following serialized command. */
+    u32 next_command_grabbed_only;
+#endif
 };
 struct spawn_hitbox_1 {
     u32 size : 16;
@@ -1011,10 +1026,17 @@ struct CommandInfo {
         }* u;
     };
     u32 loop_count; // 0x0C
+#ifdef MELEE_NATIVE
+    /* The console record reserves 0x14 bytes from 0x10 through 0x23 for
+     * the command stack. The two unused trailing names below occupy its
+     * fourth and fifth slots. Keep all five native slots pointer-width. */
+    union CmdUnion* event_return[5];
+#else
     union CmdUnion*
         event_return[3]; // 0x10 - Array Size is purely made-up for now
     u32 loop_count_dup;  // 0x14
     u32 unk_x18;         // 0x18
+#endif
 };
 
 struct LbShadow {

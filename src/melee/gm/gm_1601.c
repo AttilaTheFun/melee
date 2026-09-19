@@ -1,3 +1,6 @@
+#ifdef MELEE_NATIVE
+#include <melee/sc/types.h>
+#endif
 #include "gm_1601.h"
 
 #include <Runtime/platform.h>
@@ -851,9 +854,17 @@ void fn_80160DE8(HSD_JObj* arg0, u8 arg1, s32 arg2, u8 arg3, f32 farg0,
             use_alt_name = true;
         }
         if (use_alt_name) {
+#ifdef MELEE_NATIVE
+            temp = lbl_803B7784[tmp_ckind];
+#else
             temp = lbl_803B75F8[tmp_ckind + 0x63];
+#endif
         } else {
+#ifdef MELEE_NATIVE
+            temp = lbl_803B767C[tmp_ckind];
+#else
             temp = lbl_803B75F8[tmp_ckind + 0x21];
+#endif
         }
         size = temp;
     } else {
@@ -863,7 +874,11 @@ void fn_80160DE8(HSD_JObj* arg0, u8 arg1, s32 arg2, u8 arg3, f32 farg0,
             use_alt_name = true;
         }
         if (use_alt_name) {
+#ifdef MELEE_NATIVE
+            temp = lbl_803B7700[tmp_ckind];
+#else
             temp = lbl_803B75F8[tmp_ckind + 0x42];
+#endif
         } else {
             temp = lbl_803B75F8[tmp_ckind];
         }
@@ -3872,6 +3887,22 @@ void fn_801689E4(HSD_JObj* arg0, DynamicModelDesc* arg1, int idx)
 
 void fn_80168A6C(void* arg0, void* arg1, s32 idx)
 {
+#ifdef MELEE_NATIVE
+    SceneDesc* scene=arg0;
+    struct {
+        DynamicModelDesc model;
+        struct LightList** lights;
+        HSD_CObjDesc* camera;
+        HSD_CameraAnim** camera_anims;
+        struct SceneFogDesc* fogs;
+    }* out=arg1;
+    memzero(out,sizeof(*out));
+    if(scene->models&&scene->models[idx])out->model=*scene->models[idx];
+    out->lights=scene->lights;
+    if(scene->cameras){out->camera=scene->cameras->desc;out->camera_anims=scene->cameras->anims;}
+    out->fogs=scene->fogs;
+#else
+
     struct {
         /* 0x00 */ s32** x0;
         /* 0x04 */ s32* x4;
@@ -3895,11 +3926,12 @@ void fn_80168A6C(void* arg0, void* arg1, s32 idx)
 
     ((s32*) arg1)[4] = src->x8;
     ((s32*) arg1)[7] = src->xC;
+#endif
 }
 
 f32 gm_80168B34(CharacterKind ckind, int arg1, int arg2)
 {
-    int base;
+    int base = ckind;
     if (ckind == CKind_GKoops) {
         return 58.0F;
     }
@@ -3932,7 +3964,7 @@ float gm_80168BF8(int arg0)
 {
     CharacterKind ckind = Player_GetPlayerCharacter(arg0);
     u32 costume = Player_GetCostumeId(arg0);
-    gm_80168B34(ckind, Player_80036394(arg0), costume);
+    return gm_80168B34(ckind, Player_80036394(arg0), costume);
 }
 
 void gm_80168C5C(u32 arg0)

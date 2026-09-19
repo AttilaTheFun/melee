@@ -66,14 +66,14 @@ void ftCh_Poke1_Anim(HSD_GObj* gobj)
     if (!ftAnim_IsFramesRemaining(gobj)) {
         Fighter* fp = GET_FIGHTER(gobj);
         ftCh_Init_8015868C(gobj);
-        it_802F046C(fp->mv.ch.grab.x28);
-        it_802F046C(fp->mv.ch.grab.x2C);
-        it_802F046C(fp->mv.ch.grab.x30);
-        it_802F046C(fp->mv.ch.grab.x34);
-        fp->mv.ch.grab.x28 = NULL;
-        fp->mv.ch.grab.x2C = NULL;
-        fp->mv.ch.grab.x30 = NULL;
-        fp->mv.ch.grab.x34 = NULL;
+        it_802F046C(FT_CH_LASER(fp, x28));
+        it_802F046C(FT_CH_LASER(fp, x2C));
+        it_802F046C(FT_CH_LASER(fp, x30));
+        it_802F046C(FT_CH_LASER(fp, x34));
+        FT_CH_LASER(fp, x28) = NULL;
+        FT_CH_LASER(fp, x2C) = NULL;
+        FT_CH_LASER(fp, x30) = NULL;
+        FT_CH_LASER(fp, x34) = NULL;
     }
 }
 
@@ -103,19 +103,19 @@ void fn_80158534(HSD_GObj* gobj)
     {
         Vec3 vec;
         lb_8000B1CC(fp->parts[FtPart_RLegJA].joint, 0, &vec);
-        fp->mv.ch.grab.x28 =
+        FT_CH_LASER(fp, x28) =
             it_802F0340(gobj, &vec, &vec, FtPart_RLegJA,
                         It_Kind_MasterHand_Laser, fp->facing_dir);
         lb_8000B1CC(fp->parts[FtPart_BustN].joint, 0, &vec);
-        fp->mv.ch.grab.x2C =
+        FT_CH_LASER(fp, x2C) =
             it_802F0340(gobj, &vec, &vec, FtPart_BustN,
                         It_Kind_MasterHand_Laser, fp->facing_dir);
         lb_8000B1CC(fp->parts[FtPart_LHandN].joint, 0, &vec);
-        fp->mv.ch.grab.x30 =
+        FT_CH_LASER(fp, x30) =
             it_802F0340(gobj, &vec, &vec, FtPart_LHandN,
                         It_Kind_MasterHand_Laser, fp->facing_dir);
         lb_8000B1CC(fp->parts[FtPart_L3rdNa].joint, 0, &vec);
-        fp->mv.ch.grab.x34 =
+        FT_CH_LASER(fp, x34) =
             it_802F0340(gobj, &vec, &vec, FtPart_L3rdNa,
                         It_Kind_MasterHand_Laser, fp->facing_dir);
         fp->mv.ch.unk0.x38 = lbAudioAx_800237A8(320004, 127, 64);

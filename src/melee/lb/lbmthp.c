@@ -13,6 +13,13 @@
 #include <sysdolphin/baselib/sobjlib.h>
 #include <sysdolphin/baselib/tobj.h>
 #include <sysdolphin/baselib/video.h>
+#ifdef MELEE_NATIVE
+#include <melee_mth.h>
+#include <melee_thp.h>
+typedef uintptr_t MTHAddress;
+#else
+typedef u32 MTHAddress;
+#endif
 
 /* Struct used by fn_8001EBF0 for THP decode component init */
 typedef struct THPDecComp {
@@ -30,7 +37,7 @@ typedef struct THPDecComp {
     /* 0x40 */ u32 unk_40;
     /* 0x44 */ u32 width;
     /* 0x48 */ u32 height;
-    /* 0x4C */ u32* frame_buffers;
+    /* 0x4C */ MTHAddress* frame_buffers;
     /* 0x50 */ void* unk_50;
     /* 0x54 */ void* unk_54;
     /* 0x58 */ void* unk_58;
@@ -77,6 +84,10 @@ typedef struct THPDecComp {
     /* 0x178 */ GXTexObj unk_178;
     /* 0x198 */ GXTexObj unk_198;
     /* 0x1B8 */ GXTexObj unk_1B8;
+#ifdef MELEE_NATIVE
+    size_t native_file_size;
+    u32 native_frame_sizes[32];
+#endif
 } THPDecComp;
 
 struct lbl_803BAFE8_t {
@@ -92,7 +103,24 @@ struct lbl_803BAFE8_t {
 /* 01F294 */ static s32 fn_8001F294(void);
 /* 4333E0 */ static THPDecComp MoviePlayer;
 
-static void fn_8001E910(int arg0, int arg1, void* arg2, int cancelflag)
+#ifdef MELEE_NATIVE
+static u32 native_mth_word(const void* bytes)
+{
+    const u8* b = bytes;
+    return (u32)b[0]<<24 | (u32)b[1]<<16 | (u32)b[2]<<8 | b[3];
+}
+static void native_mth_request(THPDecComp* data, u32 slot)
+{
+    HSD_ASSERT(__LINE__, slot < 32);
+    HSD_ASSERT(__LINE__, data->currPackedSize >= 32 && !(data->currPackedSize & 31));
+    HSD_ASSERT(__LINE__, data->currPackedSize <= data->unk_100);
+    HSD_ASSERT(__LINE__, data->curr_file_offset <= data->native_file_size);
+    HSD_ASSERT(__LINE__, data->currPackedSize <= data->native_file_size - data->curr_file_offset);
+    data->native_frame_sizes[slot] = data->currPackedSize;
+}
+#endif
+
+static void fn_8001E910(int arg0, HSD_DevComArg arg1, void* arg2, int cancelflag)
 {
     THPDecComp* streamPlayer = &MoviePlayer;
     s32 tick_diff;
@@ -117,7 +145,11 @@ static void fn_8001E910(int arg0, int arg1, void* arg2, int cancelflag)
     } else {
         var_r0 = streamPlayer->unk_8C - 1;
     }
+    #ifdef MELEE_NATIVE
+    streamPlayer->currPackedSize = native_mth_word((void*)streamPlayer->frame_buffers[var_r0]);
+#else
     streamPlayer->currPackedSize = *(u32*) streamPlayer->frame_buffers[var_r0];
+#endif
     if (streamPlayer->unk_90 != streamPlayer->unk_8C &&
         streamPlayer->unk_70 != 0)
     {
@@ -132,6 +164,9 @@ static void fn_8001E910(int arg0, int arg1, void* arg2, int cancelflag)
                              streamPlayer->file_entrynum,
                              streamPlayer->curr_file_offset);
 
+#ifdef MELEE_NATIVE
+            native_mth_request(streamPlayer, streamPlayer->unk_8C);
+#endif
             HSD_DevComRequest(
                 streamPlayer->file_entrynum, streamPlayer->curr_file_offset,
                 (uintptr_t) streamPlayer->frame_buffers[streamPlayer->unk_8C],
@@ -163,14 +198,44 @@ static void fn_8001E910(int arg0, int arg1, void* arg2, int cancelflag)
 
 static s32 fn_8001EB14(THPDecComp* data, const char* path)
 {
+#ifdef MELEE_NATIVE
+    u8 header[64] ATTRIBUTE_ALIGN(32);
+    MeleeMTHHeader parsed;
+    size_t file_size;
+    data->file_entrynum = DVDConvertPathToEntrynum(path);
+    HSD_ASSERT(__LINE__, data->file_entrynum >= 0);
+    file_size = lbFile_8001634C(data->file_entrynum);
+    data->native_file_size = file_size;
+    HSD_ASSERT(__LINE__, file_size >= sizeof(header));
+    lbFile_800161C4(data->file_entrynum, 0, (uintptr_t) header,
+                   sizeof(header), 0x21, 1);
+    HSD_ASSERT(__LINE__, melee_mth_header(header, sizeof(header), file_size, &parsed));
+    memcpy(data->pad0, header, sizeof(data->pad0));
+    data->version = parsed.version;
+    data->buf_size = parsed.buffer_size;
+    data->x_size = parsed.width;
+    data->y_size = parsed.height;
+    data->frame_rate = parsed.frame_rate;
+    data->num_frames = parsed.frame_count;
+    data->first_frame = parsed.first_frame;
+    data->frame_offsets = parsed.frame_offsets;
+    data->first_frame_size = parsed.first_frame_size;
+#else
     THPInit();
     data->file_entrynum = DVDConvertPathToEntrynum(path);
     lbFile_800161C4(data->file_entrynum, 0, (u32) data, 0x40, 0x21, 1);
+#endif
 
     data->unk_40 = data->num_frames;
     data->width = data->x_size;
     data->height = data->y_size;
+#ifdef MELEE_NATIVE
+    /* The packed frame also contains its four-byte next-size word. Retail
+     * MvOpen frame 2650 needs one aligned block beyond the nominal maximum. */
+    data->unk_100 = (data->buf_size + 4 + 31) & ~31u;
+#else
     data->unk_100 = data->buf_size;
+#endif
 
     if (data->frame_offsets != 0) {
         OSReport("Warning : frame offsets not supported\n");
@@ -195,7 +260,11 @@ static s32 fn_8001EB14(THPDecComp* data, const char* path)
 /// @returns memory required
 size_t fn_8001EBF0(THPDecComp* data)
 {
+#ifdef MELEE_NATIVE
+    size_t size = 0;
+#else
     s32 size = 0;
+#endif
     u32 unk_104_val;
     u32 aligned_100;
     u32 width;
@@ -226,7 +295,9 @@ size_t fn_8001EBF0(THPDecComp* data)
     size += wh_div4;
     size += wh_div4;
 
+#ifndef MELEE_NATIVE
     size += THPDec_8032FD40(&data->unk_9C, data->height);
+#endif
 
     data->unk_7C = 0;
     data->unk_78 = 0;
@@ -241,7 +312,7 @@ size_t fn_8001EBF0(THPDecComp* data)
     data->unk_AA = data->height;
     data->unk_AC = 0;
 
-    size += ALIGN_32(data->unk_104 * 4);
+    size += ALIGN_32(data->unk_104 * sizeof(*data->frame_buffers));
     size += ALIGN_32(data->unk_40 * 4);
 
     return size;
@@ -249,6 +320,40 @@ size_t fn_8001EBF0(THPDecComp* data)
 
 static void fn_8001ECF4(THPDecComp* data, void* buf)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(__LINE__, buf && !((uintptr_t)buf & 31));
+    data->frame_buffers = buf;
+    u8* cursor = (u8*)buf + ALIGN_32(data->unk_104 * sizeof(*data->frame_buffers));
+    memset(data->native_frame_sizes, 0, sizeof(data->native_frame_sizes));
+    for (u32 i=0; i<data->unk_104; ++i) {
+        data->frame_buffers[i] = (uintptr_t)cursor;
+        cursor += data->unk_100;
+    }
+    data->curr_file_offset = data->first_frame;
+    data->currPackedSize = data->first_frame_size;
+    data->unk_74 = 0;
+    u32 loaded = 0;
+    for (; loaded<data->unk_104 && data->unk_74<data->unk_40; ++loaded) {
+        native_mth_request(data, loaded);
+        lbFile_800161C4(data->file_entrynum, data->curr_file_offset,
+                       data->frame_buffers[loaded], data->currPackedSize, 0x21, 1);
+        data->curr_file_offset += data->currPackedSize;
+        data->currPackedSize = native_mth_word((void*)data->frame_buffers[loaded]);
+        if (++data->unk_74 == data->unk_40 && data->unk_68) {
+            data->unk_74 = 0;
+            data->curr_file_offset = data->first_frame;
+            data->currPackedSize = data->first_frame_size;
+        }
+    }
+    data->unk_8C = loaded % data->unk_104;
+    data->unk_108 = data->unk_10C = (s32)loaded - 1;
+    data->unk_64 = 0;
+    size_t y_size = (size_t)data->width * data->height;
+    data->unk_50 = cursor; cursor += y_size;
+    data->unk_54 = cursor; cursor += y_size / 4;
+    data->unk_58 = cursor;
+#else
+
     u32 height;
     u32 width;
     u32 count;
@@ -322,6 +427,7 @@ static void fn_8001ECF4(THPDecComp* data, void* buf)
     DCInvalidateRange(var_r29, uv_size);
     var_r29 = var_r29 + uv_size;
     data->unk_98 = (s32) var_r29;
+#endif
 }
 
 static s32 fn_8001F13C(THPDecComp* streamPlayer);
@@ -332,6 +438,20 @@ static s32 fn_8001EF5C(THPDecComp* data)
     BOOL intr;
 
     if ((u32) data->unk_94 != data->unk_90) {
+#ifdef MELEE_NATIVE
+        intr = OSDisableInterrupts();
+        u32 slot = data->unk_90;
+        HSD_ASSERT(__LINE__, slot < 32 && data->native_frame_sizes[slot] > 4);
+        const void* frame = (u8*)data->frame_buffers[slot] + 4;
+        size_t length = data->native_frame_sizes[slot] - 4;
+        MeleeTHPInfo info;
+        HSD_ASSERT(__LINE__, !melee_thp_info(frame, length, &info));
+        HSD_ASSERT(__LINE__, info.width == data->width && info.height == data->height);
+        int status = melee_thp_decode(frame, length, data->unk_50, info.y_bytes,
+                                      data->unk_54, info.uv_bytes, data->unk_58, info.uv_bytes);
+        HSD_ASSERT(__LINE__, status == 0);
+        OSRestoreInterrupts(intr);
+#else
         intr = OSDisableInterrupts();
         data->unk_98 = THPVideoDecode(
             &data->unk_A8, &spC, (void*) data->unk_98,
@@ -349,6 +469,7 @@ static s32 fn_8001EF5C(THPDecComp* data)
                             data->unk_58, data->width);
         }
 
+#endif
         intr = OSDisableInterrupts();
         data->unk_94 = data->unk_90;
         OSRestoreInterrupts(intr);
@@ -408,6 +529,9 @@ s32 fn_8001F13C(THPDecComp* streamPlayer)
                              "filnum = %d, ofs = %d, by sugano.",
                              streamPlayer->file_entrynum,
                              streamPlayer->curr_file_offset);
+#ifdef MELEE_NATIVE
+            native_mth_request(streamPlayer, streamPlayer->unk_8C);
+#endif
             HSD_DevComRequest(
                 streamPlayer->file_entrynum, streamPlayer->curr_file_offset,
                 streamPlayer->frame_buffers[streamPlayer->unk_8C],

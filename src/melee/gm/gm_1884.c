@@ -106,7 +106,15 @@ static inline TrainingItemEntry* TrainingItemTable_Get(void)
 /* 473814 */ CssSubStruct gm_80473814;
 
 STATIC_ASSERT(sizeof(lbl_80473700) == 0x114);
+#ifdef MELEE_NATIVE
+/* This is live host state, not a serialized 0x204-byte console record. */
+STATIC_ASSERT(ARRAY_SIZE(gm_80473814.jobjs) == 39);
+STATIC_ASSERT(ARRAY_SIZE(gm_80473814.anim_frames) == 39);
+STATIC_ASSERT(ARRAY_SIZE(gm_80473814.menu_values) == 7);
+STATIC_ASSERT(ARRAY_SIZE(gm_80473814.saved_players) == 4);
+#else
 STATIC_ASSERT(sizeof(gm_80473814) == 0x204);
+#endif
 
 int gm_80188454(int idx)
 {

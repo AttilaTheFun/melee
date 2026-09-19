@@ -254,9 +254,13 @@ void grFourside_801F30A0(void* user_data, int joint_id, CollData* coll,
     PAD_STACK(3 * 4);
 
     gobj = Ground_GetMapGObj(5);
+#ifdef MELEE_NATIVE
+    val = coll->x34_flags.b1234;
+#else
     val = M2C_FIELD(coll, u8*, 0x34);
-    gp1 = GET_GROUND(gobj);
     val = ((val >> 3) & 0xF);
+#endif
+    gp1 = GET_GROUND(gobj);
     if (val == 1) {
         gp1->u.fourside2.x8 += 1;
     }

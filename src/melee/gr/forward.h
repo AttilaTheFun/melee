@@ -6,6 +6,13 @@
 
 #include <dolphin/mtx.h>
 
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+typedef intptr_t grGreens_PointerWord;
+#else
+typedef s32 grGreens_PointerWord;
+#endif
+
 struct grCorneria_GroundVars;
 typedef struct grDynamicAttr_UnkStruct grDynamicAttr_UnkStruct;
 typedef struct GrJoint GrJoint;

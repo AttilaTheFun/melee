@@ -3,6 +3,9 @@
 #include "inlines.h"
 #include "lb_0219.h"
 #include "types.h"
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+#endif
 
 void (*lbCommand_803B9840[16])(CommandInfo*) = {
     Command_00, Command_01, Command_02, Command_03, Command_04, Command_05,
@@ -35,13 +38,30 @@ void Command_03(CommandInfo* info)
 {
     info->event_return[info->loop_count++] = info->u + 1;
     info->event_return[info->loop_count++] =
+#ifdef MELEE_NATIVE
+        (union CmdUnion*) (uintptr_t) info->u->Command_03.value;
+#else
         (union CmdUnion*) info->u->Command_03.value;
+#endif
     NEXT_CMD(info);
 }
 
 /// Execute Loop
 void Command_04(CommandInfo* info)
 {
+#ifdef MELEE_NATIVE
+    /* The console alias below addresses a four-byte stack slot through the
+     * CommandInfo header. Native stack entries are full-width pointers. Loop
+     * counters retain the console's unsigned 32-bit decrement semantics. */
+    u32 count = (u32) (uintptr_t) info->event_return[info->loop_count - 1];
+    count -= 1;
+    info->event_return[info->loop_count - 1] =
+        (union CmdUnion*) (uintptr_t) count;
+    if (count != 0) {
+        info->u = info->event_return[info->loop_count - 2];
+        return;
+    }
+#else
     u32* ptr = (u32*) info;
     ptr[info->loop_count + 3] -= 1;
 
@@ -49,6 +69,7 @@ void Command_04(CommandInfo* info)
         info->ptr[0] = &info->ptr[info->loop_count][0];
         return;
     }
+#endif
     NEXT_CMD(info);
     info->loop_count -= 2;
 }

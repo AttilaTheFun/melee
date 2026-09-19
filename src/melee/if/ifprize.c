@@ -1,4 +1,13 @@
 #include "ifprize.h"
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbheap.h>
+#include <dolphin/dvd.h>
+#include <sysdolphin/baselib/debug.h>
+static MeleeSceneDesc* native_prize_scenes[2];
+#endif
 
 #include <placeholder.h>
 #include <stdio.h>
@@ -157,7 +166,9 @@ void fn_802FE470(HSD_GObj* gobj)
             HSD_GObjFree(un_803F9D48.x18);
             HSD_GObjFree(un_803F9D48.x1C);
             HSD_GObjFree(un_803F9D48.x14);
+#ifndef MELEE_NATIVE
             lbArchive_80016EFC(un_804D6D98);
+#endif
             un_803F9D48.x1 = 4;
             un_803F9D48.x0a = 0;
             un_803F9D48.x0b = 0;
@@ -231,8 +242,34 @@ execute:
 /// @note Needed for @c .data ordering
 static void setArchive(void)
 {
+#ifdef MELEE_NATIVE
+    MeleeSceneDesc** owner =
+        &native_prize_scenes[!!lbLang_IsSavedLanguageUS()];
+    /* Prize objects borrow the decoded scene across repeated unlocks. */
+    if (!*owner) {
+        size_t size = 0;
+        void* owned = NULL;
+        const char* name = lbFileGetFullName("IfPrize");
+        const void* bytes = lbDvd_NativeGetRawData(
+            DVDConvertPathToEntrynum(name), &size);
+        if (!bytes) {
+            lbFile_80016760("IfPrize", &owned, &size);
+            bytes = owned;
+        }
+        MeleeArchive archive;
+        u32 root;
+        HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+        HSD_ASSERT(__LINE__, melee_archive_find(
+            &archive, "ScInfPrize_scene_data", &root));
+        *owner = melee_scene_desc_decode(&archive, root);
+        if (owned) lbHeap_80015CA8(0, owned);
+        HSD_ASSERT(__LINE__, *owner);
+    }
+    un_804D6D9C = melee_scene_desc_data(*owner);
+#else
     un_804D6D98 = lbArchive_80016DBC("IfPrize", &un_804D6D9C,
                                      "ScInfPrize_scene_data", 0);
+#endif
     if (lbLang_IsSavedLanguageUS()) {
         HSD_SisLib_803A62A0(2, "SdPrize.usd", "SIS_PrizeData");
     } else {

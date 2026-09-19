@@ -14,3 +14,7 @@
 /* 1C6478 */ UnkArchiveStruct* grDatFiles_801C6478(void* data, s32 length);
 
 #endif
+
+#ifdef MELEE_NATIVE
+bool grDatFiles_NativeRelease(HSD_Archive*);
+#endif

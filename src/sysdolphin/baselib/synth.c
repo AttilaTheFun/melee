@@ -10,6 +10,18 @@
 #include <dolphin/ai.h>
 #include <dolphin/ar.h>
 #include <dolphin/os.h>
+#ifdef MELEE_NATIVE
+#include "melee_ssm.h"
+#include <stdlib.h>
+#include <time.h>
+static void native_unload_bank(int bank_id);
+static void native_unload_group(int entrynum);
+static void native_remove_sound(int sfx_id);
+static inline void stopRange(size_t lo, size_t hi);
+static void native_compact_bank(int bank_id);
+static void native_readdress_group(void* group, uintptr_t destination);
+static void native_load_new(void);
+#endif
 
 /* 389334 */ static int HSD_Synth_80389334(int sfx_id, u8 vol, u8 vol2, u8 pan,
                                            int priority, int itd_flag,
@@ -46,7 +58,7 @@ static inline s32 SfxLoadStreamDataSize(s32 size)
     return size + 8;
 }
 
-static void HSD_SynthSFXSampleLoadCallback(int result, int length, void* addr,
+static void HSD_SynthSFXSampleLoadCallback(int result, HSD_DevComArg length, void* addr,
                                            bool cancelflag)
 {
     BOOL intr;
@@ -148,7 +160,7 @@ static void HSD_SynthSFXSampleLoadCallback(int result, int length, void* addr,
     OSRestoreInterrupts(intr);
 }
 
-static void HSD_SynthSFXHeaderLoadCallback(int result, int length, void* addr,
+static void HSD_SynthSFXHeaderLoadCallback(int result, HSD_DevComArg length, void* addr,
                                            bool cancelflag)
 {
     s32 header_size;
@@ -185,6 +197,9 @@ static void HSD_SynthSFXHeaderLoadCallback(int result, int length, void* addr,
 
 void HSD_SynthSFXLoadNewProc(void)
 {
+#ifdef MELEE_NATIVE
+    native_load_new();
+#else
     if (HSD_Synth_804D772C != 0) {
         bool enabled = OSDisableInterrupts();
         HSD_Synth_804D6028[0] = HSD_DevComRequest(
@@ -192,6 +207,7 @@ void HSD_SynthSFXLoadNewProc(void)
             0x20, 0x21, 1, HSD_SynthSFXHeaderLoadCallback, NULL);
         OSRestoreInterrupts(enabled);
     }
+#endif
 }
 
 int HSD_SynthSFXLoad(const char* filename, int bankID, void (*cb)(int, int),
@@ -204,11 +220,25 @@ int HSD_SynthSFXLoad(const char* filename, int bankID, void (*cb)(int, int),
                      "invalid bankID = %d; filename = %s\n", bankID, filename);
 
     entrynum = DVDConvertPathToEntrynum(filename);
-
+#ifdef MELEE_NATIVE
+    if (entrynum < 0) return -1;
+    for (;;) {
+        enabled = OSDisableInterrupts();
+        if (sfxGroupDataReaddressCounter) {
+            OSRestoreInterrupts(enabled); return -1;
+        }
+        if (HSD_Synth_804D772C < 6) break;
+        OSRestoreInterrupts(enabled);
+        HSD_ASSERT(0, enabled);
+        struct timespec pause = { 0, 1000000 };
+        nanosleep(&pause, NULL);
+    }
+#else
     while (HSD_Synth_804D772C >= 6) {
     }
 
     enabled = OSDisableInterrupts();
+#endif
     HSD_Synth_804C2A60[HSD_Synth_804D772C].entrynum = entrynum;
     HSD_Synth_804C2A60[HSD_Synth_804D772C].bankID = bankID;
     HSD_Synth_804C2A60[HSD_Synth_804D772C].x8 = cb;
@@ -225,14 +255,34 @@ int HSD_SynthSFXLoad(const char* filename, int bankID, void (*cb)(int, int),
 
 void HSD_SynthSFXWaitForLoadCompletion(void (*callback)(void))
 {
+#ifdef MELEE_NATIVE
+    for (;;) {
+        bool enabled = OSDisableInterrupts();
+        bool pending = HSD_Synth_804D772C != 0;
+        OSRestoreInterrupts(enabled);
+        if (!pending) return;
+        HSD_ASSERT(0, enabled);
+        if (callback) callback();
+        struct timespec pause = { 0, 1000000 };
+        nanosleep(&pause, NULL);
+    }
+#else
     while (HSD_Synth_804D772C != 0) {
         callback();
     }
+#endif
 }
 
 int HSD_SynthSFXGetPendingLoadCount(void)
 {
+#ifdef MELEE_NATIVE
+    bool enabled = OSDisableInterrupts();
+    int count = HSD_Synth_804D772C - HSD_Synth_804D7738;
+    OSRestoreInterrupts(enabled);
+    return count;
+#else
     return HSD_Synth_804D772C - HSD_Synth_804D7738;
+#endif
 }
 
 int HSD_SynthSFXCancelLoad(int entrynum)
@@ -246,9 +296,11 @@ int HSD_SynthSFXCancelLoad(int entrynum)
         {
             int i;
             HSD_Synth_804D7738 = 1;
+#ifndef MELEE_NATIVE
             for (i = 0; i < 2; i++) {
                 HSD_DevComCancelEx(HSD_Synth_804D6028[i], 0, 0, 0);
             }
+#endif
             result = 1;
         } else {
             int idx = 1;
@@ -302,6 +354,9 @@ static inline void HSD_SynthSFXUnloadBank_inline(AXVPB* vpb)
 
 void HSD_SynthSFXUnloadBank(int bank_id)
 {
+#ifdef MELEE_NATIVE
+    native_unload_bank(bank_id);
+#else
     AXVPB** head;
     HSD_SynthSFXStopRange(bank_id);
     head = &HSD_Synth_804C2AE0[bank_id];
@@ -313,10 +368,14 @@ void HSD_SynthSFXUnloadBank(int bank_id)
         HSD_AudioFree(cur);
     }
     hsd_SynthSFXBank[bank_id] = hsd_SynthSFXBankHead[bank_id];
+#endif
 }
 
 void HSD_Synth_80388DC8(int sfx_id)
 {
+#ifdef MELEE_NATIVE
+    native_remove_sound(sfx_id);
+#else
     void* cur;
     void** pcur = &HSD_Synth_804C29E0[sfx_id & 0x1F];
 
@@ -327,10 +386,14 @@ void HSD_Synth_80388DC8(int sfx_id)
         }
         pcur = (void**) cur;
     }
+#endif
 }
 
 void HSD_Synth_80388E08(int sfx_id)
 {
+#ifdef MELEE_NATIVE
+    native_unload_group(sfx_id);
+#else
     AXVPB* cur;
     AXVPB** pcur;
     int i;
@@ -349,6 +412,7 @@ void HSD_Synth_80388E08(int sfx_id)
             pcur = &cur->next;
         }
     }
+#endif
 }
 
 static void HSD_SynthSFXGroupDataReaddressCallback(void* result, int length,
@@ -369,6 +433,9 @@ static void order_data_1(void)
 
 void HSD_SynthSFXGroupDataReaddress(AXVPB* arg0, void* callback)
 {
+#ifdef MELEE_NATIVE
+    native_readdress_group(arg0, (uintptr_t)callback);
+#else
     u8* q;
     int i;
     int count;
@@ -401,10 +468,14 @@ void HSD_SynthSFXGroupDataReaddress(AXVPB* arg0, void* callback)
         i++;
     }
     arg0->callback = (void (*)(void*)) callback;
+#endif
 }
 
 void HSD_SynthSFXBankDeflag(int bank_id)
 {
+#ifdef MELEE_NATIVE
+    native_compact_bank(bank_id);
+#else
     AXVPB* vpb;
     intptr_t offset;
 
@@ -419,13 +490,26 @@ void HSD_SynthSFXBankDeflag(int bank_id)
         vpb = vpb->next;
     }
     HSD_Synth_804C2AE0[bank_id + 0x80 / 4] = (void*) offset;
+#endif
 }
 
 void HSD_SynthSFXBankDeflagSync(void)
 {
+#ifdef MELEE_NATIVE
+    for (;;) {
+        bool enabled = OSDisableInterrupts();
+        bool pending = sfxGroupDataReaddressCounter != 0;
+        OSRestoreInterrupts(enabled);
+        if (!pending) return;
+        HSD_ASSERT(0, enabled);
+        struct timespec pause = { 0, 1000000 };
+        nanosleep(&pause, NULL);
+    }
+#else
     while (sfxGroupDataReaddressCounter) {
         continue;
     }
+#endif
 }
 
 u32 HSD_SynthGetSoundMode(void)
@@ -514,10 +598,343 @@ struct foo {
     int unk4; // sound ID
     int unk8; // voice count
     int unkC; // audio parameter
+#ifdef MELEE_NATIVE
+    MeleeSSMVoice voices[2];
+#else
     AXPBADDR x10;
     AXPBADPCM x20;
     AXPBADPCMLOOP x48;
+#endif
 };
+
+#ifdef MELEE_NATIVE
+struct NativeSFXGroup {
+    struct NativeSFXGroup* next;
+    int entrynum;
+    u32 base, size, count;
+    struct foo* entries;
+};
+static struct NativeSFXGroup* native_sfx_groups[32];
+
+static void native_compact_done(int request, HSD_DevComArg arg, void* buffer,
+                                bool canceled)
+{
+    bool enabled = OSDisableInterrupts();
+    HSD_ASSERT(0, !canceled && sfxGroupDataReaddressCounter > 0);
+    --sfxGroupDataReaddressCounter;
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_move_group(struct NativeSFXGroup* group, u32 destination)
+{
+    /* Compaction moves toward the start of the same bank. The forward relay
+     * copy is safe when source and destination overlap in that direction. */
+    HSD_ASSERT(0, destination <= group->base && !(destination & 31) &&
+                      !(group->base & 31) && !(group->size & 31));
+    if (destination == group->base) return;
+    u32 delta = (group->base - destination) * 2;
+    for (u32 i = 0; i < group->count; ++i) {
+        for (int v = 0; v < group->entries[i].unk8; ++v) {
+            AXPBADDR* a = &group->entries[i].voices[v].address;
+            u32 current = ((u32)a->currentAddressHi << 16) | a->currentAddressLo;
+            u32 end = ((u32)a->endAddressHi << 16) | a->endAddressLo;
+            u32 loop = ((u32)a->loopAddressHi << 16) | a->loopAddressLo;
+            HSD_ASSERT(0, current >= delta && end >= delta && loop >= delta);
+            current -= delta; end -= delta; loop -= delta;
+            a->currentAddressHi = current >> 16; a->currentAddressLo = current;
+            a->endAddressHi = end >> 16; a->endAddressLo = end;
+            a->loopAddressHi = loop >> 16; a->loopAddressLo = loop;
+        }
+    }
+    if (group->size) {
+        ++sfxGroupDataReaddressCounter;
+        HSD_DevComRequest(0, group->base, destination, group->size, 0x1B, 0,
+                         native_compact_done, NULL);
+    }
+    group->base = destination;
+}
+
+static void native_readdress_group(void* opaque, uintptr_t destination)
+{
+    bool enabled = OSDisableInterrupts();
+    for (int bank = 0; bank < hsd_SynthSFXBankNum; ++bank) {
+        for (struct NativeSFXGroup* group = native_sfx_groups[bank]; group;
+             group = group->next) {
+            if (group == opaque) {
+                HSD_ASSERT(0, destination >= (u32)hsd_SynthSFXBankHead[bank] &&
+                                  destination <= group->base);
+                stopRange((size_t)group->base * 2,
+                          ((size_t)group->base + group->size) * 2);
+                native_move_group(group, destination);
+                OSRestoreInterrupts(enabled); return;
+            }
+        }
+    }
+    HSD_ASSERT(0, 0);
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_compact_bank(int bank_id)
+{
+    bool enabled;
+    /* Canceled loads are no longer counted by GetPendingLoadCount, but the
+     * native DMA worker must retire them before this bank can be moved. */
+    for (;;) {
+        enabled = OSDisableInterrupts();
+        if (!HSD_Synth_804D772C) break;
+        HSD_ASSERT(0, enabled && HSD_Synth_804D772C == 1 && HSD_Synth_804D7738);
+        OSRestoreInterrupts(enabled);
+        struct timespec pause = { 0, 1000000 };
+        nanosleep(&pause, NULL);
+    }
+    HSD_ASSERT(0, bank_id >= 0 && bank_id < hsd_SynthSFXBankNum &&
+                      bank_id < 32 && !sfxGroupDataReaddressCounter);
+    HSD_SynthSFXStopRange(bank_id);
+    u32 offset = hsd_SynthSFXBankHead[bank_id];
+    for (struct NativeSFXGroup* group = native_sfx_groups[bank_id]; group;
+         group = group->next) {
+        native_move_group(group, offset);
+        offset += group->size;
+    }
+    hsd_SynthSFXBank[bank_id] = offset;
+    OSRestoreInterrupts(enabled);
+}
+
+/* Called after sample DMA completes, with the bank cursor unchanged since
+ * that transfer was scheduled. Own copies of metadata; no borrowed parser
+ * pointers survive publication. All validation precedes lookup-table edits. */
+static bool native_publish_group(const MeleeSSM* bank, int bank_id,
+                                 int entrynum, u32 base)
+{
+    bool enabled = OSDisableInterrupts();
+    struct NativeSFXGroup* group = NULL;
+    if (sfxGroupDataReaddressCounter || !bank || bank_id < 0 || bank_id >= 32 ||
+        bank_id >= hsd_SynthSFXBankNum ||
+        base != (u32)hsd_SynthSFXBank[bank_id] ||
+        base > (u32)hsd_SynthSFXBankHead[bank_id + 1] ||
+        bank->sample_bytes > (u32)hsd_SynthSFXBankHead[bank_id + 1] - base ||
+        base > UINT32_MAX / 2) goto failed;
+    group = calloc(1, sizeof(*group));
+    if (!group) goto failed;
+    if (bank->entry_count) {
+        group->entries = calloc(bank->entry_count, sizeof(*group->entries));
+        if (!group->entries) goto failed;
+    }
+    group->entrynum = entrynum; group->base = base;
+    group->size = bank->sample_bytes; group->count = bank->entry_count;
+    for (u32 i = 0; i < group->count; ++i) {
+        const MeleeSSMEntry* source = &bank->entries[i];
+        struct foo* entry = &group->entries[i];
+        if (source->voice_count < 1 || source->voice_count > 2 ||
+            source->id > INT32_MAX || !source->sample_rate ||
+            source->sample_rate > INT32_MAX) goto failed;
+        entry->unk4 = source->id; entry->unk8 = source->voice_count;
+        entry->unkC = source->sample_rate;
+        memcpy(entry->voices, source->voices, sizeof(entry->voices));
+        for (u32 v = 0; v < source->voice_count; ++v) {
+            AXPBADDR* a = &entry->voices[v].address;
+            u32 current = ((u32)a->currentAddressHi << 16) | a->currentAddressLo;
+            u32 end = ((u32)a->endAddressHi << 16) | a->endAddressLo;
+            u32 loop = ((u32)a->loopAddressHi << 16) | a->loopAddressLo;
+            /* The original SSM loader relocates ADPCM nibble addresses. */
+            if (a->format != 0 || a->loopFlag > 1 || current > end ||
+                end / 2 >= group->size || (current & 15) < 2 ||
+                (end & 15) < 2 || (loop & 15) < 2 ||
+                (a->loopFlag && (loop > end || loop / 2 >= group->size)) ||
+                current > UINT32_MAX - base * 2 ||
+                end > UINT32_MAX - base * 2 || loop > UINT32_MAX - base * 2)
+                goto failed;
+            current += base * 2; end += base * 2; loop += base * 2;
+            a->currentAddressHi = current >> 16; a->currentAddressLo = current;
+            a->endAddressHi = end >> 16; a->endAddressLo = end;
+            a->loopAddressHi = loop >> 16; a->loopAddressLo = loop;
+        }
+    }
+    struct NativeSFXGroup** tail = &native_sfx_groups[bank_id];
+    while (*tail) tail = &(*tail)->next;
+    *tail = group;
+    for (u32 i = 0; i < group->count; ++i) {
+        struct foo* entry = &group->entries[i];
+        void** bucket = &HSD_Synth_804C29E0[entry->unk4 & 31];
+        entry->next = *bucket; *bucket = entry;
+    }
+    hsd_SynthSFXBank[bank_id] = base + group->size;
+    OSRestoreInterrupts(enabled);
+    return true;
+failed:
+    if (group) { free(group->entries); free(group); }
+    OSRestoreInterrupts(enabled);
+    return false;
+}
+
+static unsigned char* native_load_bytes;
+static u32 native_load_length, native_load_sample_offset, native_load_base;
+static MeleeSSM* native_load_bank;
+
+static void native_load_finish(bool success)
+{
+    free(native_load_bytes); native_load_bytes = NULL;
+    melee_ssm_close(native_load_bank); native_load_bank = NULL;
+    if (success && HSD_Synth_804C2A60[0].x8)
+        HSD_Synth_804C2A60[0].x8(HSD_Synth_804C2A60[0].entrynum,
+                                HSD_Synth_804C2A60[0].xC);
+    HSD_Synth_804D7738 = 0;
+    --HSD_Synth_804D772C;
+    for (int i = 0; i < HSD_Synth_804D772C; ++i)
+        HSD_Synth_804C2A60[i] = HSD_Synth_804C2A60[i + 1];
+    native_load_new();
+}
+
+static void native_load_samples_done(int request, HSD_DevComArg arg,
+                                     void* buffer, bool canceled)
+{
+    bool enabled = OSDisableInterrupts();
+    bool success = !canceled && !HSD_Synth_804D7738;
+    if (success) {
+        success = native_publish_group(native_load_bank,
+            HSD_Synth_804C2A60[0].bankID, HSD_Synth_804C2A60[0].entrynum,
+            native_load_base);
+        if (!success) OSReport("Native SSM publication rejected\n");
+    }
+    native_load_finish(success);
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_load_header_done(int request, HSD_DevComArg arg,
+                                    void* buffer, bool canceled)
+{
+    bool enabled = OSDisableInterrupts();
+    if (canceled || HSD_Synth_804D7738) goto discarded;
+    native_load_bank = melee_ssm_open(native_load_bytes, native_load_length);
+    if (!native_load_bank) goto invalid;
+    unsigned char* p = native_load_bytes;
+    u32 header = (u32)p[0] << 24 | (u32)p[1] << 16 | (u32)p[2] << 8 | p[3];
+    native_load_sample_offset = (header + 16 + 31) & ~31U;
+    int bank = HSD_Synth_804C2A60[0].bankID;
+    native_load_base = hsd_SynthSFXBank[bank];
+    if ((native_load_base & 31) || (native_load_bank->sample_bytes & 31) ||
+        native_load_base > (u32)hsd_SynthSFXBankHead[bank + 1] ||
+        native_load_bank->sample_bytes >
+            (u32)hsd_SynthSFXBankHead[bank + 1] - native_load_base) goto invalid;
+    free(native_load_bytes); native_load_bytes = NULL;
+    if (!native_load_bank->sample_bytes) {
+        native_load_samples_done(0, 0, NULL, false);
+    } else {
+        HSD_Synth_804D6028[0] = HSD_DevComRequest(
+            HSD_Synth_804C2A60[0].entrynum, native_load_sample_offset,
+            native_load_base, native_load_bank->sample_bytes, 0x23, 1,
+            native_load_samples_done, NULL);
+    }
+    OSRestoreInterrupts(enabled); return;
+invalid:
+    OSReport("Native SSM load rejected: invalid metadata or bank capacity\n");
+discarded:
+    native_load_finish(false);
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_load_new(void)
+{
+    bool enabled = OSDisableInterrupts();
+    if (HSD_Synth_804D772C) {
+        DVDFileInfo info;
+        if (!DVDFastOpen(HSD_Synth_804C2A60[0].entrynum, &info)) {
+            native_load_finish(false);
+        } else {
+            native_load_length = info.length;
+            DVDClose(&info);
+            if (native_load_length < 16 || native_load_length > INT32_MAX - 31 ||
+                posix_memalign((void**)&native_load_bytes, 32,
+                               (native_load_length + 31) & ~31U)) {
+                native_load_finish(false);
+            } else {
+                HSD_Synth_804D6028[0] = HSD_DevComRequest(
+                    HSD_Synth_804C2A60[0].entrynum, 0,
+                    (uintptr_t)native_load_bytes, (native_load_length + 31) & ~31U,
+                    0x21, 1, native_load_header_done, NULL);
+            }
+        }
+    }
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_remove_sound(int sfx_id)
+{
+    bool enabled = OSDisableInterrupts();
+    void** link = &HSD_Synth_804C29E0[sfx_id & 31];
+    while (*link) {
+        struct foo* entry = *link;
+        if (entry->unk4 == sfx_id) { *link = entry->next; break; }
+        link = &entry->next;
+    }
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_free_group(struct NativeSFXGroup* group)
+{
+    for (u32 i = 0; i < group->count; ++i) {
+        struct foo* entry = &group->entries[i];
+        void** link = &HSD_Synth_804C29E0[entry->unk4 & 31];
+        while (*link) {
+            struct foo* candidate = *link;
+            if (candidate == entry) { *link = candidate->next; break; }
+            link = &candidate->next;
+        }
+    }
+    free(group->entries); free(group);
+}
+
+static void native_cancel_pending(int bank_id, int entrynum)
+{
+    /* Keep active I/O buffers alive until completion, but suppress publication.
+     * Remove queued loads for this bank before its storage can be reused. */
+    for (int i = HSD_Synth_804D772C - 1; i >= 0; --i) {
+        if ((bank_id >= 0 && HSD_Synth_804C2A60[i].bankID != bank_id) ||
+            (entrynum >= 0 && HSD_Synth_804C2A60[i].entrynum != entrynum)) continue;
+        if (!i) HSD_Synth_804D7738 = 1;
+        else {
+            --HSD_Synth_804D772C;
+            for (int j = i; j < HSD_Synth_804D772C; ++j)
+                HSD_Synth_804C2A60[j] = HSD_Synth_804C2A60[j + 1];
+        }
+    }
+}
+
+static void native_unload_bank(int bank_id)
+{
+    bool enabled = OSDisableInterrupts();
+    HSD_ASSERT(0, bank_id >= 0 && bank_id < hsd_SynthSFXBankNum);
+    native_cancel_pending(bank_id, -1);
+    HSD_SynthSFXStopRange(bank_id);
+    while (native_sfx_groups[bank_id]) {
+        struct NativeSFXGroup* group = native_sfx_groups[bank_id];
+        native_sfx_groups[bank_id] = group->next;
+        native_free_group(group);
+    }
+    hsd_SynthSFXBank[bank_id] = hsd_SynthSFXBankHead[bank_id];
+    OSRestoreInterrupts(enabled);
+}
+
+static void native_unload_group(int entrynum)
+{
+    bool enabled = OSDisableInterrupts();
+    if (entrynum >= 0) native_cancel_pending(-1, entrynum);
+    for (int bank = 0; bank < hsd_SynthSFXBankNum; ++bank) {
+        struct NativeSFXGroup** link = &native_sfx_groups[bank];
+        while (*link) {
+            struct NativeSFXGroup* group = *link;
+            if (group->entrynum == entrynum) {
+                stopRange((size_t)group->base * 2,
+                          ((size_t)group->base + group->size) * 2);
+                *link = group->next; native_free_group(group);
+                OSRestoreInterrupts(enabled); return;
+            }
+            link = &group->next;
+        }
+    }
+    OSRestoreInterrupts(enabled);
+}
+#endif
 
 /** @remarks The per-voice blocks of an SFX entry are 0x40 apart, which is
  *  less than the AX structures they carry.
@@ -546,10 +963,23 @@ int HSD_Synth_80389334(int sfx_id, u8 vol, u8 vol2, u8 pan, int priority,
     PAD_STACK(0x14);
 
     saved_interrupts = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    if (sfxGroupDataReaddressCounter || itd_flag < 0 || itd_flag >= 16 ||
+        priority < 1 || priority > 30) {
+        OSRestoreInterrupts(saved_interrupts);
+        return -1;
+    }
+#endif
     sfx_entry = HSD_Synth_804C29E0[sfx_id & 0x1F];
 
     while (sfx_entry != NULL) {
         if (sfx_entry->unk4 == sfx_id) {
+#ifdef MELEE_NATIVE
+            if (sfx_entry->unk8 < 1 || sfx_entry->unk8 > 2) {
+                OSRestoreInterrupts(saved_interrupts);
+                return -1;
+            }
+#endif
             voice_idx = 0;
             while (voice_idx < sfx_entry->unk8) {
                 voices[voice_idx] =
@@ -612,6 +1042,16 @@ int HSD_Synth_80389334(int sfx_id, u8 vol, u8 vol2, u8 pan, int priority,
             while (voice_idx < sfx_entry->unk8) {
                 AXSetVoicePriority(voices[voice_idx], priority);
                 AXSetVoiceVe(voices[voice_idx], &ve);
+#ifdef MELEE_NATIVE
+                AXPBSRC source = { .ratioHi = 1 };
+                MeleeSSMVoice* sample = &sfx_entry->voices[voice_idx];
+                AXSetVoiceSrc(voices[voice_idx], &source);
+                AXSetVoiceSrcRatio(voices[voice_idx],
+                    sfx_node->x18[1] * (sfx_node->x14 * sfx_node->x18[0]));
+                AXSetVoiceAddr(voices[voice_idx], &sample->address);
+                AXSetVoiceAdpcm(voices[voice_idx], &sample->adpcm);
+                AXSetVoiceAdpcmLoop(voices[voice_idx], &sample->loop);
+#else
                 *(u32*) &HSD_Synth_80407FD8.ratioHi =
                     (65536.0F *
                      (sfx_node->x18[1] * (sfx_node->x14 * sfx_node->x18[0])));
@@ -620,6 +1060,7 @@ int HSD_Synth_80389334(int sfx_id, u8 vol, u8 vol2, u8 pan, int priority,
                 AXSetVoiceAdpcm(voices[voice_idx], &SFX_VOICE(voice_idx)->x20);
                 AXSetVoiceAdpcmLoop(voices[voice_idx],
                                     &SFX_VOICE(voice_idx)->x48);
+#endif
                 AXSetVoiceState(voices[voice_idx], 1U);
                 voice_idx += 1;
             }
@@ -719,17 +1160,29 @@ static inline void stopRange(size_t lo, size_t hi)
 {
     size_t addr;
     int i;
+#ifdef MELEE_NATIVE
+    bool enabled = OSDisableInterrupts();
+#endif
     for (i = 0; i < 0x40; i++) {
         struct HSD_SynthSFXNode* node = &hsd_SynthSFXNodes[i];
         if (hsd_SynthSFXNodes[i].x0 > 0) {
+#ifdef MELEE_NATIVE
+            const AXPBADDR* address = &node->voice[0]->pb.addr;
+            addr = ((u32) address->currentAddressHi << 16) |
+                   address->currentAddressLo;
+#else
             addr = *(size_t*) &hsd_SynthSFXNodes[i]
                         .voice[0]
                         ->pb.addr.currentAddressHi;
+#endif
             if (addr >= lo && addr < hi) {
                 HSD_SynthSFXStopNode(&hsd_SynthSFXNodes[i]);
             }
         }
     }
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(enabled);
+#endif
 }
 
 void HSD_SynthSFXStopRange(int bank_id)
@@ -1182,14 +1635,71 @@ void HSD_SynthCallback(void)
     OSRestoreInterrupts(enabled);
 }
 
-void HSD_SynthResetStreamCounters(int result, int length, void* buf, bool b)
+void HSD_SynthResetStreamCounters(int result, HSD_DevComArg length, void* buf, bool b)
 {
     HSD_Synth_804D776C = HSD_Synth_804D7768;
     HSD_Synth_804D7778 = 0;
 }
 
+#ifdef MELEE_NATIVE
+static u32 native_hps_word(const u8* p)
+{ return (u32)p[0]<<24 | (u32)p[1]<<16 | (u32)p[2]<<8 | p[3]; }
+static void native_hps_shorts(void* destination,const u8* source,size_t count)
+{
+    u8* out=destination;
+    for(size_t i=0;i<count;i++){
+        u16 value=(u16)source[2*i]<<8 | source[2*i+1];
+        memcpy(out+2*i,&value,2);
+    }
+}
+static bool native_hps_header(const void* bytes,u32* rate,u32* channels,
+                              AXPBADDR addresses[2],AXPBADPCM adpcm[2])
+{
+    const u8* p=bytes;
+    if(!p||memcmp(p," HALPST",7)||p[7])return false;
+    u32 r=native_hps_word(p+8),n=native_hps_word(p+12);
+    if(!r||r>192000||(n!=1&&n!=2))return false;
+    for(unsigned i=0;i<n;i++){
+        native_hps_shorts(&addresses[i],p+16+56*i,8);
+        native_hps_shorts(&adpcm[i],p+32+56*i,20);
+        if(addresses[i].format!=0||addresses[i].loopFlag>1)return false;
+    }
+    *rate=r;*channels=n;return true;
+}
+static unsigned native_hps_channels;
+static bool native_hps_block(unsigned index,unsigned channels)
+{
+    if(index>=3||(channels!=1&&channels!=2))return false;
+    u8 raw[32];memcpy(raw,&lbl_804C4540[index],32);
+    u32 size=native_hps_word(raw),end=native_hps_word(raw+4),next=native_hps_word(raw+8);
+    if(!size||size>65536||(size&31)||end<2||end>=2*size/channels||
+       (next!=UINT32_MAX&&(next<128||(next&31))))return false;
+    lbl_804C4540[index].x0=size;lbl_804C4540[index].x4=end;
+    lbl_804C4540[index].x8=(s32)next;
+    native_hps_shorts(lbl_804C4540[index].pad,raw+12,10);return true;
+}
+static void native_hps_started(int result,HSD_DevComArg arg,void* data,bool cancelled)
+{
+    HSD_ASSERT(__LINE__, !cancelled);
+    HSD_Synth_8038B120();
+}
+static void native_hps_first(int result,HSD_DevComArg arg,void* data,bool cancelled)
+{
+    HSD_ASSERT(__LINE__, !cancelled);
+    HSD_SynthPStreamFirstHakoHeaderCallback();
+}
+static void native_hps_next(int result,HSD_DevComArg arg,void* data,bool cancelled)
+{
+    HSD_ASSERT(__LINE__, !cancelled);
+    HSD_Synth_8038AD74(result,(uintptr_t)arg);
+}
+#endif
+
 void HSD_Synth_8038AD74(u32 offset, uintptr_t src)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(__LINE__, native_hps_block(HSD_Synth_804D7768,native_hps_channels));
+#endif
     HSD_DevComRequest(HSD_Synth_804D7764, src,
                       HSD_Synth_804D7780 + (HSD_Synth_804D7768 << 16),
                       lbl_804C4540[HSD_Synth_804D7768].x0, 0x23, 0,
@@ -1219,8 +1729,13 @@ static inline void HSD_Synth_8038ADD0_inline(u32 pos)
                 HSD_DevComRequest(
                     HSD_Synth_804D7764, src,
                     (uintptr_t) &lbl_804C4540[HSD_Synth_804D7768], 0x20, 0x21,
-                    0, (HSD_DevComCallback) (Event) HSD_Synth_8038AD74,
+                    0,
+#ifdef MELEE_NATIVE
+                    native_hps_next, (void*)(uintptr_t)(u32)(src + 0x20));
+#else
+                    (HSD_DevComCallback) (Event) HSD_Synth_8038AD74,
                     (struct HSD_SynthStreamHeader*) (src + 0x20));
+#endif
             }
         }
         OSRestoreInterrupts(intr);
@@ -1239,8 +1754,22 @@ void HSD_Synth_8038ADD0(void)
     if (node->flags & 8) {
         return;
     }
+#ifdef MELEE_NATIVE
+    /* AX moves a finished voice to its fallback loop address. Node cleanup
+     * runs over eight callback ticks, so a stopped stream can still be here.
+     * Use a running stereo channel, or wait for normal cleanup when both end. */
+    AXVPB* stream_voice = NULL;
+    for (i = 0; i < node->voice_count; i++) {
+        if (node->voice[i]->pb.state) { stream_voice = node->voice[i]; break; }
+    }
+    if (!stream_voice) return;
+    pos = (((u32)stream_voice->pb.addr.currentAddressHi << 16 |
+            stream_voice->pb.addr.currentAddressLo) - HSD_Synth_804D7780 * 2) >> 17;
+    HSD_ASSERT(__LINE__, pos < 3);
+#else
     pos = (*(u32*) ((u8*) node->voice[0] + 0x1B2) - HSD_Synth_804D7780 * 2) >>
           0x11;
+#endif
     if (pos != HSD_Synth_804D7774) {
         HSD_Synth_804D7774 = pos;
         for (i = 0; i < node->voice_count; i++) {
@@ -1300,6 +1829,12 @@ void HSD_Synth_8038B120(void)
         node->x24 = ve.currentVolume;
         for (i = 0; i < node->voice_count; i++) {
             AXSetVoiceVe(node->voice[i], &ve);
+#ifdef MELEE_NATIVE
+            u32 ratio = (node->flags & 4) ? 0 :
+                (u32)(65536.0F * (node->x14 * node->x18[0] * node->x18[1]));
+            HSD_Synth_80407FD8.ratioHi = ratio >> 16;
+            HSD_Synth_80407FD8.ratioLo = ratio;
+#else
             if (node->flags & 4) {
                 *(u32*) &HSD_Synth_80407FD8.ratioHi = 0;
             } else {
@@ -1307,6 +1842,7 @@ void HSD_Synth_8038B120(void)
                     (u32) (65536.0F *
                            (node->x14 * node->x18[0] * node->x18[1]));
             }
+#endif
             AXSetVoiceSrc(node->voice[i], &HSD_Synth_80407FD8);
             AXSetVoiceCurrentAddr(
                 node->voice[i],
@@ -1340,13 +1876,20 @@ void HSD_Synth_8038B120(void)
 
 void HSD_SynthPStreamFirstHakoHeaderCallback(void)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(__LINE__, native_hps_block(HSD_Synth_804D7768,native_hps_channels));
+#endif
     HSD_DevComRequest(HSD_Synth_804D7764, 0xA0,
                       HSD_Synth_804D7780 + (HSD_Synth_804D7768 << 16),
                       lbl_804C4540[HSD_Synth_804D7768].x0, 0x23, 0,
+#ifdef MELEE_NATIVE
+                      native_hps_started, 0);
+#else
                       (HSD_DevComCallback) HSD_Synth_8038B120, 0);
+#endif
 }
 
-void HSD_SynthPStreamHeaderCallback(int arg0, int arg1, void* arg2,
+void HSD_SynthPStreamHeaderCallback(int arg0, HSD_DevComArg arg1, void* arg2,
                                     bool cancelflag)
 {
     u32* entry = arg2;
@@ -1355,16 +1898,33 @@ void HSD_SynthPStreamHeaderCallback(int arg0, int arg1, void* arg2,
 
     node = getNode(HSD_Synth_804D7760);
     if (node != NULL) {
+#ifdef MELEE_NATIVE
+        AXPBADDR addresses[2];AXPBADPCM adpcm[2];u32 rate,channels;
+        HSD_ASSERT(__LINE__, !cancelflag && native_hps_header(arg2,&rate,&channels,addresses,adpcm));
+        node->voice_count = channels;native_hps_channels=channels;
+#else
         node->voice_count = entry[3];
+#endif
         if (node->voice_count == 2) {
             node->voice[1] = AXAcquireVoice(0x1D, dropcallback, 0);
             HSD_ASSERTMSG(0x5CF, node->voice[1], "entry->voice[1]");
         }
+#ifdef MELEE_NATIVE
+        node->x14 = (float)rate / 32000.0f;
+#else
         node->x14 = 0.00003125f * (f32) entry[2];
+#endif
         for (i = 0; i < node->voice_count; i++) {
+#ifdef MELEE_NATIVE
+            u32 ratio=(u32)(65536.0f*node->x14);
+            HSD_Synth_80407FD8.ratioHi=ratio>>16;HSD_Synth_80407FD8.ratioLo=ratio;
+            AXSetVoiceAddr(node->voice[i],&addresses[i]);
+            AXSetVoiceAdpcm(node->voice[i],&adpcm[i]);
+#else
             *(u32*) &HSD_Synth_80407FD8.ratioHi = (u32) (65536.0f * node->x14);
             AXSetVoiceAddr(node->voice[i], (AXPBADDR*) &entry[i * 14 + 4]);
             AXSetVoiceAdpcm(node->voice[i], (AXPBADPCM*) &entry[i * 14 + 8]);
+#endif
         }
         HSD_Synth_804D7774 = (HSD_Synth_804D7774 + 2) % 3;
         HSD_Synth_804D776C = HSD_Synth_804D7770 = HSD_Synth_804D7768 =
@@ -1372,7 +1932,11 @@ void HSD_SynthPStreamHeaderCallback(int arg0, int arg1, void* arg2,
         HSD_DevComRequest(
             HSD_Synth_804D7764, 0x80,
             (uintptr_t) &lbl_804C4540[HSD_Synth_804D7768], 0x20, 0x21, 0,
+#ifdef MELEE_NATIVE
+            native_hps_first,
+#else
             (HSD_DevComCallback) HSD_SynthPStreamFirstHakoHeaderCallback,
+#endif
             NULL);
     } else {
         HSD_Synth_804D7778 = 0;

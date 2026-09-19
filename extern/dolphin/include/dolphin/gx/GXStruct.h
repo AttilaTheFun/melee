@@ -37,7 +37,12 @@ typedef struct _GXColorS10
 
 typedef struct _GXTexObj
 {
+#if defined(MELEE_NATIVE) && defined(MELEE_AURORA)
+    /* Aurora retains native image/user pointers in its opaque texture object. */
+    u32 dummy[16] ATTRIBUTE_ALIGN(8);
+#else
     u32 dummy[8];
+#endif
 } GXTexObj;
 
 typedef struct _GXLightObj
@@ -52,7 +57,11 @@ typedef struct _GXTexRegion
 
 typedef struct _GXTlutObj
 {
+#if defined(MELEE_NATIVE) && defined(MELEE_AURORA)
+    u32 dummy[10] ATTRIBUTE_ALIGN(8);
+#else
     u32 dummy[3];
+#endif
 } GXTlutObj;
 
 typedef struct _GXTlutRegion

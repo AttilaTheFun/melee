@@ -9,6 +9,28 @@
 #include <dolphin/mtx.h>
 #include <sysdolphin/baselib/spline.h>
 
+struct grMc_YakumonoParam {
+#ifdef MELEE_NATIVE
+    union ColorOverlay_x8_t* x0;
+    union ColorOverlay_x8_t* x4;
+#else
+    int x0;
+    void* x4;
+#endif
+    DynamicsDesc* x8;
+    DynamicsDesc* xC;
+    u8 pad10[0x1C];
+    f32 x2C;
+    f32 x30;
+    f32 x34;
+    f32 x38;
+    f32 x3C;
+    f32 x40;
+    f32 x44;
+    f32 x48;
+    f32 x4C;
+};
+
 /* 1EFC68 */ void grMuteCity_801EFC68(bool);
 /* 1EFC6C */ void grMuteCity_801EFC6C(void);
 /* 1EFCDC */ void grMuteCity_801EFCDC(void);

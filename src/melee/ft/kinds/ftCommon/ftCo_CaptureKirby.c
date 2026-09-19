@@ -90,7 +90,11 @@ static inline void inlineB0(Fighter_GObj* gobj, Vec3* pos)
         f *= dist;
         scale_pad.scale.x = scale_pad.scale.y = scale_pad.scale.z =
             (1.0f - dist) + f;
+#ifdef MELEE_NATIVE
+        scale_pad.scale.x *= fp->mv.co.capturekirby.scale.x;
+#else
         scale_pad.scale.x = scale_pad.scale.x * fp->mv.co.guard.x2C;
+#endif
         scale_pad.scale.y *= fp->mv.co.capturekirby.scale.y;
         scale_pad.scale.z *= fp->mv.co.capturekirby.scale.z;
         HSD_JObjSetScale(jobj, &scale_pad.scale);

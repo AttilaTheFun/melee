@@ -47,7 +47,7 @@ typedef struct {
 /* 4D78E8 */ u32 hsd_804D78E8 = 0;
 /* 4D78EC */ u32 hsd_804D78EC = 0;
 /* 4D78F0 */ HSD_CObj* psCamera = NULL;
-/* 4D78F4 */ u32 hsd_804D78F4 = 0;
+/* 4D78F4 */ HSD_ParticleAddress hsd_804D78F4 = 0;
 static HSD_JObj* hsd_804D08E8[8];
 /* 4D0908 */ HSD_Particle* hsd_804D0908[16];
 /* 4D0948 */ u32* hsd_804D0948[65];
@@ -502,8 +502,8 @@ HSD_Particle* psGenerateParticle0(HSD_Particle** head, int linkNo, int bank,
 #pragma push
 #pragma dont_inline on
 #endif
-void hsd_80398F0C(s32 linkNo, s32 bank, s32 kind, u16 texGroup, s32 cmdList,
-                  s32 life, s32 zero, s32 gen, f32 pos_x, f32 pos_y, f32 pos_z,
+void hsd_80398F0C(s32 linkNo, s32 bank, s32 kind, u16 texGroup, HSD_ParticlePointerArg cmdList,
+                  s32 life, s32 zero, HSD_ParticlePointerArg gen, f32 pos_x, f32 pos_y, f32 pos_z,
                   f32 vel_x, f32 vel_y, f32 vel_z, f32 fric, f32 rate,
                   f32 angle3)
 {
@@ -3036,13 +3036,6 @@ void hsd_8039D048(void* particle)
 
 void hsd_8039D0A0(HSD_Generator* gen)
 {
-    typedef struct {
-        HSD_JObj* jobj[8];
-        HSD_Particle* particle[146];
-        u8 pad[0x410];
-        HSD_ObjAllocData alloc_data;
-    } ParticleData;
-    ParticleData* data = (ParticleData*) hsd_804D08E8;
     HSD_Particle* prev;
     HSD_Particle* prt;
     HSD_Particle* next;
@@ -3051,7 +3044,7 @@ void hsd_8039D0A0(HSD_Generator* gen)
 
     prev = NULL;
     idnum = gen->idnum;
-    head = &data->particle[gen->linkNo];
+    head = &hsd_804D0908[gen->linkNo];
     prt = *head;
 
     while (prt != NULL) {
@@ -3079,13 +3072,13 @@ void hsd_8039D0A0(HSD_Generator* gen)
 
             if (prt->kind & 0x8000) {
                 s32 jidx = (prt->kind >> 12) & 7;
-                if (data->jobj[jidx] != NULL) {
-                    HSD_JObjUnref(data->jobj[jidx]);
-                    data->jobj[jidx] = NULL;
+                if (hsd_804D08E8[jidx] != NULL) {
+                    HSD_JObjUnref(hsd_804D08E8[jidx]);
+                    hsd_804D08E8[jidx] = NULL;
                 }
             }
 
-            HSD_ObjFree(&data->alloc_data, prt);
+            HSD_ObjFree(&hsd_804D0F60.alloc_data, prt);
             hsd_804D78E2--;
         } else {
             prev = prt;
@@ -3093,3 +3086,12 @@ void hsd_8039D0A0(HSD_Generator* gen)
         prt = next;
     }
 }
+
+#ifdef MELEE_NATIVE
+void psInitDataBankNative(int bank,HSD_PSCmdList** commands,unsigned command_count,HSD_PSTexGroup** textures,unsigned texture_count){
+    HSD_ASSERT(__LINE__, bank>=0&&bank<65&&command_count<=65536&&texture_count<=65536);
+    HSD_ASSERT(__LINE__, (!command_count||commands)&&(!texture_count||textures));
+    hsd_804D0948[bank]=NULL;psFormGroupArray[bank]=NULL;psNumCmdList[bank]=NULL;
+    psCmdListArray[bank]=command_count;ptclref_804D0E5C[bank]=commands;psTexGroupArray[bank]=textures;
+}
+#endif

@@ -2,6 +2,7 @@
 
 #include <placeholder.h>
 #include <string.h>
+#include <math.h>
 
 #include "aobj.h"
 #include "cobj.h"
@@ -68,6 +69,10 @@ void HSD_TObjAddAnim(HSD_TObj* tobj, HSD_TexAnim* texanim)
             }
             tobj->aobj = HSD_AObjLoadDesc(ta->aobjdesc);
             tobj->imagetbl = ta->imagetbl;
+#ifdef MELEE_NATIVE
+            tobj->native_image_count = ta->n_imagetbl;
+            tobj->native_palette_count = ta->n_tluttbl;
+#endif
 
             if (tobj->tluttbl != NULL) {
                 for (i = 0; tobj->tluttbl[i]; i++) {
@@ -144,6 +149,14 @@ static void TObjUpdateFunc(void* obj, enum_t type, HSD_ObjData* val)
     case HSD_A_T_TIMG: {
         int n;
         HSD_ASSERT(276, tobj->imagetbl);
+#ifdef MELEE_NATIVE
+        /* Retail truncates fractional indices toward zero; interpolated
+         * tracks can undershoot zero slightly while still selecting slot 0. */
+        if(!(tobj->native_image_count && val->fv > -1.0f && val->fv < tobj->native_image_count))
+            OSReport("Native texture image value=%f count=%u id=%u\n",val->fv,tobj->native_image_count,tobj->id);
+        HSD_ASSERTREPORT(278, tobj->native_image_count && val->fv > -1.0f && val->fv < tobj->native_image_count,
+                         "texture animation image index out of range");
+#endif
         n = (int) val->fv;
         if (tobj->imagetbl[n]) {
             tobj->imagedesc = tobj->imagetbl[n];
@@ -151,6 +164,10 @@ static void TObjUpdateFunc(void* obj, enum_t type, HSD_ObjData* val)
     } break;
     case HSD_A_T_TCLT: {
         if (tobj->tluttbl) {
+#ifdef MELEE_NATIVE
+            HSD_ASSERTREPORT(285, tobj->native_palette_count && val->fv > -1.0f && val->fv < tobj->native_palette_count && val->fv < 255,
+                             "texture animation palette index out of range");
+#endif
             tobj->tlut_no = (u8) val->fv;
         }
     } break;
@@ -395,6 +412,13 @@ static void MakeTextureMtx(HSD_TObj* tobj)
     MTXScale(m, scale.x, scale.y, scale.z);
     MTXConcat(m, tobj->mtx, tobj->mtx);
 }
+
+#ifdef MELEE_NATIVE
+void HSD_TObjMakeTextureMtx(HSD_TObj* tobj)
+{
+    MakeTextureMtx(tobj);
+}
+#endif
 
 static void TObjSetupMtx(HSD_TObj* tobj)
 {
@@ -1624,3 +1648,21 @@ static void TObjInfoInit(void)
 
     hsdTObj.make_mtx = MakeTextureMtx;
 }
+
+#ifdef MELEE_NATIVE
+int HSD_TObjNativeIndexTest(void)
+{
+    HSD_TObj tobj={0};HSD_ImageDesc images[2]={{0},{0}};
+    HSD_ImageDesc* image_table[]={&images[0],&images[1]};
+    HSD_Tlut palettes[2]={{0},{0}};HSD_Tlut* palette_table[]={&palettes[0],&palettes[1]};
+    HSD_ObjData value;
+    tobj.imagetbl=image_table;tobj.native_image_count=2;tobj.tluttbl=palette_table;tobj.native_palette_count=2;
+    const float samples[]={-0.012085f,0.999f,1.999f};
+    for(unsigned i=0;i<3;i++){
+        value.fv=samples[i];TObjUpdateFunc(&tobj,HSD_A_T_TIMG,&value);
+        HSD_ASSERT(__LINE__,tobj.imagedesc==&images[i==2?1:0]);
+        TObjUpdateFunc(&tobj,HSD_A_T_TCLT,&value);HSD_ASSERT(__LINE__,tobj.tlut_no==(i==2?1:0));
+    }
+    return 0;
+}
+#endif

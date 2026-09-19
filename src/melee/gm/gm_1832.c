@@ -1,4 +1,5 @@
 #include "gm_1832.h"
+#include <dolphin/gx/GXVert.h>
 
 #include "gm_1601.h"
 #include "gm_1A45.h"
@@ -124,7 +125,7 @@ typedef struct {
 } ClassicSplashRow;
 ASSERT_SIZE(ClassicSplashRow, 0x30);
 
-static struct {
+typedef struct {
     /* 0x000 */ ClassicSlotVals x00[2];
     /* 0x018 */ ClassicSlotVals x18[3];
     /* 0x03C */ ClassicSlotVals x3C[4];
@@ -137,7 +138,47 @@ static struct {
     /* 0x654 */ ClassicSlotVals x654[3];
     /* 0x678 */ ClassicSlotVals x678[4];
     /* 0x6A8 */ ClassicCharLayout x6A8[28];
-}* lbl_804D6604;
+} ClassicIntroLayout;
+static ClassicIntroLayout* lbl_804D6604;
+
+#ifdef MELEE_NATIVE
+#include "melee_archive.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+#include <math.h>
+#include <string.h>
+/* This archive contains only 32-bit scalar layout data, no host pointers. */
+const void* gmIntro_NativeDecodeLayout(const void* bytes, size_t length)
+{
+    static ClassicIntroLayout owned;
+    ClassicIntroLayout decoded;
+    MeleeArchive archive;
+    u32 root;
+    if (!melee_archive_open(&archive, bytes, length) ||
+        archive.reloc_count || archive.extern_count ||
+        !melee_archive_find(&archive, "gmIntroEasyTable", &root) ||
+        root > archive.data_size ||
+        archive.data_size - root < sizeof(decoded)) return NULL;
+    for (unsigned i = 0; i < sizeof(decoded); i += 4) {
+        float value;
+        if (!melee_archive_f32(&archive, root + i, &value) ||
+            !isfinite(value)) return NULL;
+        memcpy((u8*) &decoded + i, &value, sizeof(value));
+    }
+    owned = decoded;
+    return &owned;
+}
+static void gmIntro_NativeLoadLayout(void)
+{
+    void* bytes = NULL;
+    size_t length = 0;
+    lbFile_80016760("GmIntEz.dat", &bytes, &length);
+    lbl_804D6604 = (ClassicIntroLayout*) gmIntro_NativeDecodeLayout(bytes, length);
+    lbHeap_80015CA8(0, bytes);
+    HSD_ASSERT(__LINE__, lbl_804D6604);
+}
+#endif
 
 static int lbl_804D6608;
 
@@ -613,7 +654,11 @@ static inline void gm_1832_sdata2_order(int unused)
 void fn_80185408(int x, float arg8, float arg9, float argA, float argB)
 {
     u8 _[0x30];
+#ifdef MELEE_NATIVE
+    Mtx44 sp1C;
+#else
     Mtx sp1C;
+#endif
     GXSetNumChans(1);
     GXSetChanCtrl(GX_COLOR0A0, 0, GX_SRC_REG, GX_SRC_VTX, 0, GX_DF_NONE,
                   GX_AF_NONE);
@@ -635,6 +680,13 @@ void fn_80185408(int x, float arg8, float arg9, float argA, float argB)
     MTXOrtho(sp1C, 0.0F, 480.0F, 0.0F, 640.0F, 0.0F, 5000.0F);
     GXSetProjection(sp1C, GX_ORTHOGRAPHIC);
     GXBegin(GX_QUADS, GX_VTXFMT0, 4);
+#ifdef MELEE_NATIVE
+    GXPosition3f32(argA, arg8, -4932.0F);
+    GXPosition3f32(argB, arg8, -4932.0F);
+    GXPosition3f32(argB, arg9, -4932.0F);
+    GXPosition3f32(argA, arg9, -4932.0F);
+    GXEnd();
+#else
     GXWGFifo.f32 = argA;
     GXWGFifo.f32 = arg8;
     GXWGFifo.f32 = -4932.0F;
@@ -647,6 +699,7 @@ void fn_80185408(int x, float arg8, float arg9, float argA, float argB)
     GXWGFifo.f32 = argA;
     GXWGFifo.f32 = arg9;
     GXWGFifo.f32 = -4932.0F;
+#endif
     GXSetColorUpdate(1);
     HSD_StateInvalidate(-1);
     gm_1832_sdata2_order(0);
@@ -1118,7 +1171,11 @@ void fn_80186634(void* arg0)
     ClassicArchiveNameLocal local;
     PAD_STACK(12);
 
+#ifdef MELEE_NATIVE
+    gmIntro_NativeLoadLayout();
+#else
     lbArchive_80016DBC("GmIntEz.dat", &lbl_804D6604, "gmIntroEasyTable", 0);
+#endif
     Camera_Init(0xC);
     lb_8000FCDC();
     mpColl_80041C78();

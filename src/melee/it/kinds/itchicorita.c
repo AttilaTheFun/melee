@@ -229,7 +229,7 @@ void it_802C9B20(Item_GObj* chicorita_gobj)
 {
     SpawnItem spawn;
     Item* chicorita;
-    itChicoritaLeafAttr* attr;
+    itChicoritaAttr* attr;
 
     chicorita = GET_ITEM((HSD_GObj*) chicorita_gobj);
     attr = chicorita->xC4_article_data->x4_specialAttributes;

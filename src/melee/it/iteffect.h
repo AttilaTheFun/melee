@@ -11,4 +11,7 @@
 /* 2787B4 */ void it_802787B4(Item_GObj*, s32);
 /* 278800 */ void it_80278800(Item_GObj*, s32, s32, Vec3*, Vec3*, s32, f32);
 
+#ifdef MELEE_NATIVE
+Article* itNative_RequireArticle(unsigned kind);
+#endif
 #endif

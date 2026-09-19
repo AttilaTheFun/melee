@@ -724,8 +724,13 @@ void mnEvent_8024E524(s32 event_idx)
 
     user_data = HSD_MemAlloc(sizeof(MnEventData));
     if (user_data == NULL) {
+#ifdef MELEE_NATIVE
+        OSReport(mnEvent_803EF7A0 + 0x10);
+        __assert(mnEvent_803EF7A0 + 0x28, 0x39B, mnEvent_803EF7A0 + 0x34);
+#else
         OSReport(strs + 0x70);
         __assert(strs + 0x88, 0x39B, strs + 0x94);
+#endif
     }
     mnEvent_8024E420(user_data, event_idx);
     GObj_InitUserData(gobj, 0, HSD_Free, user_data);
@@ -767,9 +772,18 @@ void mnEvent_8024E838(int event_idx, int first_time)
     mnEvent_804D6C60 = NULL;
     {
         HSD_Archive* archive = mn_804D6BB8;
+#ifdef MELEE_NATIVE
+        /* The string table is independent of the preceding globals on ARM64. */
+        lbArchive_LoadSections(archive, arr, mnEvent_803EF7A0 + 0x40,
+                              arr + 1, mnEvent_803EF7A0 + 0x58,
+                              arr + 2, mnEvent_803EF7A0 + 0x74,
+                              arr + 3, mnEvent_803EF7A0 + 0x94,
+                              arr + 4, mnEvent_803EF7A0 + 0xB8, NULL);
+#else
         lbArchive_LoadSections(archive, arr, base + 0xA0, arr + 1, base + 0xB8,
                                arr + 2, base + 0xD4, arr + 3, base + 0xF4,
                                arr + 4, base + 0x118, 0);
+#endif
     }
 
     if (first_time == 0) {
@@ -779,3 +793,12 @@ void mnEvent_8024E838(int event_idx, int first_time)
     proc = HSD_GObj_SetupProc(GObj_Create(0, 1, 0x80), fn_8024D864, 0);
     proc->flags_3 = HSD_GObj_804D783C;
 }
+
+#ifdef MELEE_NATIVE
+int mnEvent_NativeSelected(void)
+{
+    if(mn_804A04F0.cur_menu!=MENU_KIND_EVENT||!mnEvent_804D6C60||!mnEvent_804D6C60->user_data)return -1;
+    MnEventData* d=mnEvent_804D6C60->user_data;
+    return d->first_event+d->page;
+}
+#endif

@@ -31,6 +31,17 @@
 #include <sysdolphin/baselib/jobj.h>
 #include <sysdolphin/baselib/random.h>
 
+/* The retail stage stores seven-halfword collision records after each
+ * model's material pointers. Keep them separate when pointers widen. */
+static s16* icemt_collision_record(Ground* gp, unsigned retail_offset)
+{
+#ifdef MELEE_NATIVE
+    return gp->u.icemt1.collision_records[retail_offset == 0x10e ? 1 : 0];
+#else
+    return (s16*)((u8*)gp + retail_offset);
+#endif
+}
+
 /* 1F8C64 */ static void fn_801F8C64(Item_GObj* gobj, Ground* u1, Vec3* u2,
                                      HSD_GObj* u3, f32 u4);
 /* 1F91EC */ static void
@@ -63,66 +74,7 @@ static const Vec3 grIm_803B8220[] = {
 
 typedef int (*GrIceMtCb)(Ground_GObj* gobj, int* out);
 
-struct grIceMt_YakumonoParam {
-    s16 x0;
-    s16 x2;
-    s16 x4;
-    float x8;
-    float xC;
-    float x10;
-    float x14;
-    float x18;
-    float x1C;
-    float x20;
-    float x24;
-    float x28;
-    float x2C;
-    float x30;
-    s16 x34;
-    s16 x36;
-    s16 x38;
-    u16 x3A;
-    float x3C;
-    float x40;
-    float x44;
-    float x48;
-    float x4C;
-    float x50;
-    float x54;
-    float x58;
-    float x5C;
-    float x60;
-    float x64;
-    float x68;
-    float x6C;
-    float x70;
-    float x74;
-    float x78;
-    float x7C;
-    float x80;
-    float x84;
-    float x88;
-    float x8C;
-    float x90;
-    float x94;
-    s16 ft_max_y;
-    s16 x9E;
-    float x9C;
-    float xA0;
-    s16 xA4;
-    s16 xA6;
-    s16 xA8;
-    s16* field_ixs;
-    s16* xB0;
-    s16* xB4;
-    s16 xB8;
-    s16 pad;
-    grZakoGenerator_SpawnDesc xBC;
-    float xC0;
-    float xC4;
-    float xC8;
-    float xCC;
-};
+
 
 /* 1F6868 */ static void grIceMt_801F6868(bool id);
 /* 1F686C */ static void grIceMt_801F686C(void);
@@ -572,7 +524,11 @@ void grIceMt_801F7080(void)
         Ground_801C2FE0(gobj);
     }
     if (Stage_80225194() == 76) {
+#ifdef MELEE_NATIVE
+        grZakoGenerator_801CAE04(yakumono_param->spawn);
+#else
         grZakoGenerator_801CAE04(&yakumono_param->xBC);
+#endif
         if (rand_zero(yakumono_param->xB8)) {
             grZakoGenerator_801CAEB0(Ground_801C5840(), Ground_801C5940());
         }
@@ -971,10 +927,10 @@ void stageGObj2_OnInit(Ground_GObj* arg0)
     gp->u.icemt1.x0_b0 = false;
     sp14 = grIm_804DB58C;
     grIceMt_801F8CDC(arg0, (s16*) &sp14, 2, &gp->u.icemt1.x34[0]);
-    grIceMt_801F91EC(arg0, (s16*) ((u8*) gp + 0x100),
+    grIceMt_801F91EC(arg0, icemt_collision_record(gp, 0x100),
                      grIceMt_801FA500(arg0, jobj), -1, 0x25, 0x109, 0x27E,
                      fn_801F9338);
-    grIceMt_801F91EC(arg0, &gp->u.icemt.x108[3], grIceMt_801FA500(arg0, jobj2),
+    grIceMt_801F91EC(arg0, icemt_collision_record(gp, 0x10e), grIceMt_801FA500(arg0, jobj2),
                      -1, 38, 265, 638, fn_801F9448);
 }
 
@@ -986,8 +942,8 @@ bool stageGObj2_Callback1(Ground_GObj* param1)
 void stageGObj2_GObjProc(Ground_GObj* param1)
 {
     Ground* gp = GET_GROUND(param1);
-    grIceMt_801F929C(param1, &gp->u.icemt1.x34[2]);
-    grIceMt_801F929C(param1, &gp->u.icemt.x108[3]);
+    grIceMt_801F929C(param1, icemt_collision_record(gp, 0x100));
+    grIceMt_801F929C(param1, icemt_collision_record(gp, 0x10e));
     grIceMt_801F98A8(param1);
     Ground_801C2FE0(param1);
 }
@@ -1094,7 +1050,7 @@ void stageGObj4_OnInit(Ground_GObj* arg0)
     sp14.x4 = grIm_804DB59C;
     grIceMt_801F8CDC(arg0, (s16*) &sp14, 4, &gp->u.icemt1.x34[0]);
     r = grIceMt_801FA500(arg0, jobj3);
-    grIceMt_801F91EC(arg0, gp->u.icemt.x108, grIceMt_801FA500(arg0, jobj2), r,
+    grIceMt_801F91EC(arg0, icemt_collision_record(gp, 0x108), grIceMt_801FA500(arg0, jobj2), r,
                      117, 265, 638, fn_801F9558);
 }
 
@@ -1106,7 +1062,7 @@ bool stageGObj4_Callback1(Ground_GObj* param1)
 void stageGObj4_GObjProc(Ground_GObj* gobj)
 {
     Ground* gp = gobj->user_data;
-    grIceMt_801F929C(gobj, &gp->u.icemt1.x34[4]);
+    grIceMt_801F929C(gobj, icemt_collision_record(gp, 0x108));
     grIceMt_801F98A8(gobj);
     Ground_801C2FE0(gobj);
 }
@@ -1367,29 +1323,25 @@ int fn_801F8E58(Ground_GObj* arg0, int* out)
     s32 list[12];
     s32 chosen;
 
-    arg0 = (Ground_GObj*) (gp = arg0->user_data);
+    gp = arg0->user_data;
     p = &list[max = 0];
     for (i = 0; i < 12; i++) {
-        if (gp->u.icemt9.x18[0] == 0 && (Stage_80225194() != 212 || i >= 4)) {
+        if (gp->u.icemt9.x18[i] == 0 && (Stage_80225194() != 212 || i >= 4)) {
             *p = i;
             p++;
             max++;
         }
-        gp = (Ground*) ((u8*) gp + 2);
     }
 
     HSD_ASSERT(2077, max);
     chosen = grIceMt_GetRandomIndex(max, list);
 
-    gp = (Ground*) arg0;
     for (i = 0; i < 12; i++) {
-        if (gp->u.icemt9.x18[0] > 0) {
-            gp->u.icemt9.x18[0]--;
+        if (gp->u.icemt9.x18[i] > 0) {
+            gp->u.icemt9.x18[i]--;
         }
-        gp = (Ground*) ((u8*) gp + 2);
     }
 
-    gp = (Ground*) arg0;
     gp->u.icemt9.x18[chosen] = yakumono_param->x2;
     grIceMt_GetRandomTimer(out);
     return chosen;
@@ -1498,7 +1450,7 @@ void fn_801F9338(void* user_data, int joint_id, CollData* coll, int coll_x50,
     {
         HSD_GObj* gobj;
         Ground* gp = user_data;
-        s16* s = gp->u.icemt.x100;
+        s16* s = icemt_collision_record(gp, 0x100);
         if ((s32) coll->x34_flags.b1234 == 1 && s[0] == 0) {
             gobj = Ground_GetMapGObj(2);
             s[0] = 1;
@@ -1524,7 +1476,7 @@ void fn_801F9448(void* user_data, int joint_id, CollData* coll, int coll_x50,
     {
         HSD_GObj* gobj;
         Ground* gp = user_data;
-        s16* s = &gp->u.icemt.x108[3];
+        s16* s = icemt_collision_record(gp, 0x10e);
         if ((s32) coll->x34_flags.b1234 == 1 && s[0] == 0) {
             gobj = Ground_GetMapGObj(2);
             s[0] = 1;
@@ -1550,7 +1502,7 @@ void fn_801F9558(void* user_data, int joint_id, CollData* coll, int coll_x50,
     {
         HSD_GObj* gobj;
         Ground* gp = user_data;
-        s16* s = gp->u.icemt.x108;
+        s16* s = icemt_collision_record(gp, 0x108);
         if ((s32) coll->x34_flags.b1234 == 1 && s[0] == 0) {
             gobj = Ground_GetMapGObj(4);
             s[0] = 1;
@@ -2025,6 +1977,24 @@ void grIceMt_801FA728(Vec3* arg0)
 }
 
 /// @copydoc mpLib_JointCollisionCallback
+static void icemt_mark_player_contact(Ground* gp)
+{
+    /* UnkFlagStruct preserves serialized PPC bit order on native hosts; this
+     * live stage state uses the compiler's native bitfield layout. */
+    gp->u.icemt10.x14_b4 = true;
+}
+
+#ifdef MELEE_NATIVE
+int grIceMt_NativeContactFlagsTest(void)
+{
+    Ground gp={0};gp.u.icemt10.x16=123;
+    icemt_mark_player_contact(&gp);
+    HSD_ASSERT(__LINE__,gp.u.icemt10.x14_b4&&!gp.u.icemt10.x14_b3);
+    HSD_ASSERT(__LINE__,!gp.u.icemt10.x14_b0&&!gp.u.icemt10.x14_b1&&!gp.u.icemt10.x14_b2&&gp.u.icemt10.x16==123);
+    return 0;
+}
+#endif
+
 void onJointCollision(void* user_data, int joint_id, CollData* coll,
                       int coll_x50, mpLib_GroundEnum ground_kind,
                       float delta_y)
@@ -2037,7 +2007,7 @@ void onJointCollision(void* user_data, int joint_id, CollData* coll,
         if (gobj != NULL) {
             gp2 = gobj->user_data;
             if (gp2 != NULL) {
-                ((UnkFlagStruct*) &gp2->u.icemt.x14)->b4 = 1;
+                icemt_mark_player_contact(gp2);
             }
         }
     }

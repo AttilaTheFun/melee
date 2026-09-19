@@ -360,6 +360,19 @@ void grGreens_802139C4(Ground_GObj* gobj)
 {
     Ground* gp = gobj->user_data;
     ftCo_800C06E8(gobj, 9, fn_80213B1C);
+#ifdef MELEE_NATIVE
+    /* Whispy uses scalar state; the block-controller view contains wider
+     * pointers on the host and no longer overlays this state. */
+    gp->u.greens2.x0 = 0;
+    gp->u.greens2.x4 = 0;
+    gp->u.greens2.x8 = 0;
+    gp->u.greens2.xC = randrange(yakumono_param->x38_windTimerMax,
+                               yakumono_param->x34_windTimerMin);
+    gp->u.greens2.x10 = 1;
+    gp->u.greens2.x1C = 0;
+    gp->u.greens2.x14 = HSD_Randi(2);
+    gp->u.greens2.x18 = 0;
+#else
     gp->u.greens.x0_flags.whole_thing = 0;
     gp->u.greens.x4 = NULL;
     gp->u.greens.x8_blocks = NULL;
@@ -369,6 +382,7 @@ void grGreens_802139C4(Ground_GObj* gobj)
     gp->u.greens.x1C = 0;
     gp->u.greens.x14 = HSD_Randi(2);
     gp->u.greens.x18 = 0;
+#endif
     grAnime_801C8138(gobj, gp->map_id, 0);
 }
 
@@ -1082,7 +1096,7 @@ void fn_802159B4(Item_GObj* item_gobj, Ground* gp)
     return;
 }
 
-void grGreens_802159B8(Ground* gp, int i, int j, int value)
+void grGreens_802159B8(Ground* gp, int i, int j, grGreens_PointerWord value)
 {
     UNUSED u8 pad[8];
     Vec vec;
@@ -1152,7 +1166,7 @@ void fn_80215B84(Item_GObj* item_gobj, Ground* gp, Vec* arg2, HSD_GObj* gobj,
     if (!find_block(ground, item_gobj, &row, &col)) {
         HSD_ASSERT(1465, 0);
     }
-    grGreens_802159B8(ground, col, row, (s32) hit);
+    grGreens_802159B8(ground, col, row, (grGreens_PointerWord) hit);
 }
 
 void fn_80215D50(Item_GObj* item_gobj, Ground* gp, HSD_GObj* gobj)
@@ -1160,7 +1174,7 @@ void fn_80215D50(Item_GObj* item_gobj, Ground* gp, HSD_GObj* gobj)
     return;
 }
 
-s32 grGreens_80215D54(Ground_GObj* gobj, int arg1, int arg2)
+grGreens_PointerWord grGreens_80215D54(Ground_GObj* gobj, int arg1, int arg2)
 {
     Ground* gp = GET_GROUND(gobj);
     int row;
@@ -1184,7 +1198,7 @@ s32 grGreens_80215D54(Ground_GObj* gobj, int arg1, int arg2)
             row = 0;
         }
     }
-    return (s32) gobj;
+    return (grGreens_PointerWord) gobj;
 }
 
 void grGreens_80215ED8(Ground_GObj* gobj, int col, int row)

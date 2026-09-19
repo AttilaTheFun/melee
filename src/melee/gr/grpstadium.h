@@ -9,6 +9,10 @@
 
 #include <dolphin/mtx.h>
 
+#ifdef MELEE_NATIVE
+void grStadium_NativeTestNextForm(int form);
+#endif
+
 /* 1D1018 */ void grStadium_OnDemoInit(int);
 /* 1D101C */ void grStadium_OnInit(void);
 /* 1D10C8 */ void grStadium_OnLoad(void);

@@ -1,4 +1,13 @@
 #include "gmpause.h"
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+#include <dolphin/dvd.h>
+static MeleeSceneDesc* native_pause_scene;
+#endif
 
 #include "gm_unsplit.h"
 #include <melee/lb/lbarchive.h>
@@ -79,8 +88,24 @@ void fn_801A1134(void)
     HSD_GObj* gobj;
     HSD_JObj* jobj;
 
+#ifdef MELEE_NATIVE
+    /* Match resets reuse descriptors; GObj teardown removes borrowing joints. */
+    if(!native_pause_scene){
+        const char* name=lbFileGetFullName("GmPause");size_t size=0;void* owned=NULL;
+        const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(name),&size);
+        if(!bytes){lbFile_80016760("GmPause",&owned,&size);bytes=owned;}
+        MeleeArchive archive;u32 root;
+        HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,size));
+        HSD_ASSERT(__LINE__,melee_archive_find(&archive,"ScGamPause_scene_data",&root));
+        native_pause_scene=melee_scene_desc_decode(&archive,root);
+        if(owned)lbHeap_80015CA8(0,owned);
+        HSD_ASSERT(__LINE__,native_pause_scene);
+    }
+    scene=melee_scene_desc_data(native_pause_scene);
+#else
     lbl_804D6700 =
         lbArchive_80016DBC("GmPause", &scene, "ScGamPause_scene_data", 0);
+#endif
     gobj = GObj_Create(0xEU, 2U, 0U);
     lbl_804D6704 = gobj;
     jobj = HSD_JObjLoadJoint(scene->models[0]->joint);

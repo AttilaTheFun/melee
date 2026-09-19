@@ -1,4 +1,7 @@
 #include "gobj.h"
+#ifdef MELEE_NATIVE
+#include "debug.h"
+#endif
 #include "gobjproc.h"
 #include "memory.h"
 #include "objalloc.h"
@@ -17,7 +20,11 @@ void HSD_GObj_803912E0(HSD_GObjLibInitDataType* arg0)
 extern HSD_ObjAllocData gobj_alloc_data;
 extern HSD_ObjAllocData gobjproc_alloc_data;
 
+#ifdef MELEE_NATIVE
+static void init_with_handlers(HSD_GObjLibInitDataType* arg0)
+#else
 void HSD_GObj_80391304(HSD_GObjLibInitDataType* arg0)
+#endif
 {
     GObjFuncs* cur;
     int i;
@@ -25,7 +32,11 @@ void HSD_GObj_80391304(HSD_GObjLibInitDataType* arg0)
     int nfuncs;
     struct GObjFuncs* var_r4_2;
 
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(0, arg0 && arg0->p_link_max < 64 && arg0->gx_link_max < 254);
+#else
     HSD_GObj_80391260(arg0);
+#endif
 
     HSD_GObjLibInitData = *arg0;
 
@@ -91,3 +102,18 @@ void HSD_GObj_80391304(HSD_GObjLibInitDataType* arg0)
     HSD_GObj_804D7818 = NULL;
     HSD_GObj_804D7814 = NULL;
 }
+
+#ifdef MELEE_NATIVE
+void HSD_GObjInitWithHandlers(HSD_GObjLibInitDataType* data)
+{
+    HSD_GObj_CameraKind = HSD_GObj_JObjKind = HSD_GOBJ_OBJ_NONE;
+    HSD_GObj_LightKind = HSD_GObj_FogKind = -1;
+    init_with_handlers(data);
+}
+
+void HSD_GObj_80391304(HSD_GObjLibInitDataType* data)
+{
+    HSD_GObj_80391260(data);
+    init_with_handlers(data);
+}
+#endif

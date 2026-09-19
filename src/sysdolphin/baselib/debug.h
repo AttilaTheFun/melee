@@ -6,7 +6,21 @@
 #include <dolphin/os.h> // IWYU pragma: keep
 
 typedef void (*ReportCallback)(const unsigned char*, size_t);
+#ifdef MELEE_NATIVE
+/* Host addresses, never a fabricated PowerPC register context. Valid only
+ * during the callback; returning from a panic callback still terminates. */
+typedef struct HSD_NativePanicContext {
+    const char* file;
+    u32 line;
+    const char* message;
+    void* frames[64];
+    int frame_count;
+} HSD_NativePanicContext;
+typedef void (*PanicCallback)(const HSD_NativePanicContext*);
+void HSD_NativeReport(const unsigned char* bytes, size_t length);
+#else
 typedef void (*PanicCallback)(OSContext*, ...);
+#endif
 
 ATTRIBUTE_NORETURN void __assert(char*, u32, char*);
 

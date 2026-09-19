@@ -36,12 +36,19 @@ ItemStateTable it_803F5DB0[] = {
 void it_8028F9D8(Item_GObj* arg0, Vec3* arg1, f32 arg8)
 {
     Item* temp_r30 = GET_ITEM(arg0);
+#ifdef MELEE_NATIVE
+    itFoodsNativeAttributes* attrs = temp_r30->xC4_article_data->x4_specialAttributes;
+    itFoodsNativeEntry* food = &attrs->entries[temp_r30->xDD4_itemVar.foods.x0];
+    temp_r30->pos.x = arg1->x + arg8 * food->offset_x;
+    temp_r30->pos.y = arg1->y + food->offset_y;
+#else
     Vec4* temp_r6 = temp_r30->xC4_article_data->x4_specialAttributes;
     f32 var_2;
     temp_r30->pos.x =
         arg1->x + (arg8 * temp_r6[temp_r30->xDD4_itemVar.foods.x0].w);
     var_2 = temp_r6[temp_r30->xDD4_itemVar.foods.x0 + 1].x;
     temp_r30->pos.y = var_2 + arg1->y;
+#endif
     temp_r30->pos.z = arg1->z;
     HSD_JObjSetTranslate(arg0->hsd_obj, &temp_r30->pos);
 }
@@ -76,21 +83,38 @@ HSD_GObj* it_8028FAF4(Item_GObj* arg0, Vec3* arg1)
 
 static inline u32 getRandMax(Article* article)
 {
+#ifdef MELEE_NATIVE
+    itFoodsNativeAttributes* attr = article->x4_specialAttributes;
+    return attr->count;
+#else
     itFoodsAttributes* attr = article->x4_specialAttributes;
     return attr->x0;
+#endif
 }
 
 void itFoods_Logic18_Spawned(HSD_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
+#ifdef MELEE_NATIVE
+    itFoodsNativeAttributes* attr = ip->xC4_article_data->x4_specialAttributes;
+#else
     itFoodsAttributes* attr = ip->xC4_article_data->x4_specialAttributes;
+#endif
     s32 rand = HSD_Randi(getRandMax(ip->xC4_article_data));
     s32 temp;
 
+#ifdef MELEE_NATIVE
+    ip->xDD4_itemVar.foods.heal_amount = attr->entries[rand].heal_amount;
+#else
     ip->xDD4_itemVar.foods.heal_amount = attr[rand].x8;
+#endif
     ip->xDD4_itemVar.foods.x0 = rand;
     temp = rand;
+#ifdef MELEE_NATIVE
+    it_80273318(gobj, attr->entries[temp].joint);
+#else
     it_80273318(gobj, attr[temp].x4);
+#endif
     it_8028FC5C(gobj);
 }
 

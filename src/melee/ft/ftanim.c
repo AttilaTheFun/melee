@@ -436,7 +436,11 @@ void ftAnim_8006EDD0(Fighter* fp, int arg1, float arg8, float arg9)
     ftAnim_80070A10(fp, FtPart_TopN, ftData_80085E50(fp, arg1));
     ftAnim_80070710(jobj, arg8);
     temp_ret = ftData_80085FD4(fp, arg1);
+#ifdef MELEE_NATIVE
+    if ((u32) temp_ret->x10_animCurrFlags & 0x40000000u) {
+#else
     if (temp_ret->x10_b1) {
+#endif
         HSD_ForeachAnim(jobj, JOBJ_TYPE, 0xFB7F, HSD_AObjSetFlags, AOBJ_ARG_AU,
                         AOBJ_LOOP);
     }
@@ -458,7 +462,11 @@ void ftAnim_8006EED4(Fighter* fp, Fighter_Part arg1, FigaTree* arg2,
         ftAnim_8006F954(fp, arg1, 0, arg2);
         ftAnim_80070710(temp_r31, frame);
         temp_ret = ftData_80085FD4(fp, fp->anim_id);
+#ifdef MELEE_NATIVE
+        if ((u32) temp_ret->x10_animCurrFlags & 0x40000000u) {
+#else
         if (temp_ret->x10_b1) {
+#endif
             HSD_ForeachAnim(temp_r31, JOBJ_TYPE, 0xFB7F, HSD_AObjSetFlags,
                             AOBJ_ARG_AU, AOBJ_LOOP);
         }
@@ -1316,7 +1324,14 @@ void ftAnim_80070CC4(Fighter_GObj* gobj, int arg1)
     some_inline(fp, r28->x0, r28->x8[r30->x11]);
 
     r30->x11 = -1;
+#ifdef MELEE_NATIVE
+    /* Damage/death can clear anim_id while retaining the previous tree.
+     * Dropping a held item must not restore that stale animation or index
+     * the motion table with the no-animation sentinel. */
+    if (fp->x590 != NULL && fp->anim_id != -1) {
+#else
     if (fp->x590 != NULL) {
+#endif
         ftAnim_8006EED4(fp, r28->x0, fp->x590, fp->cur_anim_frame,
                         fp->frame_speed_mul);
         return;

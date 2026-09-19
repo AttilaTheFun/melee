@@ -309,7 +309,7 @@ typedef struct {
 #pragma push
 #pragma dont_inline on
 #endif
-void fn_8017E8A4(int arg0_int)
+void fn_8017E8A4(intptr_t arg0_int)
 {
     MatchEnd* arg0 = (MatchEnd*) arg0_int;
     VsSceneController* gm = gmVs_GetController_0();

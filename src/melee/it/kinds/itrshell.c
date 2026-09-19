@@ -1,3 +1,4 @@
+#include <melee/it/itCommonItems.h>
 #include "itrshell.h"
 
 #include <Runtime/platform.h>
@@ -18,25 +19,7 @@
 #include <sysdolphin/baselib/jobj.h>
 #include <sysdolphin/baselib/random.h>
 
-typedef struct itRShell_Attrs {
-    float x0;
-    float x4;
-    float x8;
-    float xC;
-    float x10;
-    Vec3 x14;
-    float x20;
-    float x24;
-    float x28;
-    float x2C;
-    char pad30[0x38 - 0x30];
-    float x38; // rotation multiplier (gshell x20)
-    float x3C;
-    float x40;
-    float x44;
-    Vec x48;
-    s32 x54;
-} itRShell_Attrs;
+
 
 ItemStateTable it_803F5C48[] = {
     { -1, itRshell_UnkMotion0_Anim, itRshell_UnkMotion0_Phys,

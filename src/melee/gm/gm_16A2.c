@@ -144,6 +144,14 @@ void fn_801695BC(u8 arg0, u8 arg1, u8 arg2, const u8* arg3, s8* arg4)
     u8 ncolors;
     s8 colors[6];
 
+#ifdef MELEE_NATIVE
+    /* Adventure's opening course starts with no fighter opponents. The
+     * adjacent-costume shuffle starts at index one, so an empty list must
+     * return before it can skip the sentinel at index zero. */
+    if (arg4[0] == -2) {
+        return;
+    }
+#endif
     ncolors = gm_80169238(arg0);
     if ((s8) arg0 != 0x21) {
         ncolors_s32 = ncolors;
@@ -305,10 +313,10 @@ void fn_80169A84(u8 arg0, s8* arg1, s8* arg2)
         do {
             s8* q;
             u8 tmp;
-            q = &lbl_8046B488.x0 + HSD_Randi(0x1B);
-            tmp = q[0x1C0];
+            q = (s8*) &lbl_8046B488 + HSD_Randi(0x1B);
+            tmp = q[offsetof(struct lbl_8046B488_t, x1C0)];
             i += 1;
-            q[0x1C0] = (u8) *p;
+            q[offsetof(struct lbl_8046B488_t, x1C0)] = (u8) *p;
             *p = tmp;
             p += 1;
         } while (i < CKind_Playable_Count);
@@ -336,7 +344,7 @@ void fn_80169A84(u8 arg0, s8* arg1, s8* arg2)
             p = arg1;
             arg1 = arg2;
             while (*arg1 != -2) {
-                while ((result = (q = &lbl_8046B488.x0 + idx)[0x1C0]) == -1) {
+                while ((result = (q = (s8*) &lbl_8046B488 + idx)[offsetof(struct lbl_8046B488_t, x1C0)]) == -1) {
                     idx = (idx + 1) % 27;
                 }
                 result = Player_800325C8(result, 0);
@@ -589,9 +597,13 @@ void gm_8016A21C(StartMeleeRules* arg0)
 static inline GmEventPlayerInitCallback*
 gm_8016A404_event_player_init_cb(struct lbl_8046B488_t* gp)
 {
+#ifdef MELEE_NATIVE
+    return &gp->native_event_player_init_cb;
+#else
     struct lbl_8046B488_event_player_init_cb_t* state =
         (struct lbl_8046B488_event_player_init_cb_t*) gp;
     return &state->event_player_init_cb;
+#endif
 }
 
 static inline struct gm_8016A22C_header*
@@ -609,7 +621,7 @@ void gm_8016A22C(s8 k0, s8 k1, s8 k2, u8 a3, u8 a4, u8 a5, int mode, int a7,
     struct gm_8016A22C_header* header;
     u8 x7_tmp;
 
-    memzero(gp, 0x1C0);
+    memzero(gp, offsetof(struct lbl_8046B488_t, x1C0));
 
     lbl_8046B488.x0 = k0;
     lbl_8046B488.x1 = k1;
@@ -674,7 +686,7 @@ void gm_8016A22C(s8 k0, s8 k1, s8 k2, u8 a3, u8 a4, u8 a5, int mode, int a7,
     fn_80169A84(gp->xE, gp->x124, gp->x20);
 }
 
-void gm_8016A404(s32 arg0)
+void gm_8016A404(intptr_t arg0)
 {
     *gm_8016A404_event_player_init_cb(&lbl_8046B488) =
         (GmEventPlayerInitCallback) arg0;
@@ -859,12 +871,20 @@ void fn_8016A4C8(void)
                     Player_SetUnk4D(spawn_slot, tmp);
                     Player_SetFlagsAEBit1(spawn_slot, 1);
                 }
+#ifdef MELEE_NATIVE
+                GmEventPlayerInitCallback init =
+                    *gm_8016A404_event_player_init_cb(gp);
+                if (init != NULL) {
+                    init(spawn_slot, lbl_8046B488.x7);
+                }
+#else
                 if (((struct lbl_8046B488_event_player_init_cb_t*) gp)
                         ->event_player_init_cb != NULL)
                 {
                     ((struct lbl_8046B488_event_player_init_cb_t*) gp)
                         ->event_player_init_cb(spawn_slot, lbl_8046B488.x7);
                 }
+#endif
                 Player_SetStructFunc(spawn_slot, fn_8016A488);
                 Player_80031AD0(spawn_slot);
                 ifStatus_802F6508(spawn_slot);
@@ -913,7 +933,7 @@ bool gm_8016A944(void)
 
 UNK_T gm_8016A97C(void)
 {
-    return &M2C_FIELD(&lbl_8046B668, UNK_T*, 0x1C);
+    return lbl_8046B668.arr2;
 }
 
 struct lbl_8046B668_t* gm_8016A98C(void)

@@ -3,6 +3,13 @@
 
 #include <dolphin/types.h>
 
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+typedef uintptr_t ARAddress;
+#else
+typedef u32 ARAddress;
+#endif
+
 struct ARQRequest;
 
 typedef void (*ARQCallback)(struct ARQRequest *);
@@ -13,8 +20,8 @@ struct ARQRequest
     /* 0x04 */ u32 owner;
     /* 0x08 */ u32 type;
     /* 0x0C */ u32 priority;
-    /* 0x10 */ u32 source;
-    /* 0x14 */ u32 dest;
+    /* 0x10 */ ARAddress source;
+    /* 0x14 */ ARAddress dest;
     /* 0x18 */ u32 length;
     /* 0x1C */ ARQCallback callback;
 };
@@ -40,7 +47,7 @@ typedef struct ARQRequest ARQRequest;
 // ar.c
 ARQCallback ARRegisterDMACallback(ARQCallback callback);
 u32 ARGetDMAStatus(void);
-void ARStartDMA(u32 type, u32 mainmem_addr, u32 aram_addr, u32 length);
+void ARStartDMA(u32 type, ARAddress mainmem_addr, u32 aram_addr, u32 length);
 u32 ARAlloc(u32 length);
 u32 ARFree(u32 * length);
 int ARCheckInit(void);
@@ -53,7 +60,7 @@ u32 ARGetSize(void);
 // arq.c
 void ARQInit(void);
 void ARQReset(void);
-void ARQPostRequest(struct ARQRequest * request, u32 owner, u32 type, u32 priority, u32 source, u32 dest, u32 length, ARQCallback callback);
+void ARQPostRequest(struct ARQRequest * request, u32 owner, u32 type, u32 priority, ARAddress source, ARAddress dest, u32 length, ARQCallback callback);
 void ARQRemoveRequest(struct ARQRequest * request);
 void ARQRemoveOwnerRequest(u32 owner);
 void ARQFlushQueue(void);

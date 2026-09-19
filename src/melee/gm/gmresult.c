@@ -1,4 +1,13 @@
 #include "gmresult.h"
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbheap.h>
+#include <dolphin/dvd.h>
+#include <sysdolphin/baselib/debug.h>
+static MeleeSceneDesc* native_result_scenes[2][2];
+#endif
 
 #include "types.h"
 #include <melee/lb/lb_013B.h>
@@ -17,7 +26,11 @@ static void order_sdata(void)
 #endif
 
 struct ResultsData lbl_8046DBE8;
+#ifdef MELEE_NATIVE
+static char lbl_804D3F8C[8] = "\x81\x7c\x81\x7c\x81\x7c";
+#else
 static u32 lbl_804D3F8C[2] = { 0x817C817C, 0x817C0000 };
+#endif
 
 #ifdef MUST_MATCH
 static void gmresult_sdata2_order(void)
@@ -50,12 +63,24 @@ static void gmresult_sdata2_order(void)
 }
 #endif
 
+#ifdef MELEE_NATIVE
+/* These are Shift-JIS strings, not native-endian integer values. */
+char lbl_804D3FA0[4] = "\x81\x7c";
+char lbl_804D3FA4[4] = "\x81\x7b";
+#else
 u32 lbl_804D3FA0 = 0x817C0000;
 u32 lbl_804D3FA4 = 0x817B0000;
+#endif
 union {
     u32 words[2];
     char text[8];
-} lbl_804D3FA8 = { { 0x817C8146, 0x817C0000 } };
+} lbl_804D3FA8 = {
+#ifdef MELEE_NATIVE
+    .text = "\x81\x7c\x81\x46\x81\x7c"
+#else
+    { 0x817C8146, 0x817C0000 }
+#endif
+};
 
 HSD_Archive* lbl_804D65B8;
 
@@ -1709,8 +1734,35 @@ void fn_801771C0(ResultsData* data)
 
 static inline void gmResultLoadArchive(ResultsData* data)
 {
+#ifdef MELEE_NATIVE
+    MeleeSceneDesc** scenes = native_result_scenes[!!lbLang_IsSavedLanguageUS()];
+    /* Scene objects borrow these descriptors across repeated results screens. */
+    if (!scenes[0]) {
+        size_t size = 0;
+        void* owned = NULL;
+        const char* name = lbFileGetFullName("GmRst");
+        const void* bytes = lbDvd_NativeGetRawData(
+            DVDConvertPathToEntrynum(name), &size);
+        if (!bytes) {
+            lbFile_80016760("GmRst", &owned, &size);
+            bytes = owned;
+        }
+        MeleeArchive archive;
+        u32 panel, flame;
+        HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+        HSD_ASSERT(__LINE__, melee_archive_find(&archive, "pnlsce", &panel));
+        HSD_ASSERT(__LINE__, melee_archive_find(&archive, "flmsce", &flame));
+        scenes[0] = melee_scene_desc_decode(&archive, panel);
+        scenes[1] = melee_scene_desc_decode(&archive, flame);
+        if (owned) lbHeap_80015CA8(0, owned);
+        HSD_ASSERT(__LINE__, scenes[0] && scenes[1]);
+    }
+    data->pnlsce = melee_scene_desc_data(scenes[0]);
+    data->flmsce = melee_scene_desc_data(scenes[1]);
+#else
     lbl_804D65B8 = lbArchive_80016DBC("GmRst", &data->pnlsce, "pnlsce",
                                       &data->flmsce, "flmsce", 0);
+#endif
     if (data->pnlsce == NULL) {
         OSReport("Error : Cannot read archive file (File Name : %s).",
                  "GmRst");

@@ -141,6 +141,9 @@ bool itCoin_UnkMotion0_Coll(Item_GObj* gobj)
     return false;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 void inline itCoin_ResetRotation(Item_GObj* gobj)
 {
     HSD_JObj* jobj;

@@ -37,6 +37,14 @@
 static u32 arena_size;
 static bool gmMain_804D6594;
 
+/* Native displays consume complete progressive frames. Use the game's SDK
+ * progressive mode, without the interlaced deflicker copy filter. */
+#ifdef MELEE_NATIVE
+#define GM_MAIN_RENDER_MODE GXNtsc480Prog
+#else
+#define GM_MAIN_RENDER_MODE GXNtsc480IntDf
+#endif
+
 static HSD_PadData gmMain_8046B108[5];
 static HSD_PadRumbleListData gmMain_8046B1F8[12];
 
@@ -127,7 +135,11 @@ static void init_spr_unk(void)
 void __eabi(void) {}
 #endif
 
+#ifdef MELEE_NATIVE
+int melee_game_main(void)
+#else
 int main(void)
+#endif
 {
     char* unused_format_string = "Data %lx\n";
     u32 _[2];
@@ -145,11 +157,11 @@ int main(void)
     }
     arena_size = (intptr_t) OSGetArenaHi() - (intptr_t) OSGetArenaLo();
     HSD_SetInitParameter(HSD_INIT_XFB_MAX_NUM, 2);
-    HSD_SetInitParameter(HSD_INIT_RENDER_MODE_OBJ, &GXNtsc480IntDf);
+    HSD_SetInitParameter(HSD_INIT_RENDER_MODE_OBJ, &GM_MAIN_RENDER_MODE);
     HSD_SetInitParameter(HSD_INIT_FIFO_SIZE, 0x40000);
     HSD_SetInitParameter(HSD_INIT_HEAP_MAX_NUM, 4);
     db_SetupCrashHandler();
-    HSD_AllocateXFB(2, &GXNtsc480IntDf);
+    HSD_AllocateXFB(2, &GM_MAIN_RENDER_MODE);
     HSD_GXSetFifoObj(GXInit(HSD_AllocateFifo(0x40000), 0x40000));
     HSD_InitComponent();
     GXSetMisc(1, 8);
@@ -217,4 +229,7 @@ int main(void)
 
     db_ClearFPUExceptions();
     gm_801A4510();
+#ifdef MELEE_NATIVE
+    return 0;
+#endif
 }

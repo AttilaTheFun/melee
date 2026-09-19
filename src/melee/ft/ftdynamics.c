@@ -16,8 +16,15 @@
 #include <sysdolphin/baselib/debug.h>
 #include <sysdolphin/baselib/jobj.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_kirby_composite_copy.h"
+typedef u32 FtDynamicsControl;
+#else
+typedef FigaTree* FtDynamicsControl;
+#endif
+
 /* 09CB40 */ static void ftCo_8009CB40(Fighter* fp, ssize_t bone_idx, bool,
-                                       FigaTree*);
+                                       FtDynamicsControl);
 /* 09DD94 */ static void ftCo_8009DD94(Fighter_GObj*, bool);
 /* 09E1D4 */ static HSD_JObj* ftCo_8009E1D4(HSD_JObj*, HSD_JObj*, HSD_JObj*);
 /* 09E4A8 */ static void ftCo_8009E4A8(Fighter* fp);
@@ -34,7 +41,7 @@ static inline void ftCo_8009CB40_inline(struct DynamicsData* data)
     HSD_JObjSetScale(data->desc.lb_unk0.jobj, &data->desc.lb_unk0.scale);
 }
 
-void ftCo_8009CB40(Fighter* fp, ssize_t bone_idx, bool arg2, FigaTree* arg3)
+void ftCo_8009CB40(Fighter* fp, ssize_t bone_idx, bool arg2, FtDynamicsControl arg3)
 {
     ftDynamics* dyn = fp->ft_data->x2C;
     PAD_STACK(8);
@@ -97,7 +104,7 @@ void ftCo_8009CF84(Fighter* fp)
                         &fp->dynamic_bone_sets[i].dyn_desc,
                         bones->dyn_desc.count);
             fp->dynamic_bone_sets[i].bone_id = 0;
-            ftCo_8009CB40(fp, i, 1, NULL);
+            ftCo_8009CB40(fp, i, 1, 0);
             lb_80011710(&data->x2C->ftDynamicBones->array[i].dyn_desc,
                         &fp->dynamic_bone_sets[i].dyn_desc);
         }
@@ -231,21 +238,26 @@ void ftCo_8009D81C(Fighter* fp)
 {
     KirbyHatStruct* hat = ft_80459B88.hats[Ft_Kind_Yoshi];
     PAD_STACK(2 * 4);
-    fp->dynamics_num = hat->hat_dynamics[3]->dynamicsNum;
+#ifdef MELEE_NATIVE
+    ftDynamics* dynamics = ((MeleeKirbyCompositeCopyDesc*) hat)->dynamics;
+#else
+    ftDynamics* dynamics = hat->hat_dynamics[3];
+#endif
+    fp->dynamics_num = dynamics->dynamicsNum;
     HSD_ASSERTREPORT(364, fp->dynamics_num < Ft_Dynamics_NumMax,
                      "fighter dynamics num over!\n");
     {
         ssize_t i;
         for (i = 0; i < fp->dynamics_num; i++) {
             s32 bone_id =
-                hat->hat_dynamics[3]->ftDynamicBones->array[i].bone_id;
+                dynamics->ftDynamicBones->array[i].bone_id;
             fp->parts[bone_id].flags_b0 = true;
             lb_8000FD48(
                 fp->parts[bone_id].joint, &fp->dynamic_bone_sets[i].dyn_desc,
-                hat->hat_dynamics[3]->ftDynamicBones->array[i].dyn_desc.count);
+                dynamics->ftDynamicBones->array[i].dyn_desc.count);
             fp->dynamic_bone_sets[i].bone_id = FtPart_TopN;
             lb_80011710(
-                &hat->hat_dynamics[3]->ftDynamicBones->array[i].dyn_desc,
+                &dynamics->ftDynamicBones->array[i].dyn_desc,
                 &fp->dynamic_bone_sets[i].dyn_desc);
         }
     }
@@ -283,21 +295,26 @@ void ftCo_8009DB50(Fighter* fp)
 {
     KirbyHatStruct* hat = ft_80459B88.hats[Ft_Kind_Purin];
     PAD_STACK(2 * 4);
-    fp->dynamics_num = hat->hat_dynamics[4]->dynamicsNum;
+#ifdef MELEE_NATIVE
+    ftDynamics* dynamics = ((MeleeKirbyCompositeCopyDesc*) hat)->dynamics;
+#else
+    ftDynamics* dynamics = hat->hat_dynamics[4];
+#endif
+    fp->dynamics_num = dynamics->dynamicsNum;
     HSD_ASSERTREPORT(455, fp->dynamics_num < Ft_Dynamics_NumMax,
                      "fighter dynamics num over!\n");
     {
         ssize_t i;
         for (i = 0; i < fp->dynamics_num; i++) {
             s32 bone_id =
-                hat->hat_dynamics[4]->ftDynamicBones->array[i].bone_id;
+                dynamics->ftDynamicBones->array[i].bone_id;
             fp->parts[bone_id].flags_b0 = true;
             lb_8000FD48(
                 fp->parts[bone_id].joint, &fp->dynamic_bone_sets[i].dyn_desc,
-                hat->hat_dynamics[4]->ftDynamicBones->array[i].dyn_desc.count);
+                dynamics->ftDynamicBones->array[i].dyn_desc.count);
             fp->dynamic_bone_sets[i].bone_id = FtPart_TopN;
             lb_80011710(
-                &hat->hat_dynamics[4]->ftDynamicBones->array[i].dyn_desc,
+                &dynamics->ftDynamicBones->array[i].dyn_desc,
                 &fp->dynamic_bone_sets[i].dyn_desc);
         }
     }
@@ -324,7 +341,10 @@ void ftCo_8009DC54(Fighter* fp)
         ssize_t dyn_idx = 0;
         i = 0;
         do {
-            HSD_JObj* cur = fp->u.kb.hat.jobj;
+            /* Jigglypuff's costume hat shares Kirby's retail offset, but
+             * their native fighter-variable layouts differ with 64-bit
+             * pointers. Read the field initialized by ftPr_Init_8013C360. */
+            HSD_JObj* cur = fp->u.pr.x223C;
             ftDynamics* dynamics = data->x2C;
             ArticleDynamicBones* bones = dynamics->ftDynamicBones;
             ssize_t j;
@@ -453,11 +473,11 @@ void ftCo_8009E140(Fighter* fp, bool arg1)
         return;
     }
     if (fp->kind == Ft_Kind_Purin) {
-        ftCo_8009CB40(fp, 0, arg1, NULL);
+        ftCo_8009CB40(fp, 0, arg1, 0);
         return;
     }
     for (i = 0; i < fp->dynamics_num; i++) {
-        ftCo_8009CB40(fp, i, arg1, NULL);
+        ftCo_8009CB40(fp, i, arg1, 0);
     }
 }
 
@@ -529,7 +549,7 @@ void ftCo_8009E4A8(Fighter* fp)
     int i;
 
     if (fp->x594_b4) {
-        FigaTree** tree = fp->ft_data->x2C->x10[fp->x28[fp->anim_id][1]];
+        FtDynamicsControl* tree = fp->ft_data->x2C->x10[fp->x28[fp->anim_id][1]];
         if (tree != NULL) {
             for (i = 0; i < fp->dynamics_num; i++) {
                 ftCo_8009CB40(fp, i, 1, tree[i]);
@@ -542,7 +562,7 @@ void ftCo_8009E4A8(Fighter* fp)
         }
     } else if (fp->x594_b3) {
         for (i = 0; i < fp->dynamics_num; i++) {
-            ftCo_8009CB40(fp, i, 0, NULL);
+            ftCo_8009CB40(fp, i, 0, 0);
             if (fp->x590 != NULL) {
                 ftAnim_8006EED4(
                     fp, fp->ft_data->x2C->ftDynamicBones->array[i].bone_id,
@@ -570,7 +590,7 @@ void ftCo_8009E614(Fighter* fp)
             frame_speed_mul = fp->frame_speed_mul;
             if (fp->x594_b4 || fp->x594_b3) {
                 for (i = 0; i < data->x2C->dynamicsNum; i++) {
-                    ftCo_8009CB40(fp, i, 1, NULL);
+                    ftCo_8009CB40(fp, i, 1, 0);
                 }
                 if (fp->x590 != 0) {
                     ftAnim_8006EBE8(fp->gobj, cur_anim_frame, frame_speed_mul,
@@ -610,11 +630,11 @@ void ftCo_8009E7B4(Fighter* fp, u8 (*arg1)[2])
         if ((cached_b6 = fp->x2227_b6)) {
             if (fp->kind != Ft_Kind_Kirby) {
                 if (fp->kind == Ft_Kind_Purin) {
-                    ftCo_8009CB40(fp, 0, 0, NULL);
+                    ftCo_8009CB40(fp, 0, 0, 0);
                     return;
                 }
                 for (i = 0; i < fp->dynamics_num; i++) {
-                    ftCo_8009CB40(fp, i, 0, NULL);
+                    ftCo_8009CB40(fp, i, 0, 0);
                 }
             }
         } else {
@@ -630,35 +650,35 @@ void ftCo_8009E7B4(Fighter* fp, u8 (*arg1)[2])
             if (var_r3) {
                 if (fp->kind != Ft_Kind_Kirby) {
                     if (fp->kind == Ft_Kind_Purin) {
-                        ftCo_8009CB40(fp, 0, 1, NULL);
+                        ftCo_8009CB40(fp, 0, 1, 0);
                         return;
                     }
                     for (i = 0; i < fp->dynamics_num; i++) {
-                        ftCo_8009CB40(fp, i, 1, NULL);
+                        ftCo_8009CB40(fp, i, 1, 0);
                     }
                 }
             } else {
                 if (fp->x594_b4) {
-                    FigaTree*** dyn;
-                    FigaTree** tree;
+                    FtDynamicsControl** dyn;
+                    FtDynamicsControl* tree;
                     u8 blend_slot = arg1[0][1];
                     dyn = fp->ft_data->x2C->x10;
                     if (dyn == NULL) {
                         for (i = 0; i < fp->dynamics_num; i++) {
-                            ftCo_8009CB40(fp, i, 0, NULL);
+                            ftCo_8009CB40(fp, i, 0, 0);
                         }
                         return;
                     }
                     tree = dyn[blend_slot];
                     if (tree == NULL) {
                         for (i = 0; i < fp->dynamics_num; i++) {
-                            ftCo_8009CB40(fp, i, 0, NULL);
+                            ftCo_8009CB40(fp, i, 0, 0);
                         }
                         return;
                     }
                     {
                         s32 j;
-                        FigaTree** cursor;
+                        FtDynamicsControl* cursor;
                         j = (var_r3 = 0);
                         cursor = &tree[j];
                         for (; j < fp->dynamics_num; j++) {
@@ -671,21 +691,21 @@ void ftCo_8009E7B4(Fighter* fp, u8 (*arg1)[2])
                     if (fp->x594_b3) {
                         if (fp->kind != Ft_Kind_Kirby) {
                             if (fp->kind == Ft_Kind_Purin) {
-                                ftCo_8009CB40(fp, 0, 0, NULL);
+                                ftCo_8009CB40(fp, 0, 0, 0);
                                 return;
                             }
                             for (i = 0; i < fp->dynamics_num; i++) {
-                                ftCo_8009CB40(fp, i, 0, NULL);
+                                ftCo_8009CB40(fp, i, 0, 0);
                             }
                         }
                     } else {
                         if (fp->kind != Ft_Kind_Kirby) {
                             if (fp->kind == Ft_Kind_Purin) {
-                                ftCo_8009CB40(fp, 0, 1, NULL);
+                                ftCo_8009CB40(fp, 0, 1, 0);
                                 return;
                             }
                             for (i = 0; i < fp->dynamics_num; i++) {
-                                ftCo_8009CB40(fp, i, 1, NULL);
+                                ftCo_8009CB40(fp, i, 1, 0);
                             }
                         }
                     }
@@ -694,11 +714,11 @@ void ftCo_8009E7B4(Fighter* fp, u8 (*arg1)[2])
         }
     } else if (fp->x2227_b6 && fp->kind != Ft_Kind_Kirby) {
         if (fp->kind == Ft_Kind_Purin) {
-            ftCo_8009CB40(fp, 0, 0, NULL);
+            ftCo_8009CB40(fp, 0, 0, 0);
             return;
         }
         for (i = 0; i < fp->dynamics_num; i++) {
-            ftCo_8009CB40(fp, i, 0, NULL);
+            ftCo_8009CB40(fp, i, 0, 0);
         }
     }
 }

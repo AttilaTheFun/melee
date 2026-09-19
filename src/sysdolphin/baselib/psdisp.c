@@ -1,4 +1,8 @@
 #include "psdisp.h"
+#ifdef MELEE_NATIVE
+#include "debug.h"
+#include "melee_particle_bank.h"
+#endif
 
 #include <string.h>
 
@@ -13,6 +17,16 @@
 #include "state.h"
 #include "util.h"
 #include <dolphin/gx.h>
+
+/* Keep the console scalar emission order while routing native vertices
+ * through the backend FIFO instead of the GameCube MMIO address. */
+#ifdef MELEE_NATIVE
+#define psWriteU8(value) GXParam1u8(value)
+#define psWriteF32(value) GXParam1f32(value)
+#else
+#define psWriteU8(value) (GXWGFifo.u8 = (value))
+#define psWriteF32(value) (GXWGFifo.f32 = (value))
+#endif
 
 // MSL/math.h defines a non-IEEE FLT_EPSILON
 #undef FLT_EPSILON
@@ -416,7 +430,7 @@ HSD_Particle* particleSort(s32 arg0, u8 arg1, HSD_Particle** arg2,
     s32 var_r6;
     u8* temp_r9;
 
-    STATIC_ASSERT(sizeof(buckets[0]) == 8);
+    STATIC_ASSERT(sizeof(buckets[0]) == 2 * sizeof(HSD_Particle*));
 
     temp_r9 = &HSD_PSDisp_8040C360[arg0];
     temp_r29 = (new_var = &hsd_804D0908[arg0]);
@@ -823,7 +837,7 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
             if (pp->kind & DispTexture) {
                 u8 tex_base = (pp->kind >> 16) & 0xC;
 
-                GXWGFifo.u8 = tex_base;
+                psWriteU8(tex_base);
             }
             GXPosition3f32(x - up.x, y - up.y, z - up_z);
             {
@@ -834,7 +848,7 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
                 GXColor4u8(r, g, b, a);
             }
             if (pp->kind & DispTexture) {
-                GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 1;
+                psWriteU8(((pp->kind >> 16) & 0xC) + 1);
             }
             GXPosition3f32(x + right.x, y + right.y, z + right_z);
             {
@@ -845,7 +859,7 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
                 GXColor4u8(r, g, b, a);
             }
             if (pp->kind & DispTexture) {
-                GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 2;
+                psWriteU8(((pp->kind >> 16) & 0xC) + 2);
             }
             GXPosition3f32((*prev_x) + up.x, (*prev_y) + up.y,
                            (*prev_z) + up_z);
@@ -858,7 +872,7 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
                 GXColor4u8(r, g, b, (u8) alpha);
             }
             if (pp->kind & DispTexture) {
-                GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 3;
+                psWriteU8(((pp->kind >> 16) & 0xC) + 3);
             }
         } else {
             f32 trail_alpha = 255.0f * (1.0f - pp->trail);
@@ -917,13 +931,13 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
                         if (pp->kind & TexFlipT) {
                             t = 1.0f - t;
                         }
-                        GXWGFifo.f32 = up.x * tx + (right.x * sx + x);
-                        GXWGFifo.f32 = up.y * tx + (right.y * sx + y);
-                        GXWGFifo.f32 = up_z * tx + (right_z * sx + z);
+                        psWriteF32(up.x * tx + (right.x * sx + x));
+                        psWriteF32(up.y * tx + (right.y * sx + y));
+                        psWriteF32(up_z * tx + (right_z * sx + z));
                         GXColor4u8(color->r, color->g, color->b, alpha);
                         if (pp->kind & DispTexture) {
-                            GXWGFifo.f32 = s;
-                            GXWGFifo.f32 = t;
+                            psWriteF32(s);
+                            psWriteF32(t);
                         }
                     }
                 }
@@ -939,19 +953,19 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
         }
         GXPosition3f32((cx = x - right.x), y - right.y, z - right_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = (pp->kind >> 16) & 0xC;
+            psWriteU8((pp->kind >> 16) & 0xC);
         }
         GXPosition3f32((cx = x - up.x), y - up.y, z - up_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 1;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 1);
         }
         GXPosition3f32((cx = x + right.x), y + right.y, z + right_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 2;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 2);
         }
         GXPosition3f32(x + up.x, y + up.y, z + up_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 3;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 3);
         }
     } else {
         u32 primitive_count = *(u32*) it;
@@ -988,8 +1002,8 @@ static inline void psDispSubMakePolygon(HSD_Particle* pp, u8* texform, f32 x,
                                y + right.y * sx + up.y * tx,
                                z + right_z * sx + up_z * tx);
                 if (pp->kind & DispTexture) {
-                    GXWGFifo.f32 = s;
-                    GXWGFifo.f32 = t;
+                    psWriteF32(s);
+                    psWriteF32(t);
                 }
             }
         }
@@ -1717,8 +1731,8 @@ static inline void psDispSubAppSRT(HSD_Particle* pp, u8* texform)
                         GXColor4u8(draw_color.r, draw_color.g, draw_color.b,
                                    (u8) alpha);
                         if (pp->kind & DispTexture) {
-                            GXWGFifo.f32 = s;
-                            GXWGFifo.f32 = t;
+                            psWriteF32(s);
+                            psWriteF32(t);
                         }
                     }
                 }
@@ -1732,29 +1746,29 @@ static inline void psDispSubAppSRT(HSD_Particle* pp, u8* texform)
             setVtxDesc(1);
             GXBegin(GX_QUADS, GX_VTXFMT1, 4U);
         }
-        GXWGFifo.f32 = -ax + cur_x;
-        GXWGFifo.f32 = -ay + cur_y;
-        GXWGFifo.f32 = cur_z;
+        psWriteF32(-ax + cur_x);
+        psWriteF32(-ay + cur_y);
+        psWriteF32(cur_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = (pp->kind >> 16) & 0xC;
+            psWriteU8((pp->kind >> 16) & 0xC);
         }
-        GXWGFifo.f32 = -bx + cur_x;
-        GXWGFifo.f32 = -by + cur_y;
-        GXWGFifo.f32 = cur_z;
+        psWriteF32(-bx + cur_x);
+        psWriteF32(-by + cur_y);
+        psWriteF32(cur_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 1;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 1);
         }
-        GXWGFifo.f32 = ax + cur_x;
-        GXWGFifo.f32 = ay + cur_y;
-        GXWGFifo.f32 = cur_z;
+        psWriteF32(ax + cur_x);
+        psWriteF32(ay + cur_y);
+        psWriteF32(cur_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 2;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 2);
         }
-        GXWGFifo.f32 = bx + cur_x;
-        GXWGFifo.f32 = by + cur_y;
-        GXWGFifo.f32 = cur_z;
+        psWriteF32(bx + cur_x);
+        psWriteF32(by + cur_y);
+        psWriteF32(cur_z);
         if (pp->kind & DispTexture) {
-            GXWGFifo.u8 = ((pp->kind >> 16) & 0xC) + 3;
+            psWriteU8(((pp->kind >> 16) & 0xC) + 3);
         }
     } else {
         u32 primitive_count = *(u32*) it;
@@ -1790,8 +1804,8 @@ static inline void psDispSubAppSRT(HSD_Particle* pp, u8* texform)
                 GXPosition3f32(cur_x + ax * sx + bx * tx,
                                cur_y + ay * sx + by * tx, cur_z);
                 if (pp->kind & DispTexture) {
-                    GXWGFifo.f32 = s;
-                    GXWGFifo.f32 = t;
+                    psWriteF32(s);
+                    psWriteF32(t);
                 }
             }
         }
@@ -1980,7 +1994,7 @@ void psDispParticles(u32 target_link, u32 sw)
                         psSetCurrentMtx(GX_PNMTX0);
                         GXEnableTexOffsets(GX_TEXCOORD0, GX_TRUE, GX_TRUE);
                         GXSetCullMode(GX_CULL_BACK);
-                        GXSetArray(GX_VA_TEX0, HSD_PSDisp_8040C340, 2U);
+                        GXSETARRAY(GX_VA_TEX0, HSD_PSDisp_8040C340, sizeof(HSD_PSDisp_8040C340), 2U, GX_FALSE);
                         psSetupVtxFormat(GX_VTXFMT0, false, true, GX_RGB565);
                         psSetupVtxFormat(GX_VTXFMT1, false, false, GX_RGB565);
                         psSetupVtxFormat(GX_VTXFMT2, true, true, GX_RGB565);
@@ -2018,7 +2032,11 @@ void psDispParticles(u32 target_link, u32 sw)
                                           alpha_compare_mode & 7, sp7A4);
                     }
 
+#ifdef MELEE_NATIVE
+                    psSetupTev(pp);
+#else
                     psSetupTev((u32*) pp);
+#endif
                     setupChanCtrl(pp);
                     setupChanReg(pp);
                     setupTevReg(pp);
@@ -2096,6 +2114,11 @@ void psDispParticles(u32 target_link, u32 sw)
                             tex_table = NULL;
                         }
                         if (tex_table != NULL) {
+#ifdef MELEE_NATIVE
+                            HSD_ASSERTREPORT(__LINE__, pp->poseNum < tex_group->num,
+                                "Native particle image: bank=%u group=%u pose=%u count=%u kind=%08x\n",
+                                pp->bank, pp->texGroup, pp->poseNum, tex_group->num, pp->kind);
+#endif
                             image = tex_table[pp->poseNum];
                         } else {
                             image = NULL;
@@ -2105,6 +2128,15 @@ void psDispParticles(u32 target_link, u32 sw)
                                 void** palettes =
                                     (void**) &tex_table[tex_group->num];
                                 if (palettes != NULL) {
+#ifdef MELEE_NATIVE
+                                    unsigned palette_index = pp->palNum != 0xFF ? pp->palNum :
+                                        (pp->kind & ComTLUT) ? 0 : pp->poseNum;
+                                    unsigned palette_count = tex_group->palflag & 1 ? 1 :
+                                        tex_group->palnum ? tex_group->palnum : tex_group->num;
+                                    HSD_ASSERTREPORT(__LINE__, palette_index < palette_count,
+                                        "Native particle palette: bank=%u group=%u palette=%u count=%u pose=%u kind=%08x\n",
+                                        pp->bank, pp->texGroup, palette_index, palette_count, pp->poseNum, pp->kind);
+#endif
                                     if (pp->palNum != 0xFF) {
                                         tlut = palettes[pp->palNum];
                                     } else if (!(pp->kind & ComTLUT)) {
@@ -2112,6 +2144,11 @@ void psDispParticles(u32 target_link, u32 sw)
                                     } else {
                                         tlut = palettes[0];
                                     }
+#ifdef MELEE_NATIVE
+                                    HSD_ASSERTREPORT(__LINE__, melee_particle_bank_palette_resolved(tlut),
+                                        "Unresolved native particle palette: bank=%u group=%u pose=%u palette=%u\n",
+                                        pp->bank, pp->texGroup, pp->poseNum, pp->palNum);
+#endif
                                     if (tlut != sp79C) {
                                         tlut_obj.fmt = (GXTlutFmt) (u8)
                                                            tex_group->tlutfmt;

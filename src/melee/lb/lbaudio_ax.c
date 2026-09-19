@@ -262,16 +262,40 @@ int lbAudioAx_80023870(int id, int vol, int pan, int track)
     return fn_80023750(id, vol, pan, track, 7);
 }
 
-static struct {
+struct LbAudioLoadData {
     int** x0;
     int** x4;
     int** x8;
     int** xC;
-}* lbl_804D6454;
+};
+static struct LbAudioLoadData* lbl_804D6454;
+
+#ifdef MELEE_NATIVE
+#include "melee_audio_load_data.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <melee/lb/lbdvd.h>
+static MeleeAudioLoadData* native_audio_load_data;
+static struct LbAudioLoadData native_audio_load_tables;
+#endif
 
 void lbAudioAx_8002392C(void)
 {
+#ifdef MELEE_NATIVE
+    size_t length=0;void* owned=NULL;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("LbAd.dat"),&length);
+    if(!bytes){lbFile_80016760("LbAd.dat",&owned,&length);bytes=owned;}
+    MeleeArchive archive;HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,length));
+    MeleeAudioLoadData* fresh=melee_audio_load_data_decode(&archive);HSD_ASSERT(__LINE__,fresh);
+    if(owned)lbHeap_80015CA8(0,owned);
+    melee_audio_load_data_free(native_audio_load_data);native_audio_load_data=fresh;
+    native_audio_load_tables=(struct LbAudioLoadData){
+        melee_audio_load_data_group(fresh,0),melee_audio_load_data_group(fresh,1),
+        melee_audio_load_data_group(fresh,2),melee_audio_load_data_group(fresh,3)};
+    lbl_804D6454=&native_audio_load_tables;
+#else
     lbArchive_LoadSymbols("LbAd.dat", &lbl_804D6454, "lbAudioLoadData", 0);
+#endif
 }
 
 static inline int* getAudioLoadData(int arg0)

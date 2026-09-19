@@ -22,35 +22,12 @@
 #include <sysdolphin/baselib/lobj.h>
 #include <sysdolphin/baselib/random.h>
 
-struct grPushOn_Entry {
-    s32 x0;
-    s16 x4;
-    s16 x6;
-};
-
-struct grPushOn_Lookup {
-    s32 key;
-    s32 value;
-};
-
 struct grPushOn_LightConfig {
     GXColor color;
     Vec3 pos;
     f32 ref_br;
     f32 ref_dist;
     s32 dist_func;
-};
-
-struct grPushon_YakumonoParam {
-    s32 x0;
-    DynamicsDesc* x4;
-    DynamicsDesc* x8;
-    DynamicsDesc* xC;
-    DynamicsDesc* x10;
-    DynamicsDesc* x14;
-    bool x18;
-    struct grPushOn_Entry x1c[0x1E];
-    struct grPushOn_Lookup x10c[0x21];
 };
 
 static struct grPushon_YakumonoParam* yakumono_param;
@@ -177,6 +154,13 @@ HSD_GObj* grPushOn_802183E4(int gobj_id)
     return gobj;
 }
 
+#ifdef MELEE_NATIVE
+/* The retail descriptors point at single floats followed by string literals.
+ * ref_br=16 disables distance attenuation in GXInitLightDistAttn regardless
+ * of those following bytes. Supply the complete native point descriptor. */
+static HSD_LightPointDesc native_initial_point = { 16.0f, 0.0f, GX_DA_OFF };
+#endif
+
 HSD_LightDesc grPushOn_803E7B74 = {
     NULL,
     NULL,
@@ -185,7 +169,11 @@ HSD_LightDesc grPushOn_803E7B74 = {
     { 0xFF, 0xFF, 0xFF, 0xFF },
     NULL,
     NULL,
+#ifdef MELEE_NATIVE
+    { .point = &native_initial_point },
+#else
     { &grPushOn_804D4934 },
+#endif
 };
 
 void grPushOn_802184CC(Ground_GObj* gobj)
@@ -287,7 +275,11 @@ void grPushOn_802187A8(Ground_GObj* gobj)
     Ground* gp = GET_GROUND(gobj);
     HSD_LObj* lobj;
 
+#ifdef MELEE_NATIVE
+    gp->u.pushon.gobj = HSD_GObjGXLinkHead[4];
+#else
     gp->u.pushon.gobj = ((HSD_GObj*) HSD_GObjGXLinkHead)->next_gx;
+#endif
     PAD_STACK(16);
     grPushOn_802190D0(gp->u.pushon.gobj);
     lobj = ((HSD_GObj*) gp->u.pushon.gobj)->hsd_obj;
@@ -521,7 +513,11 @@ HSD_LightDesc grPushOn_803E7B90 = {
     { 0xFF, 0xFF, 0xFF, 0xFF },
     NULL,
     NULL,
+#ifdef MELEE_NATIVE
+    { .point = &native_initial_point },
+#else
     { &grPushOn_804D4948 },
+#endif
 };
 
 static struct grPushOn_LightConfig light_configs[9] = {
@@ -601,7 +597,7 @@ void fn_802190A0(void* user_data, int joint_id, CollData* coll, int coll_x50,
                  mpLib_GroundEnum ground_kind, float delta_y)
 {
     Ground* gp = user_data;
-    if (((*(u8*) &coll->x34_flags >> 3U) & 0xF) == 1 &&
+    if (coll->x34_flags.b1234 == 1 &&
         (ground_kind - 1) <= 1U)
     {
         gp->u.map.xC4_b0 = true;
@@ -681,7 +677,7 @@ int grPushOn_80219230(int arg0)
     HSD_ASSERT(861, 0);
 }
 
-s32 fn_802192A4(void* arg0, HSD_GObj* gobj, s32* result)
+s32 fn_802192A4(void* arg0, HSD_GObj* gobj, void* result)
 {
     Vec3 sp14;
     f32 scale = Ground_801C0498();
@@ -694,7 +690,11 @@ s32 fn_802192A4(void* arg0, HSD_GObj* gobj, s32* result)
             (scale * (-50.0f + grPushOn_803E7CCC[i * 3 + 2]) < sp14.y) &&
             (scale * grPushOn_803E7CCC[i * 3 + 2] > sp14.y))
         {
-            *result = yakumono_param->x0;
+#ifdef MELEE_NATIVE
+            *(void**) result = yakumono_param->x0;
+#else
+            *(s32*) result = yakumono_param->x0;
+#endif
             return 1;
         }
     }
@@ -739,3 +739,14 @@ bool grPushOn_80219528(Vec3* arg, int arg0, HSD_JObj* jobj)
 {
     return true;
 }
+
+#ifdef MELEE_NATIVE
+int grPushOn_NativeContactTest(void)
+{
+    Ground gp={0};CollData coll={0};coll.x34_flags.b1234=1;
+    fn_802190A0(&gp,0,&coll,0,1,0);HSD_ASSERT(__LINE__,gp.u.map.xC4_b0);
+    gp.u.map.xC4_b0=false;fn_802190A0(&gp,0,&coll,0,3,0);HSD_ASSERT(__LINE__,!gp.u.map.xC4_b0);
+    coll.x34_flags.b1234=2;fn_802190A0(&gp,0,&coll,0,1,0);HSD_ASSERT(__LINE__,!gp.u.map.xC4_b0);
+    return 0;
+}
+#endif

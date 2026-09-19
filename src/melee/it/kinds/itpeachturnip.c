@@ -80,6 +80,10 @@ s32 it_802BD32C(Item_GObj* item_gobj)
         if (rand < cum_odds) {
             ret = i;
         }
+#ifdef MELEE_NATIVE
+        /* The retail loop reads past the table after selecting its last entry. */
+        if (ret == tmp && i + 1 < attr->x4_length)
+#endif
         cum_odds += attr->x8[i + 1].x0_odds;
     }
 

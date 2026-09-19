@@ -1,4 +1,13 @@
 #include "ifcoget.h"
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+#include <dolphin/dvd.h>
+static MeleeSceneDesc* native_coget_scene;
+#endif
 
 #include <melee/gm/gm_unsplit.h>
 #include <melee/lb/lbarchive.h>
@@ -129,7 +138,22 @@ void un_802FF1B4(void)
 {
     un_803F9E08.x0_b0 = true;
     un_803F9E08.x0_b1 = false;
+#ifdef MELEE_NATIVE
+    if(!native_coget_scene){
+        size_t size=0;void* owned=NULL;
+        const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum("IfCoGet.dat"),&size);
+        if(!bytes){lbFile_80016760("IfCoGet.dat",&owned,&size);bytes=owned;}
+        MeleeArchive archive;u32 root;
+        HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,size));
+        HSD_ASSERT(__LINE__,melee_archive_find(&archive,"ScInfCgt_scene_data",&root));
+        native_coget_scene=melee_scene_desc_decode(&archive,root);
+        if(owned)lbHeap_80015CA8(0,owned);
+        HSD_ASSERT(__LINE__,native_coget_scene);
+    }
+    un_804D6DA4=melee_scene_desc_data(native_coget_scene);
+#else
     un_804D6DA0 = lbArchive_80016DBC("IfCoGet.dat", &un_804D6DA4,
                                      "ScInfCgt_scene_data", 0);
+#endif
     un_802FEFAC();
 }

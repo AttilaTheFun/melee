@@ -66,7 +66,7 @@ static size_t const _tyDisplay_804D6F10_len = 300;
 /* 4A2D98 */ static char _tyDisplay_devtext_buf[9 * (3 * 2)];
 /* 4A2DD0 */ static TyDspArchiveHolder _tyDisplay_804A2DD0;
 /* 4A2DE8 */ static HSD_Archive*
-    _tyDisplay_804A2DE8[0xB0 / sizeof(HSD_Archive*)];
+    _tyDisplay_804A2DE8[44];
 /* 4D6F10 */ static HSD_JObj** _tyDisplay_804D6F10;
 /* 4D6F14 */ static TyDspGrid* _tyDisplay_804D6F14;
 /* 4D6F18 */ static TyDspConfig* _tyDisplay_804D6F18;
@@ -505,6 +505,9 @@ static inline void _tyDisplay_80319540_sort(TyDspConfig* cfg, TyDspGrid* grid)
     }
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void _tyDisplay_80319994_sort(TyDspConfig* cfg, TyDspGrid* grid)
 {
     s32 pivot;
@@ -559,6 +562,9 @@ inline void _tyDisplay_80319994_sort(TyDspConfig* cfg, TyDspGrid* grid)
     }
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void _tyDisplay_80318CB4_sort(TyDspConfig* cfg, TyDspGrid* grid)
 {
     s32 n2;
@@ -2410,7 +2416,11 @@ s32 tyDisplay_8031C454(s32 arg0)
     temp = tables;
     if (archArr[idx] == NULL) {
         idx = entry->x04;
+        #ifdef MELEE_NATIVE
+        names1 = _tyDisplay_803B8AE0;
+#else
         names1 = temp->arch_names;
+#endif
         if ((s8) idx == -1) {
             idx = 0;
         }
@@ -2421,13 +2431,21 @@ s32 tyDisplay_8031C454(s32 arg0)
     }
 
     if (archArr[42] == NULL) {
+        #ifdef MELEE_NATIVE
+        names2 = _tyDisplay_803B8AE0;
+#else
         names2 = tables->arch_names;
+#endif
         archArr[42] = lbArchive_LoadSymbols(names2.entries[42], NULL);
     }
     temp2 = archArr[41];
     if (temp2 == NULL) {
         do {
-            names3 = temp->arch_names;
+            #ifdef MELEE_NATIVE
+        names3 = _tyDisplay_803B8AE0;
+#else
+        names3 = temp->arch_names;
+#endif
             archArr[41] = lbArchive_LoadSymbols(names3.entries[41], 0L);
         } while (entry->x04 * 0);
     }
@@ -2482,7 +2500,11 @@ HSD_JObj* tyDisplay_8031C5E4(s32 arg0)
     {
         u8 c = entry->x04;
         cat = c;
+#ifdef MELEE_NATIVE
+        matanim_names1 = _tyDisplay_803B8A34;
+#else
         matanim_names1 = *(TyDspArchNames*) tables->matanim_names;
+#endif
         if ((s8) c == -1) {
             cat = 0;
         }
@@ -2509,6 +2531,11 @@ void tyDisplay_8031C8B8(void)
     s32 i;
 
     for (i = 0; 0x2B > i; i++) {
+#ifdef MELEE_NATIVE
+        HSD_Archive* archive = _tyDisplay_804A2DE8[i];
+        if (archive && (archive->flags & HSD_ARCHIVE_NATIVE))
+            archive->native_destroy(archive);
+#endif
         _tyDisplay_804A2DE8[i] = NULL;
     }
 }

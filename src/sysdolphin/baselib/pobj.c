@@ -383,7 +383,7 @@ static void resolveEnvelope(HSD_SList* list, HSD_EnvelopeDesc** edesc_p)
 
         while (env && edesc->joint) {
             HSD_JObjUnrefThis(env->jobj);
-            env->jobj = HSD_IDGetData((u32) edesc->joint, NULL);
+            env->jobj = HSD_IDGetData((HSD_IDKey) edesc->joint, NULL);
             HSD_ASSERT(736, env->jobj);
             HSD_JObjRefThis(env->jobj);
             env = env->next;
@@ -407,7 +407,7 @@ void HSD_PObjResolveRefs(HSD_PObj* pobj, HSD_PObjDesc* pdesc)
         HSD_JObjUnrefThis(pobj->u.jobj);
         pobj->u.jobj = NULL;
         if (pdesc->u.joint != NULL) {
-            pobj->u.jobj = HSD_IDGetData((u32) pdesc->u.joint, NULL);
+            pobj->u.jobj = HSD_IDGetData((HSD_IDKey) pdesc->u.joint, NULL);
             HSD_ASSERT(0x2FB, pobj->u.jobj);
             HSD_JObjRefThis(pobj->u.jobj);
         }
@@ -441,7 +441,8 @@ static void setupArrayDesc(HSD_VtxDescList* desc_list)
     if (prev_vtxdesclist_array != desc_list) {
         for (desc = desc_list; desc->attr != GX_VA_NULL; desc++) {
             if (desc->attr_type != GX_DIRECT) {
-                GXSetArray(desc->attr, desc->vertex, desc->stride);
+                GXSETARRAY(desc->attr, desc->vertex, desc->native_size,
+                           desc->stride, desc->native_little_endian);
             }
         }
         prev_vtxdesclist_array = desc_list;
@@ -488,7 +489,8 @@ static void setupShapeAnimArrayDesc(HSD_VtxDescList* desc_list)
             case GX_VA_NBT:
                 break;
             default:
-                GXSetArray(desc->attr, desc->vertex, desc->stride);
+                GXSETARRAY(desc->attr, desc->vertex, desc->native_size,
+                           desc->stride, desc->native_little_endian);
             }
         }
     }

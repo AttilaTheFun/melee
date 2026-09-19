@@ -48,8 +48,12 @@ void it_80278F2C(Item_GObj* item_gobj, CommandInfo* cmd)
     s32 arg6;
     PAD_STACK(4);
 
+#ifdef MELEE_NATIVE
+    arg2 = (cmd->u->Command_00.value >> 16) & 0x3FF;
+#else
     arg2 = ((u16*) cmd->u)[0];
     arg2 = arg2 & 0x3FF;
+#endif
     ++cmd->u;
     arg6 = (f32) ((u16*) cmd->u)[1];
     ef_id = ((u16*) cmd->u)[0];
@@ -171,7 +175,11 @@ void it_80279544(Item_GObj* item_gobj, CommandInfo* cmd)
 {
     Item* item = item_gobj->user_data;
     HitCapsule* hit = &item->x5D4_hitboxes[cmd->u->set_hitbox_damage.idx].hit;
+#ifdef MELEE_NATIVE
+    u32 val = cmd->u->set_hitbox_damage.value & 0x1FFF;
+#else
     u32 val = ((u16*) cmd->u)[1] & 0x1FFF;
+#endif
     PAD_STACK(8);
     it_80272460(hit, (u32) (item->xC3C * ((f32) val * item->xC40)), item_gobj);
     ++cmd->u;
@@ -250,12 +258,20 @@ void it_8027978C(Item_GObj* item_gobj, CommandInfo* cmd)
 {
     Item* item = item_gobj->user_data;
     itAnimlistCmdUnk* ptr = (itAnimlistCmdUnk*) cmd->u;
+#ifdef MELEE_NATIVE
+    s32 opcode = cmd->u->sound_effect_0.behavior;
+#else
     s32 opcode = ptr->opcode;
+#endif
     u32 arg1;
     u8 arg2;
     u8 arg3;
     PAD_STACK(8);
+#ifdef MELEE_NATIVE
+    ++cmd->u;
+#else
     cmd->u = (union CmdUnion*) (ptr + 1);
+#endif
     if (opcode < 10) {
         if (opcode < 3) {
             if (opcode >= 0) {

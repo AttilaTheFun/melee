@@ -53,10 +53,12 @@ void ftPk_SpecialLw_80127608(HSD_GObj* gobj)
     ftCommon_8007EBAC(fp, 11, 0);
 }
 
+/* Use the Thunder layout for both the item pointer and its state. The
+ * SpecialHi overlay shares these offsets only on the 32-bit console. */
 void ftPk_SpecialLw_SetState_Unk0(HSD_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
-    fp->mv.pk.specialhi.x4 = 3;
+    fp->mv.pk.speciallw.x4 = 3;
 }
 
 bool ftPk_SpecialLw_8012765C(HSD_GObj* gobj)
@@ -93,7 +95,7 @@ bool ftPk_SpecialLw_8012765C(HSD_GObj* gobj)
 void ftPk_SpecialLw_SetState_Unk1(HSD_GObj* gobj)
 {
     Fighter* fp = GET_FIGHTER(gobj);
-    fp->mv.pk.specialhi.x4 = 0;
+    fp->mv.pk.speciallw.x4 = 0;
 }
 
 void ftPk_SpecialLw_SpawnEffect(HSD_GObj* gobj)
@@ -134,8 +136,8 @@ void ftPk_SpecialLw_Enter(HSD_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     fp->cmd_vars[0] = 0;
     fp->throw_flags = 0;
-    fp->mv.pk.specialhi.x4 = 1;
-    fp->mv.pk.specialhi.x0 = 0;
+    fp->mv.pk.speciallw.x4 = 1;
+    fp->mv.pk.speciallw.x0 = NULL;
     Fighter_ChangeMotionState(gobj, 359, 0, 0.0f, 1.0f, 0.0f, 0);
     ftAnim_8006EBA4(gobj);
 }
@@ -145,8 +147,8 @@ void ftPk_SpecialAirLw_Enter(HSD_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     fp->cmd_vars[0] = 0;
     fp->throw_flags = 0;
-    fp->mv.pk.specialhi.x4 = 1;
-    fp->mv.pk.specialhi.x0 = 0;
+    fp->mv.pk.speciallw.x4 = 1;
+    fp->mv.pk.speciallw.x0 = NULL;
     Fighter_ChangeMotionState(gobj, 363, 0, 0.0f, 1.0f, 0.0f, 0);
     ftAnim_8006EBA4(gobj);
 }
@@ -248,7 +250,7 @@ void ftPk_SpecialLwLoop0_Anim(HSD_GObj* gobj)
     u8 _[8];
 
     Fighter* fp = GET_FIGHTER(gobj);
-    if ((fp->mv.pk.specialhi.x4 == 3) || fp->cmd_vars[0]) {
+    if ((fp->mv.pk.speciallw.x4 == 3) || fp->cmd_vars[0]) {
         fp->take_dmg_cb = 0;
         Fighter_ChangeMotionState(gobj, 362, 0, 0.0f, 1.0f, 0.0f, 0);
         return;
@@ -269,7 +271,7 @@ void ftPk_SpecialAirLwLoop0_Anim(HSD_GObj* gobj)
     u8 _[24];
 
     Fighter* fp = GET_FIGHTER(gobj);
-    if ((fp->mv.pk.specialhi.x4 == 3) || fp->cmd_vars[0]) {
+    if ((fp->mv.pk.speciallw.x4 == 3) || fp->cmd_vars[0]) {
         fp->take_dmg_cb = 0;
         Fighter_ChangeMotionState(gobj, 366, 0, 0.0f, 1.0f, 0.0f, 0);
         return;

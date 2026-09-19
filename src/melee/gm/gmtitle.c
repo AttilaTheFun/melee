@@ -25,6 +25,15 @@
 #include <sysdolphin/baselib/random.h>
 #include <sysdolphin/baselib/sislib.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_title.h"
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+static MeleeTitle* native_title;
+#endif
+
 static StaticModelDesc model_desc_0;
 static StaticModelDesc model_desc_1;
 static char debug_text_buffer[0x80];
@@ -235,6 +244,35 @@ HSD_Archive* gmTitle_801A1AC0(void)
     const char dat[] = "GmTtAll.dat";
     const char usd[] = "GmTtAll.usd";
 
+#ifdef MELEE_NATIVE
+    const char* filename = lbLang_IsSettingUS() ? usd : dat;
+    size_t length = 0;
+    void* owned = NULL;
+    const void* bytes = lbDvd_NativeGetRawData(
+        DVDConvertPathToEntrynum(filename), &length);
+    if (!bytes) {
+        lbFile_80016760(filename, &owned, &length);
+        bytes = owned;
+    }
+    MeleeArchive archive;
+    HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, length));
+    MeleeTitle* fresh = melee_title_decode(&archive);
+    HSD_ASSERT(__LINE__, fresh);
+    if (owned) lbHeap_80015CA8(0, owned);
+    /* Scene teardown has already removed objects borrowing the previous bundle.
+     * Descriptor storage lives outside the resettable HSD scene heap. */
+    melee_title_free(native_title);
+    native_title = fresh;
+    MeleeTitleData* title = melee_title_data(fresh);
+    model_desc_0 = title->models[0];
+    model_desc_1 = title->models[1];
+    cobj_desc = (HSD_CameraDescPerspective*) title->camera;
+    list_list = title->lights;
+    fog_desc = &title->fog;
+    gm_804D67F0 = &title->mark;
+    /* Both scene callers discard the legacy archive handle. */
+    return NULL;
+#else
     return lbArchive_LoadSymbols(
         lbLang_IsSettingUS() ? usd : dat, &model_desc_0.joint,
         "TtlMoji_Top_joint", &model_desc_0.animjoint, "TtlMoji_Top_animjoint",
@@ -250,6 +288,7 @@ HSD_Archive* gmTitle_801A1AC0(void)
         "TtlBg_Top_shapeanim_joint",
 
         &gm_804D67F0, "TitleMark_sobjdesc", 0);
+#endif
 }
 
 void gm_Scene_Title_OnFrame(void)

@@ -25,6 +25,9 @@ struct HSD_DevCom {
 static ARQRequest devComARQR[2][2];
 static struct HSD_DevCom* devComStatus[4];
 static struct HSD_DevCom* HSD_DevCom_804C6330[4];
+#ifdef MELEE_NATIVE
+_Alignas(32)
+#endif
 static int HSD_DevCom_804C6330_bufs[2][DEVCOM_BUF_SIZE / sizeof(int)];
 static DVDFileInfo fileinfo;
 

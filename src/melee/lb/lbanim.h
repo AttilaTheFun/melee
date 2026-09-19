@@ -27,5 +27,9 @@ struct FigaTree {
 void lbAnim_8001E6D8(HSD_JObj*, FigaTree*, FigaTrack*, s8 frames);
 void lbAnim_8001E7E8(HSD_JObj*, FigaTree*, FigaTrack*, s8 frames);
 float lbAnim_8001E8F8(FigaTree*);
+#ifdef MELEE_NATIVE
+/* Borrows track bytecode. The result has no attached HSD object. */
+HSD_AObj* lbAnim_LoadAObj(FigaTree*, FigaTrack*, s8 frames);
+#endif
 
 #endif

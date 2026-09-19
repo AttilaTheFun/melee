@@ -668,6 +668,23 @@ u16 grPu_803E6E20[1024] ATTRIBUTE_ALIGN(32) = {
 };
 
 struct HSD_ImageDesc grPu_803E7620 = { &grPu_803E6E20, 32, 32, 4, 0, 0, 0 };
+#ifdef MELEE_NATIVE
+HSD_ImageDesc* grPura_NativeToonImage(void)
+{
+    static u8 pixels[sizeof(grPu_803E6E20)] ATTRIBUTE_ALIGN(32);
+    static bool initialized;
+    if (!initialized) {
+        for (unsigned i = 0; i < ARRAY_SIZE(grPu_803E6E20); ++i) {
+            pixels[2 * i] = grPu_803E6E20[i] >> 8;
+            pixels[2 * i + 1] = grPu_803E6E20[i] & 255;
+        }
+        grPu_803E7620.image_ptr = pixels;
+        initialized = true;
+    }
+    return &grPu_803E7620;
+}
+#endif
+
 
 void stageGObj2_OnInit(Ground_GObj* arg0)
 {
@@ -675,7 +692,11 @@ void stageGObj2_OnInit(Ground_GObj* arg0)
     HSD_JObj* jobj = arg0->hsd_obj;
     PAD_STACK(8);
     arg0->render_cb = (GObj_RenderFunc) fn_802130D0;
+#ifdef MELEE_NATIVE
+    HSD_MObjSetToonTextureImage(grPura_NativeToonImage());
+#else
     HSD_MObjSetToonTextureImage(&grPu_803E7620);
+#endif
     lb_80011C18(jobj, 0x1000);
     grPura_80213250(jobj);
     HSD_MObjSetToonTextureImage(NULL);
@@ -885,7 +906,11 @@ bool grPura_802130C8(Vec3* a, int num, HSD_JObj* joint)
 void fn_802130D0(HSD_GObj* arg0, int arg1)
 {
     PAD_STACK(8);
+#ifdef MELEE_NATIVE
+    HSD_MObjSetToonTextureImage(grPura_NativeToonImage());
+#else
     HSD_MObjSetToonTextureImage(&grPu_803E7620);
+#endif
     grDisplay_801C5DB0(arg0, arg1);
     HSD_MObjSetToonTextureImage(0);
 }

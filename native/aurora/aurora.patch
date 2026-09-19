@@ -1,0 +1,566 @@
+diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
+index 470f038..2f1cbe3 100644
+--- a/lib/dolphin/gx/GXFrameBuffer.cpp
++++ b/lib/dolphin/gx/GXFrameBuffer.cpp
+@@ -155,7 +155,7 @@ void GXAdjustForOverscan(GXRenderModeObj* rmin, GXRenderModeObj* rmout, u16 hor,
+   rmout->xfbHeight = size.fb_height;
+ }
+ 
+-void GXSetDispCopySrc(u16 left, u16 top, u16 wd, u16 ht) {}
++
+ 
+ void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
+   GX_WRITE_AURORA(GX_AURORA_LOAD_COPY_SRC);
+@@ -165,7 +165,7 @@ void GXSetTexCopySrc(u16 left, u16 top, u16 wd, u16 ht) {
+   GX_WRITE_U32(ht);
+ }
+ 
+-void GXSetDispCopyDst(u16 wd, u16 ht) {}
++
+ 
+ void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
+   GX_WRITE_AURORA(GX_AURORA_LOAD_COPY_DST);
+@@ -178,7 +178,7 @@ void GXSetTexCopyDst(u16 wd, u16 ht, GXTexFmt fmt, GXBool mipmap) {
+ // TODO GXSetDispCopyFrame2Field
+ // TODO GXSetCopyClamp
+ 
+-u32 GXSetDispCopyYScale(f32 vscale) { return 0; }
++
+ 
+ void GXSetCopyClear(GXColor color, u32 depth) {
+   // BP 0x4F: clear color R + A
+@@ -203,11 +203,11 @@ void GXSetCopyClear(GXColor color, u32 depth) {
+   __gx->bpSent = 1;
+ }
+ 
+-void GXSetCopyFilter(GXBool aa, u8 sample_pattern[12][2], GXBool vf, u8 vfilter[7]) {}
+ 
+-void GXSetDispCopyGamma(GXGamma gamma) {}
+ 
+-void GXCopyDisp(void* dest, GXBool clear) {}
++
++
++
+ 
+ void GXCopyTex(void* dest, GXBool clear) {
+   GX_WRITE_AURORA(GX_AURORA_LOAD_COPY_DEST);
+diff --git a/lib/dolphin/gx/GXManage.cpp b/lib/dolphin/gx/GXManage.cpp
+index 7e62821..83c8256 100644
+--- a/lib/dolphin/gx/GXManage.cpp
++++ b/lib/dolphin/gx/GXManage.cpp
+@@ -261,16 +261,18 @@ GXFifoObj* GXInit(void* base, u32 size) {
+   return &sFifoObj;
+ }
+ 
++void GXWaitDrawDone() { aurora::gx::fifo::wait_draw_done(); }
++
+ void GXDrawDone() {
+-  GXFlush();
+-  GX_WRITE_RAS_REG(kDrawDoneCommand);
+-  aurora::gx::fifo::drain();
++  GXSetDrawDone();
++  GXWaitDrawDone();
+ }
+ 
+ void GXSetDrawDone() {
+   GXFlush();
+   GX_WRITE_RAS_REG(kDrawDoneCommand);
+   aurora::gx::fifo::publish();
++  aurora::gx::fifo::submit_draw_done_frame();
+ }
+ 
+ GXDrawDoneCallback GXSetDrawDoneCallback(GXDrawDoneCallback cb) { return aurora::gx::fifo::set_draw_done_callback(cb); }
+diff --git a/lib/dolphin/gx/GXTexture.cpp b/lib/dolphin/gx/GXTexture.cpp
+index 04f97f5..00d83a0 100644
+--- a/lib/dolphin/gx/GXTexture.cpp
++++ b/lib/dolphin/gx/GXTexture.cpp
+@@ -120,7 +120,7 @@ void GXInitTexObjLOD(GXTexObj* obj_, GXTexFilter minFilt, GXTexFilter magFilt, f
+                      float lodBias, GXBool biasClamp, GXBool doEdgeLod, GXAnisotropy maxAniso) {
+   auto* obj = reinterpret_cast<GXTexObj_*>(obj_);
+   const float clampedBias = std::clamp(lodBias, -4.0f, 3.99f);
+-  const auto lbias = static_cast<u8>(32.0f * clampedBias);
++  const auto lbias = static_cast<u8>(static_cast<int>(32.0f * clampedBias));
+   SET_REG_FIELD(0, obj->mode0, 8, 9, lbias);
+   SET_REG_FIELD(0, obj->mode0, 1, 4, magFilt == GX_LINEAR ? 1 : 0);
+   SET_REG_FIELD(0, obj->mode0, 3, 5, GX2HWFiltConv[minFilt]);
+@@ -174,7 +174,7 @@ void GXInitTexObjMinLOD(GXTexObj* obj_, float minLod) {
+ void GXInitTexObjLODBias(GXTexObj* obj_, float lodBias) {
+   auto* obj = reinterpret_cast<GXTexObj_*>(obj_);
+   const float clampedBias = std::clamp(lodBias, -4.0f, 3.99f);
+-  const auto lbias = static_cast<u8>(32.0f * clampedBias);
++  const auto lbias = static_cast<u8>(static_cast<int>(32.0f * clampedBias));
+   SET_REG_FIELD(0, obj->mode0, 8, 9, lbias);
+ }
+ 
+diff --git a/lib/dolphin/vi/vi.cpp b/lib/dolphin/vi/vi.cpp
+index 4c8dddc..4a59675 100644
+--- a/lib/dolphin/vi/vi.cpp
++++ b/lib/dolphin/vi/vi.cpp
+@@ -5,11 +5,13 @@
+ #include "vi_internal.hpp"
+ 
+ #include <optional>
++#include <mutex>
+ 
+ namespace aurora::vi {
+-std::optional<GXRenderModeObj> g_renderMode;
++static std::optional<GXRenderModeObj> g_renderMode;
++static std::mutex sRenderModeMutex;
+ 
+-Vec2<uint32_t> render_mode_size() noexcept {
++static Vec2<uint32_t> render_mode_size_unlocked() noexcept {
+   if (!g_renderMode) {
+     return {640, 480};
+   }
+@@ -17,25 +19,39 @@ Vec2<uint32_t> render_mode_size() noexcept {
+ }
+ 
+ void configure(const GXRenderModeObj* rm) noexcept {
+-  const auto oldSize = render_mode_size();
+-  if (rm == nullptr) {
+-    g_renderMode.reset();
+-  } else {
+-    g_renderMode = *rm;
++  bool resized;
++  {
++    // HSD may configure VI inside the native retrace callback while the
++    // rendering thread reads its dimensions.
++    std::lock_guard lock{sRenderModeMutex};
++    const auto oldSize = render_mode_size_unlocked();
++    if (rm == nullptr) {
++      g_renderMode.reset();
++    } else {
++      g_renderMode = *rm;
++    }
++    resized = render_mode_size_unlocked() != oldSize;
+   }
+-  if (render_mode_size() != oldSize) {
++  if (resized) {
+     window::request_frame_buffer_resize();
+   }
+ }
+ 
+ Vec2<uint32_t> configured_fb_size() noexcept {
+-  return render_mode_size();
++  std::lock_guard lock{sRenderModeMutex};
++  return render_mode_size_unlocked();
+ }
+ } // namespace aurora::vi
+ 
+ extern "C" {
+-void VIInit() {}
+-void VIConfigure(const GXRenderModeObj* rm) { aurora::vi::configure(rm); }
++void melee_vi_init();
++void melee_vi_flush();
++void melee_vi_configure(uint32_t mode, uint16_t y);
++void VIInit() { melee_vi_init(); }
++void VIConfigure(const GXRenderModeObj* rm) {
++  aurora::vi::configure(rm);
++  if (rm) melee_vi_configure(rm->viTVmode, rm->viYOrigin);
++}
+ void VIConfigurePan(u16 xOrg, u16 yOrg, u16 width, u16 height) {
+   (void)xOrg;
+   (void)yOrg;
+@@ -43,7 +59,7 @@ void VIConfigurePan(u16 xOrg, u16 yOrg, u16 width, u16 height) {
+   (void)height;
+ }
+ u32 VIGetTvFormat() { return 0; }
+-void VIFlush() {}
++void VIFlush() { melee_vi_flush(); }
+ 
+ void VISetWindowTitle(const char* title) { aurora::window::set_title(title); }
+ void VISetWindowFullscreen(bool fullscreen) { aurora::window::set_fullscreen(fullscreen); }
+diff --git a/lib/gfx/frame.cpp b/lib/gfx/frame.cpp
+index 9fd83ef..4ebb125 100644
+--- a/lib/gfx/frame.cpp
++++ b/lib/gfx/frame.cpp
+@@ -1,3 +1,4 @@
++extern "C" void melee_xfb_shutdown();
+ #include "frame.hpp"
+ 
+ #include "depth_peek.hpp"
+@@ -519,6 +520,7 @@ void initialize() {
+ }
+ 
+ void shutdown() {
++  melee_xfb_shutdown();
+   render_worker::synchronize();
+   render_worker::shutdown();
+   g_processEventsQueued.store(false, std::memory_order_release);
+diff --git a/lib/gfx/pipeline_cache.cpp b/lib/gfx/pipeline_cache.cpp
+index bff9b47..51d8144 100644
+--- a/lib/gfx/pipeline_cache.cpp
++++ b/lib/gfx/pipeline_cache.cpp
+@@ -436,7 +436,7 @@ static PipelineRef find_pipeline_impl(ShaderType type, const PipelineConfig& con
+   ZoneScoped;
+ 
+   const PipelineRef hash = xxh3_hash(config, static_cast<HashType>(type));
+-  const bool blocking = priority == PipelinePriority::Blocking;
++  const bool blocking = priority == PipelinePriority::Blocking || webgpu::g_graphicsConfig.synchronousPipelines;
+   if (!blocking && hash == g_lastPipelineRef) {
+     return g_lastPipelineRef;
+   }
+diff --git a/lib/gfx/recording.cpp b/lib/gfx/recording.cpp
+index d04db0f..cd05f53 100644
+--- a/lib/gfx/recording.cpp
++++ b/lib/gfx/recording.cpp
+@@ -1007,7 +1007,7 @@ bool resolve_pass(const ResolveDesc& desc, ResolvedTargets& out) {
+   return true;
+ }
+ 
+-bool push_encoder_task(EncoderTaskId type, const void* payload, size_t payloadSize) {
++static bool push_encoder_task_impl(EncoderTaskId type, const void* payload, size_t payloadSize, bool drainFifo) {
+   if (type == InvalidEncoderTask) {
+     Log.warn("push_encoder_task: invalid encoder task type");
+     return false;
+@@ -1025,7 +1025,7 @@ bool push_encoder_task(EncoderTaskId type, const void* payload, size_t payloadSi
+     return false;
+   }
+ 
+-  gx::fifo::drain();
++  if (drainFifo) gx::fifo::drain();
+ 
+   if (!g_recorder.active() || g_recorder.currentRenderPass == UINT32_MAX) {
+     Log.warn("push_encoder_task: called outside an active render pass");
+@@ -1058,6 +1058,13 @@ bool push_encoder_task(EncoderTaskId type, const void* payload, size_t payloadSi
+   return true;
+ }
+ 
++bool push_encoder_task(EncoderTaskId type, const void* payload, size_t payloadSize) {
++  return push_encoder_task_impl(type, payload, payloadSize, true);
++}
++bool push_encoder_task_from_fifo(EncoderTaskId type) {
++  return push_encoder_task_impl(type, nullptr, 0, false);
++}
++
+ template <>
+ void push_draw_command(gx::DrawData data) {
+   push_draw_command(make_draw_command<gx::render>(data));
+diff --git a/lib/gfx/recording.hpp b/lib/gfx/recording.hpp
+index cd2b794..dcdcdb9 100644
+--- a/lib/gfx/recording.hpp
++++ b/lib/gfx/recording.hpp
+@@ -107,3 +107,9 @@ void set_scissor(const ClipRect& scissor) noexcept;
+ void push_debug_group(std::string label);
+ void insert_debug_marker(std::string label);
+ } // namespace aurora::gfx
++
++namespace aurora::gfx {
++// FIFO processor only: already ordered with preceding draw commands. The
++// public push_encoder_task drains FIFO and would deadlock on that worker.
++bool push_encoder_task_from_fifo(EncoderTaskId type);
++}
+diff --git a/lib/gfx/resources.hpp b/lib/gfx/resources.hpp
+index 3fdc0ee..cf5c988 100644
+--- a/lib/gfx/resources.hpp
++++ b/lib/gfx/resources.hpp
+@@ -7,7 +7,7 @@ inline constexpr bool UseTextureBuffer = true;
+ inline constexpr uint64_t UniformBufferSize = 25165824; // 24 MiB
+ inline constexpr uint64_t VertexBufferSize = 5242880;   // 5 MiB
+ inline constexpr uint64_t IndexBufferSize = 2097152;    // 2 MiB
+-inline constexpr uint64_t StorageBufferSize = 8388608;  // 8 MiB
++inline constexpr uint64_t StorageBufferSize = 67108864; // 64 MiB; Venom exceeds 32 MiB
+ inline constexpr uint64_t TextureUploadSize = 25165824; // 24 MiB
+ 
+ namespace detail {
+diff --git a/lib/gfx/texture.hpp b/lib/gfx/texture.hpp
+index 0a5ca83..db2722a 100644
+--- a/lib/gfx/texture.hpp
++++ b/lib/gfx/texture.hpp
+@@ -89,7 +89,7 @@ struct GXTexObj_ {
+   GXTexWrapMode wrap_t() const noexcept { return static_cast<GXTexWrapMode>(get_bits(mode0, 2, 2)); }
+   GXTexFilter min_filter() const noexcept {
+     constexpr GXTexFilter kHwToGxFilter[8] = {
+-        GX_NEAR, GX_NEAR_MIP_NEAR, GX_LIN_MIP_NEAR, GX_NEAR, GX_LINEAR, GX_NEAR_MIP_LIN, GX_LIN_MIP_LIN, GX_NEAR,
++        GX_NEAR, GX_NEAR_MIP_NEAR, GX_NEAR_MIP_LIN, GX_NEAR, GX_LINEAR, GX_LIN_MIP_NEAR, GX_LIN_MIP_LIN, GX_NEAR,
+     };
+     return kHwToGxFilter[get_bits(mode0, 3, 5)];
+   }
+diff --git a/lib/gx/fifo.cpp b/lib/gx/fifo.cpp
+index bcaba60..4a363bd 100644
+--- a/lib/gx/fifo.cpp
++++ b/lib/gx/fifo.cpp
+@@ -2,6 +2,17 @@
+ 
+ #include "../thread.hpp"
+ #include "command_processor.hpp"
++#include "../gfx/frame.hpp"
++#include "../gfx/recording.hpp"
++#include "../webgpu/gpu.hpp"
++#include <condition_variable>
++#include <deque>
++#include <memory>
++#include <thread>
++#include <chrono>
++
++extern "C" int OSDisableInterrupts();
++extern "C" int OSRestoreInterrupts(int);
+ 
+ #include <algorithm>
+ #include <atomic>
+@@ -36,11 +47,67 @@ std::mutex sBufferMutex;
+ std::atomic<uint32_t> sWorkerWake{0};
+ thread::Thread sWorkerThread;
+ std::atomic<DrawDoneCallback> sDrawDoneCallback{nullptr};
++std::atomic<DrawDoneSubmitter> sDrawDoneSubmitter{nullptr};
++std::atomic<uint64_t> sDrawDoneIssued{0};
++uint64_t sDrawDoneCompleted = 0; // sCompletionMutex
++thread_local bool sInsideDrawDone = false;
++
++std::mutex sCompletionMutex;
++std::condition_variable sCompletionWake;
++struct Completion {
++  wgpu::Future future;
++  std::shared_ptr<std::atomic<bool>> success;
++};
++std::deque<Completion> sCompletions;
++std::thread sCompletionWorker;
++bool sCompletionStop = false;
++gfx::EncoderTaskId sDrawDoneTask = gfx::InvalidEncoderTask;
+ 
+ void dispatch_draw_done() noexcept {
++  const int enabled = OSDisableInterrupts();
+   if (const auto callback = sDrawDoneCallback.load(std::memory_order_acquire); callback != nullptr) {
++    sInsideDrawDone = true;
+     callback();
++    sInsideDrawDone = false;
+   }
++  OSRestoreInterrupts(enabled);
++}
++
++void completion_main() {
++  for (;;) {
++    Completion completion;
++    {
++      std::unique_lock lock{sCompletionMutex};
++      sCompletionWake.wait(lock, [] { return sCompletionStop || !sCompletions.empty(); });
++      if (sCompletions.empty()) return;
++      completion = std::move(sCompletions.front());
++      sCompletions.pop_front();
++    }
++    const auto result = webgpu::g_instance.WaitAny(completion.future, 10000000000ULL);
++    AURORA_ASSERT(result == wgpu::WaitStatus::Success &&
++                  completion.success->load(std::memory_order_acquire),
++                  "GX draw-done GPU completion failed");
++    dispatch_draw_done();
++    {
++      std::lock_guard lock{sCompletionMutex};
++      ++sDrawDoneCompleted;
++    }
++    sCompletionWake.notify_all();
++  }
++}
++
++void submit_draw_done(const gfx::EncoderTaskCompletionContext& ctx, const void*, size_t, void*) {
++  auto success = std::make_shared<std::atomic<bool>>(false);
++  auto future = ctx.queue.OnSubmittedWorkDone(wgpu::CallbackMode::WaitAnyOnly,
++    [success](wgpu::QueueWorkDoneStatus status, wgpu::StringView) {
++      success->store(status == wgpu::QueueWorkDoneStatus::Success, std::memory_order_release);
++    });
++  {
++    std::lock_guard lock{sCompletionMutex};
++    AURORA_ASSERT(!sCompletionStop, "GX completion queued after shutdown");
++    sCompletions.push_back({future, std::move(success)});
++  }
++  sCompletionWake.notify_all();
+ }
+ 
+ void wake_worker() noexcept {
+@@ -65,7 +132,11 @@ void process_to(uint64_t target, std::memory_order order) noexcept {
+                   "FIFO processor made invalid progress: processed {} of {} remaining bytes", result.bytesProcessed,
+                   target - processed);
+     if (result.drawDone) {
+-      dispatch_draw_done();
++      // CPU parsing is not GPU completion. Record an ordered task and fence
++      // only after the containing frame's command buffer has been submitted.
++      sDrawDoneIssued.fetch_add(1, std::memory_order_release);
++      AURORA_ASSERT(gfx::push_encoder_task_from_fifo(sDrawDoneTask),
++                    "GX draw-done requires an active render frame");
+     }
+     processed += result.bytesProcessed;
+     sProcessed.store(processed, order);
+@@ -114,6 +185,7 @@ void stop_worker() {
+ ProcessingMode processing_mode() noexcept { return kProcessingMode; }
+ 
+ void init() {
++  AURORA_ASSERT(!sCompletionWorker.joinable(), "GX FIFO reinitialization requires shutdown");
+   stop_worker();
+ 
+   constexpr uint32_t initialCapacity = 64 * 1024;
+@@ -134,10 +206,36 @@ void init() {
+   sProcessed.store(0, std::memory_order_relaxed);
+   sWorkerWake.store(0, std::memory_order_relaxed);
+ 
++  sDrawDoneTask = gfx::register_encoder_task_type({
++    .label = "GX draw-done fence",
++    .callback = [](const gfx::EncoderTaskContext&, const wgpu::CommandEncoder&,
++                   const void*, size_t, void*) {},
++    .afterSubmit = submit_draw_done,
++  });
++  sCompletionStop = false;
++  sDrawDoneIssued.store(0, std::memory_order_relaxed);
++  sDrawDoneCompleted = 0;
++  sCompletionWorker = std::thread{completion_main};
+   start_worker();
+ }
+ 
+-void shutdown() { stop_worker(); }
++void shutdown() {
++  const int enabled = OSDisableInterrupts();
++  AURORA_ASSERT(enabled, "GX FIFO shutdown requires interrupts enabled");
++  OSRestoreInterrupts(enabled);
++  stop_worker();
++  gfx::gpu_synchronize(); // All submitted-frame completion tasks must be queued.
++  {
++    std::lock_guard lock{sCompletionMutex};
++    sCompletionStop = true;
++  }
++  sCompletionWake.notify_all();
++  if (sCompletionWorker.joinable()) sCompletionWorker.join();
++  gfx::unregister_encoder_task_type(sDrawDoneTask);
++  sDrawDoneTask = gfx::InvalidEncoderTask;
++  sDrawDoneCallback.store(nullptr, std::memory_order_release);
++  sDrawDoneSubmitter.store(nullptr, std::memory_order_release);
++}
+ 
+ void begin_frame() noexcept { sFrameActive = true; }
+ 
+@@ -190,6 +288,33 @@ DrawDoneCallback set_draw_done_callback(DrawDoneCallback callback) noexcept {
+   return sDrawDoneCallback.exchange(callback, std::memory_order_acq_rel);
+ }
+ 
++DrawDoneSubmitter set_draw_done_submitter(DrawDoneSubmitter submitter) noexcept {
++  return sDrawDoneSubmitter.exchange(submitter, std::memory_order_acq_rel);
++}
++
++void submit_draw_done_frame() {
++  if (auto submitter = sDrawDoneSubmitter.load(std::memory_order_acquire)) submitter();
++}
++
++void wait_draw_done() {
++  AURORA_ASSERT(!sInsideDrawDone, "GXWaitDrawDone cannot wait inside its own callback");
++  drain(); // Publish/parse all preceding markers before taking the watermark.
++  const uint64_t target = sDrawDoneIssued.load(std::memory_order_acquire);
++  const int enabled = OSDisableInterrupts();
++  // The completion callback must acquire the gate before it wakes us.
++  OSRestoreInterrupts(1);
++  bool complete;
++  {
++    std::unique_lock lock{sCompletionMutex};
++    complete = sCompletionWake.wait_for(lock, std::chrono::seconds(10), [target] {
++      return sDrawDoneCompleted >= target;
++    });
++  }
++  OSDisableInterrupts();
++  OSRestoreInterrupts(enabled);
++  AURORA_ASSERT(complete, "GXWaitDrawDone timed out; the frame owner must submit the marked frame");
++}
++
+ void finish_draw() noexcept {
+   if (!sFrameActive || kProcessingMode == ProcessingMode::Drain || detail::sInDisplayList) {
+     return;
+diff --git a/lib/gx/fifo.hpp b/lib/gx/fifo.hpp
+index 0d6a5d8..2c90972 100644
+--- a/lib/gx/fifo.hpp
++++ b/lib/gx/fifo.hpp
+@@ -98,6 +98,12 @@ void publish() noexcept;
+ 
+ using DrawDoneCallback = void (*)();
+ DrawDoneCallback set_draw_done_callback(DrawDoneCallback callback) noexcept;
++// The frame owner can submit/continue its recording frame at an SDK marker.
++// Without a hook, the external Aurora loop remains responsible for submission.
++using DrawDoneSubmitter = void (*)();
++DrawDoneSubmitter set_draw_done_submitter(DrawDoneSubmitter submitter) noexcept;
++void submit_draw_done_frame();
++void wait_draw_done();
+ 
+ // Display list recording
+ void begin_display_list(uint8_t* buf, uint32_t size);
+diff --git a/lib/internal.hpp b/lib/internal.hpp
+index d1adb6c..7112ab2 100644
+--- a/lib/internal.hpp
++++ b/lib/internal.hpp
+@@ -7,6 +7,7 @@
+ #include <array>
+ #include <cassert>
+ #include <cstdint>
++#include <cstdio>
+ #include <cstring>
+ #include <limits>
+ #include <span>
+@@ -334,6 +335,7 @@ private:
+       m_owned = true;
+     } else if (size > m_capacity) {
+       if (!m_owned) {
++        std::fprintf(stderr, "Aurora mapped buffer overflow: used=%zu requested=%zu capacity=%zu\n", m_length, size, m_capacity);
+         abort();
+       }
+       if (size < m_capacity * 2) {
+diff --git a/lib/webgpu/gpu.cpp b/lib/webgpu/gpu.cpp
+index 592b8ab..b61352b 100644
+--- a/lib/webgpu/gpu.cpp
++++ b/lib/webgpu/gpu.cpp
+@@ -748,7 +748,8 @@ static bool create_surface() {
+   return true;
+ }
+ 
+-bool initialize(AuroraBackend auroraBackend, bool allowCpu) {
++bool initialize(AuroraBackend auroraBackend, bool allowCpu, uint32_t headlessWidth, uint32_t headlessHeight) {
++  const bool headless = headlessWidth != 0 && headlessHeight != 0;
+   if (!g_instance) {
+     Log.info("Creating WebGPU instance");
+     const std::array requiredInstanceFeatures{
+@@ -780,7 +781,7 @@ bool initialize(AuroraBackend auroraBackend, bool allowCpu) {
+   g_dawnInstance->EnableBackendValidation(backend != WGPUBackendType::D3D12);
+ #endif
+ 
+-  if (!create_surface()) {
++  if (!headless && !create_surface()) {
+     return false;
+   }
+   {
+@@ -1010,6 +1011,23 @@ bool initialize(AuroraBackend auroraBackend, bool allowCpu) {
+   }
+   g_queue = g_device.GetQueue();
+ 
++  if (headless) {
++    g_graphicsConfig = GraphicsConfig{
++      .surfaceConfiguration = {.format = wgpu::TextureFormat::RGBA8Unorm,
++        .usage = wgpu::TextureUsage::RenderAttachment, .width = headlessWidth, .height = headlessHeight},
++      .depthFormat = wgpu::TextureFormat::Depth32Float, .msaaSamples = g_config.msaa,
++      .textureAnisotropy = g_config.maxTextureAnisotropy, .synchronousPipelines = true,
++    };
++    create_copy_pipeline();
++    create_resample_pipeline();
++    gpu_prof::initialize();
++    g_frameBuffer = create_render_texture(headlessWidth, headlessHeight, true);
++    g_frameBufferResolved = create_render_texture(headlessWidth, headlessHeight, false);
++    g_depthBuffer = create_depth_texture(headlessWidth, headlessHeight);
++    g_initialized = true;
++    return true;
++  }
++
+   const wgpu::Status status = g_surface.GetCapabilities(g_adapter, &g_surfaceCapabilities);
+   if (status != wgpu::Status::Success) {
+     Log.error("Failed to get surface capabilities: {}", magic_enum::enum_name(status));
+diff --git a/lib/webgpu/gpu.hpp b/lib/webgpu/gpu.hpp
+index 3943da0..f282fa1 100644
+--- a/lib/webgpu/gpu.hpp
++++ b/lib/webgpu/gpu.hpp
+@@ -16,6 +16,7 @@ struct GraphicsConfig {
+   wgpu::TextureFormat depthFormat;
+   uint32_t msaaSamples;
+   uint16_t textureAnisotropy;
++  bool synchronousPipelines = false;
+ };
+ struct TextureWithSampler {
+   wgpu::Texture texture;
+@@ -57,7 +58,7 @@ extern bool g_bcTexturesSupported;
+ extern bool g_astcTexturesSupported;
+ extern bool g_textureComponentSwizzleSupported;
+ 
+-bool initialize(AuroraBackend backend, bool allowCpu);
++bool initialize(AuroraBackend backend, bool allowCpu, uint32_t headlessWidth = 0, uint32_t headlessHeight = 0);
+ void shutdown();
+ void release_surface() noexcept;
+ bool refresh_surface(bool recreate = true);

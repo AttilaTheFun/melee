@@ -757,7 +757,7 @@ int HSD_CObjGetLeftVector(HSD_CObj* cobj, Vec3* left)
 
 void HSD_CObjSetMtxDirty(HSD_CObj* cobj)
 {
-    cobj->flags |= (1 << 30) | (1 << 31);
+    cobj->flags |= (1 << 30) | (1U << 31);
 }
 
 bool HSD_CObjMtxIsDirty(HSD_CObj* cobj)
@@ -784,12 +784,12 @@ void HSD_CObjGetViewingMtx(HSD_CObj* cobj, Mtx mtx)
 
 MtxPtr HSD_CObjGetInvViewingMtxPtrDirect(HSD_CObj* cobj)
 {
-    if (cobj->flags & (1 << 31)) {
+    if (cobj->flags & (1U << 31)) {
         if (cobj->proj_mtx == NULL) {
             cobj->proj_mtx = HSD_MtxAlloc();
         }
         PSMTXInverse(cobj->view_mtx, *cobj->proj_mtx);
-        HSD_CObjClearFlags(cobj, (1 << 31));
+        HSD_CObjClearFlags(cobj, (1U << 31));
     }
     return *cobj->proj_mtx;
 }

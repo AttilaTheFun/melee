@@ -1,3 +1,4 @@
+#include <melee/it/itCommonItems.h>
 #include "itstarrodstar.h"
 
 #include <Runtime/platform.h>
@@ -22,16 +23,7 @@ ItemStateTable it_803F6530[] = { { 0, itStarrodstar_UnkMotion0_Anim,
                                    itStarrodstar_UnkMotion0_Phys,
                                    itStarrodstar_UnkMotion0_Coll } };
 
-typedef struct StarRodStarAttrs {
-    float x0;
-    float x4;
-    float x8;
-    float xC;
-    float x10;
-    int x14;
-    int x18;
-    float x1C;
-} StarRodStarAttrs;
+
 
 void it_802988E4(Fighter_GObj* gobj, Vec* vec, int arg2, float arg3)
 {

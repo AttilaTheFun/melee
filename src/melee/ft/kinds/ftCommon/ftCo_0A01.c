@@ -1097,7 +1097,7 @@ void ftCo_800A20A0(Fighter* fp)
         Fighter* other_fp = data->x44;
 
         if (ftCo_800A1AB4(fp, other_fp) <
-            2.0f * M2C_FIELD(Fighter_804D64FC, float**, 0x20)[fp->kind])
+            2.0f * Fighter_804D64FC->x20[fp->kind])
         {
             data->xF8_b6 = true;
         } else {
@@ -1979,6 +1979,9 @@ static inline bool ftCo_800A3908_inline0(Fighter* fp, struct CpuFighter* data,
     return false;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline s32 ftCo_800A3908_inline1(float x, float y, Vec3* out_pos,
                                  Vec3* out_normal, int* out_line,
                                  u32* out_flags)

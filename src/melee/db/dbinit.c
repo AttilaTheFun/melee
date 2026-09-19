@@ -6,6 +6,10 @@
 #include <melee/lb/lbarchive.h>
 #include <sysdolphin/baselib/controller.h>
 #include <sysdolphin/baselib/gobj.h>
+#ifdef MELEE_NATIVE
+#include <pthread.h>
+#include <stdint.h>
+#endif
 
 /* 4D6B30 */ u16 db_gameLaunchButtonState;
 /* 4D6B2C */ char** db_bonus_names;
@@ -25,8 +29,10 @@ static struct {
     /* +10 */ HSD_Pad repeat;
 } db_ButtonStates[4];
 
+#ifndef MELEE_NATIVE
 extern unsigned char _stack_end[];
 extern unsigned char _stack_addr[];
+#endif
 
 void db_GetGameLaunchButtonState(void)
 {
@@ -140,6 +146,23 @@ void db_PrintEntityCounts(void)
 
 void db_PrintThreadInfo(void)
 {
+#ifdef MELEE_NATIVE
+    /* Darwin owns each thread's stack. It has no SDK fill sentinel from which
+     * to infer a high-water mark; report current usage without scanning memory.
+     * A frame address remains on the real stack under ASan's fake-stack mode. */
+    uintptr_t base = (uintptr_t) pthread_get_stackaddr_np(pthread_self());
+    size_t size = pthread_get_stacksize_np(pthread_self());
+    uintptr_t frame = (uintptr_t) __builtin_frame_address(0);
+    OSReport("------ Thread info ------\n");
+    if (size <= base && frame <= base && frame >= base - size) {
+        OSReport("base:%p, end:%p, size:%zu current:%zu (peak unavailable)\n",
+                 (void*) base, (void*) (base - size), size,
+                 (size_t) (base - frame));
+    } else {
+        OSReport("Native thread stack bounds unavailable\n");
+    }
+    OSReport("\n");
+#else
     u8* peak = _stack_end + 4;
     while (*peak == 0xAA) {
         peak += 1;
@@ -148,6 +171,7 @@ void db_PrintThreadInfo(void)
     OSReport("base:%x, end:%x, size:%d peak:%d \n", _stack_addr, _stack_end,
              _stack_addr - _stack_end, _stack_addr - peak);
     OSReport("\n");
+#endif
 }
 
 static inline int db_get_pad_button(int i)

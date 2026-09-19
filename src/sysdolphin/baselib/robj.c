@@ -573,7 +573,7 @@ void HSD_RObjResolveRefs(HSD_RObj* robj, HSD_RObjDesc* desc)
         switch (robj->flags & ROBJ_TYPE_MASK) {
         case REFTYPE_JOBJ:
             HSD_JObjUnrefThis(robj->u.jobj);
-            robj->u.jobj = HSD_IDGetData((u32) desc->u.joint, NULL);
+            robj->u.jobj = HSD_IDGetData((HSD_IDKey) desc->u.joint, NULL);
             HSD_ASSERT(883, robj->u.jobj);
             HSD_JObjRefThis(robj->u.jobj);
             break;
@@ -841,6 +841,21 @@ void HSD_RvalueRemoveAll(HSD_Rvalue* rvalue)
 
 static HSD_Rvalue* loadRvalue(HSD_RvalueList* list)
 {
+#ifdef MELEE_NATIVE
+    /* A fake HSD_SList head aliases an unrelated object type. Optimized
+     * native builds can retain its original NULL next pointer. */
+    HSD_Rvalue* head = NULL;
+    HSD_Rvalue** tail = &head;
+    if (list != NULL) {
+        for (; list->joint != NULL; ++list) {
+            HSD_Rvalue* value = HSD_RvalueAlloc();
+            value->flags = list->flags;
+            *tail = value;
+            tail = &value->next;
+        }
+    }
+    return head;
+#else
     HSD_Rvalue* rp;
     HSD_SList rv;
 
@@ -856,6 +871,7 @@ static HSD_Rvalue* loadRvalue(HSD_RvalueList* list)
         }
     }
     return (HSD_Rvalue*) rv.next;
+#endif
 }
 
 static void expLoadDesc(HSD_Exp* exp, HSD_ExpDesc* desc)
@@ -891,7 +907,7 @@ void HSD_RvalueResolveRefs(HSD_Rvalue* rvalue, HSD_RvalueList* list)
 {
     if (rvalue != NULL && list != NULL) {
         HSD_JObjUnrefThis(rvalue->jobj);
-        rvalue->jobj = HSD_IDGetData((u32) list->joint, NULL);
+        rvalue->jobj = HSD_IDGetData((HSD_IDKey) list->joint, NULL);
         HSD_ASSERT(1333, rvalue->jobj);
         HSD_JObjRefThis(rvalue->jobj);
     }

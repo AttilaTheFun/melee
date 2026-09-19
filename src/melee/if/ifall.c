@@ -1,4 +1,14 @@
 #include "ifall.h"
+#ifdef MELEE_NATIVE
+#include "melee_hud.h"
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lblanguage.h>
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+#include <dolphin/dvd.h>
+static HSD_Archive* native_hud_archives[2];
+#endif
 
 #include "if_2F6E.h"
 #include "if_2F72.h"
@@ -203,7 +213,22 @@ void ifAll_802F390C(void)
     PAD_STACK(0xC);
 
     ifAll_ShowHUD();
+#ifdef MELEE_NATIVE
+    const char* name=lbFileGetFullName("IfAll");
+    unsigned locale=lbLang_IsSavedLanguageUS();
+    if(!native_hud_archives[locale]){
+        size_t size=0;void* owned=NULL;
+        const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(name),&size);
+        if(!bytes){lbFile_80016760("IfAll",&owned,&size);bytes=owned;}
+        MeleeArchive archive;HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,size));
+        native_hud_archives[locale]=melee_hud_decode(&archive);
+        if(owned)lbHeap_80015CA8(0,owned);
+        HSD_ASSERT(__LINE__,native_hud_archives[locale]);
+    }
+    *parchive=native_hud_archives[locale];
+#else
     lbArchive_80016F80(parchive, "IfAll");
+#endif
     lbArchive_LoadSections(*parchive, (void**) &sp14, "ScInfDmg_scene_data",
                            0);
     ifAll_802F370C(sp14);

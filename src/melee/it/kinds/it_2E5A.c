@@ -341,7 +341,13 @@ static inline s32 it_802E6380_tier(Item_GObj* item_gobj, it_2E5A_Attrs* attr,
     s32* tier_thresholds = (s32*) &attr->tiers[0].ecb;
     if (arg1->xC < attr->tiers[2].threshold) {
         off = 1;
-        if (arg1->xC < tier_thresholds[9]) {
+        if (arg1->xC <
+#ifdef MELEE_NATIVE
+            attr->tiers[1].threshold
+#else
+            tier_thresholds[9]
+#endif
+        ) {
             off = 0;
         }
     }
@@ -436,7 +442,11 @@ static inline void it_2E5A_ApplyStateDesc(HSD_GObj* item_gobj, int idx)
     Item* item = item_gobj->user_data;
     HSD_JObj* item_jobj = item_gobj->hsd_obj;
     it_2E5A_Attrs* attr = item->xC4_article_data->x4_specialAttributes;
+#ifdef MELEE_NATIVE
+    item->xD0_itemStateDesc = attr->tiers[idx].native_state;
+#else
     item->xD0_itemStateDesc = (ItemStateDesc*) &attr->tiers[idx].anim_joint;
+#endif
     Item_80268D34(item_gobj, item->xD0_itemStateDesc);
     HSD_JObjAnimAll(item_jobj);
 }

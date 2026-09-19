@@ -230,7 +230,11 @@ void grYorster_802022A4(HSD_GObj* gobj)
 void grYorster_80202428(HSD_GObj* item_gobj, Ground* gp, Vec3* pos,
                         HSD_GObj* fighter_gobj, f32 value)
 {
+#ifdef MELEE_NATIVE
+    Ground* gp2 = gp;
+#else
     Ground* gp2 = (Ground*) ((s32) gp + 0);
+#endif
     int i;
 
     if (ftLib_80086960(fighter_gobj)) {

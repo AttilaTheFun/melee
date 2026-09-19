@@ -1,4 +1,7 @@
 #include "ftcoll.h"
+#ifdef MELEE_NATIVE
+#include "melee_damage_result.h"
+#endif
 
 #include <Runtime/platform.h>
 
@@ -248,7 +251,11 @@ void ftColl_80076764(int arg0, enum_t arg1, Fighter_GObj* arg2,
         entry->unk_anim0 = arg3;
         entry->hurt1 = hurt;
         entry->pos = fp->cur_pos;
+#ifdef MELEE_NATIVE
+        entry->size_of_xC = ((lbColl_80008D30_arg1*) arg3)->damage;
+#else
         entry->size_of_xC = arg3->count;
+#endif
         ++dmg_log0_idx;
     } else {
         HSD_ASSERTREPORT(0xF9, 0, "damage log over %d!!\n",
@@ -2534,6 +2541,9 @@ float ftColl_80079EA8(Fighter* fp, HitCapsule* hit, u32 unk_count)
 void ftColl_8007A06C(Fighter_GObj* gobj, void* dmg_ptr, void* log, size_t idx,
                      int arg4)
 {
+#ifdef MELEE_NATIVE
+    MeleeDamageResult native_result;
+#else
     struct DmgResult {
         /* 0x00 */ float dir;
         /* 0x04 */ int angle;
@@ -2546,6 +2556,7 @@ void ftColl_8007A06C(Fighter_GObj* gobj, void* dmg_ptr, void* log, size_t idx,
         /* 0x28 */ float damage;
     };
 
+#endif
     UNUSED u8 _q0[4];
     float angle;
     float dir;
@@ -2557,7 +2568,11 @@ void ftColl_8007A06C(Fighter_GObj* gobj, void* dmg_ptr, void* log, size_t idx,
     ftCo_DatAttrs* co;
     DmgLogEntry* entry;
     DmgLogEntry* entries;
+#ifdef MELEE_NATIVE
+    MeleeDamageResult* out;
+#else
     struct DmgResult* out;
+#endif
     Fighter* fp;
     int i;
     int best_idx;
@@ -2828,7 +2843,12 @@ void ftColl_8007A06C(Fighter_GObj* gobj, void* dmg_ptr, void* log, size_t idx,
         }
     }
 
+#ifdef MELEE_NATIVE
+    out = &native_result;
+    dmg_ptr = out;
+#else
     out = (struct DmgResult*) dmg_ptr;
+#endif
     best_entry = &entries[best_idx];
 
     switch (best_entry->x0) {
@@ -2913,6 +2933,9 @@ void ftColl_8007A06C(Fighter_GObj* gobj, void* dmg_ptr, void* log, size_t idx,
     out->source = best_entry->gobj;
     out->damage = best_entry->x20;
     out->sfx_severity = sfx_severity;
+#ifdef MELEE_NATIVE
+    melee_damage_result_store(fp, out, arg4);
+#endif
 
     switch (best_entry->x0) {
     case 1: {

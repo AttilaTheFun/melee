@@ -18,7 +18,11 @@ typedef struct grMc_CarEntry {
         u8 b1 : 1;
     } x22_flags;
     /* 0x23 */ u8 x23;
+#ifdef MELEE_NATIVE
+    HSD_GObj* x24;
+#else
     /* 0x24 */ s32 x24;
+#endif
     /* 0x28 */ s32 x28;
 } grMc_CarEntry;
 

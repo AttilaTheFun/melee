@@ -1,4 +1,9 @@
+#include <melee/it/iteffect.h>
 #include "ground.h"
+#ifdef MELEE_NATIVE
+#include "melee_onett_stage.h"
+#include "melee_battle_stage.h"
+#endif
 
 #include <Runtime/platform.h>
 
@@ -492,13 +497,25 @@ void Ground_801C0800(StageIdPair* pair)
 
         if (stage_info.ald_yaku_all != NULL) {
             for (i = 1; stage_info.ald_yaku_all[i] != NULL; i++) {
+#ifdef MELEE_NATIVE
+                Article* a = itNative_RequireArticle(It_PKind_Random);
+                HSD_ASSERT(__LINE__,i<20);
+#else
                 Article* a = it_804D6D38[It_PKind_Random - It_Kind_Kuriboh];
+#endif
                 a->xC_itemStates->x0_itemStateDesc[i].xC_script =
                     stage_info.ald_yaku_all[i];
             }
         }
     }
     if (stage_info.map_ptcl != NULL && stage_info.map_texg != NULL) {
+#ifdef MELEE_NATIVE
+        HSD_Archive* archive=grDatFiles_GetArchive()->unk0;
+        if(archive&&(archive->flags&HSD_ARCHIVE_NATIVE)){
+            if(!melee_battle_stage_register_particles(archive,0x1E))melee_onett_stage_register_particles(archive,0x1E);
+        }
+        else
+#endif
         psInitDataBankLoad(0x1E, stage_info.map_ptcl, stage_info.map_texg, 0,
                            0);
     }
@@ -690,14 +707,16 @@ void Ground_OnLoad(StageIdPair* pair)
     stage_datas[pair->grkind]->on_load();
 }
 
+typedef struct GroundStartCallback {
+    struct GroundStartCallback* unk0;
+    HSD_GObj* unk4;
+    HSD_GObjEvent unk8;
+} GroundStartCallback;
+
 void Ground_801C0FB8(StageIdPair* pair)
 {
-    struct {
-        void* unk0;
-        s32 unk4;
-        void (*unk8)(s32);
-    }* cur;
-    void* next;
+    GroundStartCallback* cur;
+    GroundStartCallback* next;
     stage_datas[pair->grkind]->on_start();
     for (cur = stage_info.x6A4; cur != NULL; cur = next) {
         next = cur->unk0;
@@ -716,11 +735,7 @@ void Ground_DemoInit(StageIdPair* pair, s32 arg1)
 
 void Ground_801C10B8(HSD_GObj* arg0, HSD_GObjEvent arg1)
 {
-    struct {
-        void* unk0;
-        HSD_GObj* unk4;
-        HSD_GObjEvent unk8;
-    }* temp_r3;
+    GroundStartCallback* temp_r3;
     temp_r3 = HSD_MemAlloc(sizeof(*temp_r3));
     if (temp_r3 != NULL) {
         temp_r3->unk0 = stage_info.x6A4;
@@ -1174,14 +1189,7 @@ f32 Ground_801C20D0(void)
     return stage_info.cam_info.cam_vertical_tilt;
 }
 
-typedef struct LightOverrideEntry {
-    /* 0x0 */ HSD_LightDesc* desc;
-    /* 0x4 */ u8 a : 1;
-    /* 0x4 */ u8 b : 1;
-    /* 0x4 */ u8 c : 1;
-    /* 0x4 */ u8 _ : 5;
-    /* 0x5 */ u8 _pad[3];
-} LightOverrideEntry;
+
 
 static inline bool find_light_override(UnkArchiveStruct* archive,
                                        HSD_LightDesc* desc, bool* b6, bool* b7,
@@ -1905,11 +1913,7 @@ void Ground_801C34AC(s32 map_id, HSD_JObj* root, struct HSD_Joint* joint)
     UnkArchiveStruct* archive;
     int entry_count;
     int i;
-    struct {
-        void* joint;
-        s16* pairs;
-        s32 pair_count;
-    }* entry;
+    GroundJointMapEntry* entry;
     int count;
     s16* pair;
     int prev_index;
@@ -1992,10 +1996,7 @@ void Ground_801C36F4(int map_id, HSD_JObj* root, UNK_T joint)
     UnkStageDat* stage_dat;
     UnkArchiveStruct* archive;
     int entry_count;
-    struct {
-        void* joint;
-        u8 x4_pad[0x8];
-    }* entry;
+    GroundJointMapEntry* entry;
     int i;
     u32 unused[4];
 
@@ -3271,13 +3272,7 @@ static inline s32 randi(s32 max)
 
 int Ground_801C5940(void)
 {
-    struct {
-        u8 x0_pad[0x4];
-        struct {
-            s16 a, b;
-        }* unk4;
-        s32 unk8;
-    }* phi_r8;
+    GroundJointMapEntry* phi_r8;
     int i, j, out_idx;
     UnkArchiveStruct* archive;
     const size_t vals_count = 32;
@@ -3290,9 +3285,9 @@ int Ground_801C5940(void)
     }
     phi_r8 = archive->unk4->unk0;
     for (i = 0; i < archive->unk4->unk4; i++, phi_r8++) {
-        int max = phi_r8->unk8;
+        int max = phi_r8->pair_count;
         for (j = 0; j < max; j++) {
-            int val = phi_r8->unk4[j].b;
+            int val = phi_r8->pairs[2*j+1];
             if (val >= 220 && val < 252 && (unsigned) out_idx < vals_count) {
                 vals[out_idx] = val;
                 out_idx++;

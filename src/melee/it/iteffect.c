@@ -13,13 +13,48 @@
 #include <melee/lb/lblanguage.h>
 #include <sysdolphin/baselib/random.h>
 
+#ifdef MELEE_NATIVE
+#include "melee_items_data.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <melee/lb/lbdvd.h>
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <sysdolphin/baselib/debug.h>
+static MeleeItemsData* native_items;
+Article* itNative_RequireArticle(unsigned kind){
+    Article* a=melee_items_data_article(native_items,kind);
+    if(!a){OSReport("Native item article %u is not converted or registered\n",kind);HSD_Panic(__FILE__,__LINE__,"native item article pending");}
+    return a;
+}
+#endif
+
 void it_8027870C(s32 arg0)
 {
+#ifdef MELEE_NATIVE
+    const char* file=lbLang_IsSettingUS()?it_803F1EE4:it_803F1ED8;
+    size_t size=0;void* owned=NULL;const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(file),&size);
+    if(!bytes){lbFile_80016760(file,&owned,&size);bytes=owned;}
+    MeleeArchive a;HSD_ASSERT(__LINE__,melee_archive_open(&a,bytes,size));
+    MeleeItemsData* fresh=melee_items_data_decode(&a);
+    if(!fresh){
+        OSReport("Native item conversion failed: %s size=%zu cached=%d\n",file,size,owned==NULL);
+        const char* home=getenv("HOME");
+        if(home&&getenv("MELEE_DEVICE_DIAGNOSTICS")){
+            char path[1024];snprintf(path,sizeof(path),"%s/Documents/Diagnostics/failed-items.dat",home);
+            FILE* dump=fopen(path,"wb");if(dump){fwrite(bytes,1,size,dump);fclose(dump);}
+        }
+    }
+    HSD_ASSERT(__LINE__,fresh);
+    if(owned)lbHeap_80015CA8(0,owned);melee_items_data_free(native_items);native_items=fresh;
+    it_804D6D20=melee_items_data_header(fresh);
+#else
     if (lbLang_IsSettingUS()) {
         lbArchive_80017040(NULL, it_803F1EE4, &it_804D6D20, it_803F1EF0, 0);
     } else {
         lbArchive_80017040(NULL, it_803F1ED8, &it_804D6D20, it_803F1EF0, 0);
     }
+ #endif
     it_804D6D28 = it_804D6D20->x0;
     it_804D6D24 = it_804D6D20->x4;
     it_804D6D38 = it_804D6D20->x8;

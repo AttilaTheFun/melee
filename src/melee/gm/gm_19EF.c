@@ -132,14 +132,15 @@ static void fn_8019EFC4(HSD_PadStatus* pad)
         {
             s32 i;
             for (i = 10; i > 0; i--) {
+#ifdef MELEE_NATIVE
+                HSD_JObj* coin = lbl_80479A98.x28.typed.jobjs[i - 1];
+#else
+                HSD_JObj* coin = ((HSD_JObj**) ((u8*) &lbl_80479A98 + 0x28))[i];
+#endif
                 if (i > lbl_80479A98.x70) {
-                    HSD_JObjSetFlags(
-                        ((HSD_JObj**) ((u8*) &lbl_80479A98 + 0x28))[i],
-                        JOBJ_HIDDEN);
+                    HSD_JObjSetFlags(coin, JOBJ_HIDDEN);
                 } else {
-                    HSD_JObjClearFlags(
-                        ((HSD_JObj**) ((u8*) &lbl_80479A98 + 0x28))[i],
-                        JOBJ_HIDDEN);
+                    HSD_JObjClearFlags(coin, JOBJ_HIDDEN);
                 }
             }
         }
@@ -526,7 +527,11 @@ void fn_8019F9C4(u32 arg0)
     node = child == NULL ? NULL : child->child;
 
     for (i = 10; i < 20; i++) {
+#ifdef MELEE_NATIVE
+        lbl_80479A98.x28.typed.jobjs[i-10] = node;
+#else
         lbl_80479A98.jobj_slots[i] = node;
+#endif
         if (node->next != NULL) {
             node = node->next;
         }
@@ -560,8 +565,13 @@ void fn_8019F9C4(u32 arg0)
     {
         s32 j;
 
+#ifdef MELEE_NATIVE
+        j = 10;
+        ptr = &lbl_80479A98.x28.typed.jobjs[9];
+#else
         ptr = &((HSD_JObj**) &lbl_80479A98)[j = 10];
         ptr += 10;
+#endif
 
         for (; j > 0; j--, ptr--) {
             if (j > lbl_80479A98.x70) {

@@ -15,6 +15,26 @@
 #include <dolphin/mtx.h>
 #include <dolphin/os.h>
 #include <dolphin/types.h>
+#ifdef MELEE_NATIVE
+#include "melee_sis_bank.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <melee/lb/lbdvd.h>
+#include <stdlib.h>
+typedef struct NativeSisOwner {
+    MeleeSisBank* bank;
+    struct NativeSisOwner* next;
+} NativeSisOwner;
+static NativeSisOwner* native_sis_owners[5];
+static void release_native_sis(s32 index)
+{
+    HSD_ASSERT(__LINE__, index>=0 && index<5);
+    NativeSisOwner* owner=native_sis_owners[index];
+    while(owner){NativeSisOwner* next=owner->next;melee_sis_bank_free(owner->bank);free(owner);owner=next;}
+    native_sis_owners[index]=NULL;
+}
+#endif
+
 
 static HSD_WObjDesc HSD_SisLib_8040C490 = {
     NULL,
@@ -77,10 +97,15 @@ void* HSD_SisLib_Alloc(s32 size)
         OSReport("ZERO byte alloc\n");
         OSPanic(__FILE__, 60, "");
     }
+#ifdef MELEE_NATIVE
+    remainder = size % _Alignof(SisBlock);
+    if (remainder != 0) size += _Alignof(SisBlock) - remainder;
+#else
     remainder = size % 4;
     if (remainder != 0) {
         size += 4 - remainder;
     }
+#endif
     while (alloc_cur != NULL) {
         alloc_tail = alloc_cur;
         alloc_cur = alloc_cur->next;
@@ -434,6 +459,10 @@ void HSD_SisLib_803A5F50(s32 font_idx)
     HSD_Archive** archive_ptr;
 
     HSD_SisLib_803A5DA0(font_idx);
+#ifdef MELEE_NATIVE
+    release_native_sis(font_idx);
+    HSD_SisLib_804D1124[font_idx]=NULL;
+#endif
     archive_ptr = &HSD_SisLib_804D1110[font_idx];
     if (*archive_ptr != NULL) {
         HSD_SisLib_803A947C(*archive_ptr);
@@ -447,6 +476,10 @@ void HSD_SisLib_803A5FBC(void)
     int i;
     HSD_SisLib_803A5E70();
     for (i = 0; i < 5; i++) {
+#ifdef MELEE_NATIVE
+        release_native_sis(i);
+        HSD_SisLib_804D1124[i]=NULL;
+#endif
         if (HSD_SisLib_804D1110[i] != NULL) {
             HSD_SisLib_803A947C(HSD_SisLib_804D1110[i]);
             HSD_SisLib_804D1110[i] = NULL;
@@ -470,6 +503,10 @@ void HSD_SisLib_803A6048(size_t size)
     HSD_SisLib_804D797C = NULL;
 
     for (i = 0; i < 5; i++) {
+#ifdef MELEE_NATIVE
+        release_native_sis(i);
+        HSD_SisLib_804D1124[i]=NULL;
+#endif
         HSD_SisLib_804D1110[i] = NULL;
         HSD_SisLib_804D1124[i] = NULL;
     }
@@ -548,6 +585,23 @@ int HSD_SisLib_803A611C(int font_idx, HSD_GObj* parent_gobj, u16 class_id,
 
 void HSD_SisLib_803A62A0(s32 font_idx, char* archive_name, char* symbol_name)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(__LINE__, font_idx>=0 && font_idx<5);
+    size_t length=0;void* owned=NULL;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(
+        lbFileGetFullName(archive_name)),&length);
+    if(!bytes){lbFile_80016760(archive_name,&owned,&length);bytes=owned;}
+    MeleeArchive view;
+    HSD_ASSERT(__LINE__, melee_archive_open(&view,bytes,length));
+    NativeSisOwner* owner=calloc(1,sizeof(*owner));HSD_ASSERT(__LINE__, owner);
+    owner->bank=melee_sis_bank_decode(&view,symbol_name);HSD_ASSERT(__LINE__, owner->bank);
+    if(owned)lbHeap_80015CA8(0,owned);
+    /* Existing text objects may still borrow the previous bank until the font
+     * or scene is cleared, so retain retired banks through that lifetime. */
+    owner->next=native_sis_owners[font_idx];native_sis_owners[font_idx]=owner;
+    HSD_SisLib_804D1124[font_idx]=(SIS*)melee_sis_bank_table(owner->bank);
+#else
+
     HSD_Archive* tmp = HSD_SisLib_803A945C(archive_name);
     HSD_SisLib_804D1110[font_idx] = tmp;
     if (tmp == NULL) {
@@ -563,6 +617,7 @@ void HSD_SisLib_803A62A0(s32 font_idx, char* archive_name, char* symbol_name)
             OSPanic(__FILE__, 0x24F, "");
         }
     }
+#endif
 }
 
 void HSD_SisLib_803A6368(HSD_Text* text, s32 sis_idx)

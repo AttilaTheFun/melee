@@ -765,6 +765,9 @@ static inline void gmMainLib_AdjustNameTags(VsModeData* vmd, u8 tag)
     }
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void gmMainLib_AdjustNameTag(u8* tag_ptr, u8 tag)
 {
     if (*tag_ptr == tag) {
@@ -776,6 +779,9 @@ inline void gmMainLib_AdjustNameTag(u8* tag_ptr, u8 tag)
 
 /// As #gmMainLib_AdjustNameTag, but clears the slot instead of marking it
 /// unassigned.
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void gmMainLib_ClearNameTag(u8* tag_ptr, u8 tag)
 {
     if (*tag_ptr == tag) {

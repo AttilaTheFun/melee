@@ -46,10 +46,10 @@ struct grBigBlueRoute_8020DA9C_t {
     /* +8 */ int x8;
 };
 
-/* car_info stores 31 RouteEntry records in its 0x554-byte allocation. */
+/* car_info stores 31 records; native pointers widen each RouteEntry. */
 union grBigBlueRoute_RouteStorage {
     RouteEntry entries[31];
-    u8 bytes[0x554];
+    u8 bytes[31 * sizeof(RouteEntry)];
 };
 
 /* 20DA9C */ static int
@@ -308,7 +308,11 @@ void grBigBlueRoute_8020BC30(Ground_GObj* arg) {}
 void grBigBlueRoute_8020BC34(Ground_GObj* gobj)
 {
     Ground* gp = GET_GROUND(gobj);
+#ifdef MELEE_NATIVE
+    gp->u.bigblueroute2.car_gobj = grBigBlueRoute_8020B9D4(4);
+#else
     gp->u.car.xC4 = grBigBlueRoute_8020B9D4(4);
+#endif
 }
 
 void grBigBlueRoute_8020BC68(Ground_GObj* gobj)
@@ -501,9 +505,17 @@ void grBigBlueRoute_8020C238(Ground_GObj* gobj)
         }
     }
 
+#ifdef MELEE_NATIVE
+    gp->u.car.car_info = HSD_MemAlloc(sizeof(union grBigBlueRoute_RouteStorage));
+#else
     gp->u.car.car_info = HSD_MemAlloc(0x554);
+#endif
     HSD_ASSERT(0x2A2, gp->u.car.car_info);
+#ifdef MELEE_NATIVE
+    memzero(gp->u.car.car_info, sizeof(union grBigBlueRoute_RouteStorage));
+#else
     memzero(gp->u.car.car_info, 0x554);
+#endif
 
     gp->u.car.x10A = 0;
     gp->u.car.x108 = 0;
@@ -1043,9 +1055,14 @@ void grBigBlueRoute_8020CD20(Ground_GObj* gobj)
         }
 
         i++;
+#ifdef MELEE_NATIVE
+        /* The retail helper reads a 32-bit pointer at the old JObj +8 offset. */
+        jobj = jobj != NULL ? jobj->next : NULL;
+#else
         jobj = (jobj != NULL) ? (HSD_JObj*) grBigBlueRoute_8020DA9C(
                                     (struct grBigBlueRoute_8020DA9C_t*) jobj)
                               : NULL;
+#endif
     } while (i < 31);
 }
 #undef RE_ENTRY
@@ -1150,7 +1167,11 @@ DynamicModelDesc* grBigBlueRoute_8020DE48(void)
     HSD_ASSERT(1495, archive);
     dat = archive->unk4;
     if (dat != NULL) {
+#ifdef MELEE_NATIVE
+        return (DynamicModelDesc*) &dat->unk8[2];
+#else
         return (DynamicModelDesc*) ((char*) dat->unk8 + 0x68);
+#endif
     }
     return NULL;
 }

@@ -1,9 +1,15 @@
 #include <placeholder.h>
 #include <setjmp.h>
+#include <Runtime/Gecko_setjmp.h>
 
 #include "hsd_3B34.h"
 
+
+#ifdef MELEE_NATIVE
+extern u8 hsd_804D2E70[0x828];
+#else
 extern u8 hsd_804D2E70[2084];
+#endif
 extern u8* hsd_804D79B8;
 extern u8* hsd_804D79BC;
 extern s32 hsd_804D79C0;
@@ -23,6 +29,10 @@ typedef struct JpegState {
     u8 unk_f8[0x20];
     JpegWorkData work;
 } JpegState;
+#ifdef MELEE_NATIVE
+_Static_assert(offsetof(JpegState, work) == 0x118, "JPEG scalar workspace offset");
+_Static_assert(sizeof(JpegState) <= sizeof(hsd_804D2E70), "JPEG workspace extent");
+#endif
 
 typedef struct JpegQuantTables {
     u8 luma[0x40];
@@ -167,17 +177,17 @@ static inline s32 hsd_803B5C4C_read(s32 bits, s32 bit_count)
         if (hsd_804D79C4 == 0) {
             hsd_804D79C4 = 8;
             if (hsd_804D79B8 >= &hsd_804D79BC[hsd_804D79C0]) {
-                longjmp(jmp_buf, 1);
+                HSD_LONGJMP(jmp_buf, 1);
             }
             next_byte = hsd_804D79B8;
             hsd_804D79B8 = next_byte + 1;
             hsd_804D79C8 = *next_byte;
             if (hsd_804D79C8 == 0xFF) {
                 if ((*hsd_804D79B8) != 0) {
-                    longjmp(jmp_buf, 1);
+                    HSD_LONGJMP(jmp_buf, 1);
                 } else {
                     if (hsd_804D79B8 >= &hsd_804D79BC[hsd_804D79C0]) {
-                        longjmp(jmp_buf, 1);
+                        HSD_LONGJMP(jmp_buf, 1);
                     }
                     hsd_804D79B8 += 1;
                 }
@@ -666,7 +676,7 @@ static inline s32 hsd_803B6BE4_inline(char* src, s32 size, void* dst)
     state.work->work.prev_dc[0] = state.work->work.prev_dc[1] =
         state.work->work.prev_dc[2] = 0;
     hsd_804D79C4 = 0;
-    if (__setjmp(&state.work->jmp) != 0) {
+    if (HSD_SETJMP(&state.work->jmp) != 0) {
         return 0;
     }
     src_byte0 = &hsd_804D79BC[hsd_804D79C0];
@@ -707,7 +717,7 @@ find_luma_quant:
         }
     } else {
         if (++hsd_804D79B8 >= src_byte0) {
-            longjmp(&state.work->jmp, 1);
+            HSD_LONGJMP(&state.work->jmp, 1);
         } else {
             goto find_luma_quant;
         }
@@ -767,7 +777,7 @@ find_chroma_quant:
         }
     } else {
         if (++hsd_804D79B8 >= src_byte0) {
-            longjmp(&state.work->jmp, 1);
+            HSD_LONGJMP(&state.work->jmp, 1);
         } else {
             goto find_chroma_quant;
         }
@@ -782,7 +792,7 @@ find_frame:
         hsd_804D79B8 += 0xC;
     } else {
         if (++hsd_804D79B8 >= src_byte0) {
-            longjmp(&state.work->jmp, 1);
+            HSD_LONGJMP(&state.work->jmp, 1);
         } else {
             goto find_frame;
         }
@@ -794,7 +804,7 @@ find_scan:
         hsd_804D79B8 += 0xC;
     } else {
         if (++hsd_804D79B8 >= src_byte0) {
-            longjmp(&state.work->jmp, 1);
+            HSD_LONGJMP(&state.work->jmp, 1);
         } else {
             goto find_scan;
         }

@@ -139,6 +139,60 @@ const static double i2fMagic = 4503601774854144.0;
 static void do_src1(struct AXFX_CHORUS_SRCINFO* src);
 static void do_src2(struct AXFX_CHORUS_SRCINFO* src);
 
+#ifdef MELEE_NATIVE
+#include <math.h>
+#include <stdint.h>
+#pragma STDC FP_CONTRACT OFF
+static s32 native_chorus_integer(float value)
+{
+    if (isnan(value) || value <= -2147483648.0f) return INT32_MIN;
+    if (value >= 2147483648.0f) return INT32_MAX;
+    return (s32) value;
+}
+
+static void native_chorus_src(struct AXFX_CHORUS_SRCINFO* src, u32 whole_step)
+{
+    u32 position = src->posHi;
+    u32 phase = src->posLo;
+    float history[4] = {(float) src->old[0], (float) src->old[1],
+                        (float) src->old[2], (float) src->smpBase[position]};
+    for (unsigned i = 0; i < 160; ++i) {
+        /* rlwinm phase,7,21,27 selects the original table byte offset. */
+        u32 table_offset = ((phase << 7) | (phase >> 25)) & 0x7F0;
+        const float* coefficients = &rsmpTab12khz[table_offset / 4];
+        float output = history[0] * coefficients[0];
+        output = fmaf(history[1], coefficients[1], output);
+        output = fmaf(history[2], coefficients[2], output);
+        output = fmaf(history[3], coefficients[3], output);
+        src->dest[i] = native_chorus_integer(output);
+        u64 next = (u64) phase + src->pitchLo;
+        phase = (u32) next;
+        unsigned advance = whole_step + (u32) (next >> 32);
+        for (unsigned step = 0; step < advance; ++step) {
+            if (++position == src->trigger) position = src->target;
+            history[0] = history[1]; history[1] = history[2]; history[2] = history[3];
+            /* The assembly does not fetch the next fourth sample after its
+             * final output, but still updates the three retained samples. */
+            if (i != 159 || step + 1 < advance)
+                history[3] = (float) src->smpBase[position];
+        }
+    }
+    for (unsigned i = 0; i < 3; ++i) src->old[i] = native_chorus_integer(history[i]);
+    src->posHi = position;
+    src->posLo = phase;
+}
+static void do_src1(struct AXFX_CHORUS_SRCINFO* src) { native_chorus_src(src, 0); }
+static void do_src2(struct AXFX_CHORUS_SRCINFO* src) { native_chorus_src(src, 1); }
+
+static int native_chorus_valid(const struct AXFX_CHORUS* c)
+{
+    if (!c || c->baseDelay < 5 || c->baseDelay > 15 || c->period < 5 ||
+        c->variation > (UINT32_MAX >> 16)) return 0;
+    u64 period = ((u64) c->period / 5 + 1) & ~1ULL;
+    if (period * 5 > UINT32_MAX) return 0;
+    return ((u64) c->variation << 16) / (period * 5) < 65536;
+}
+#else
 asm static void do_src1(register struct AXFX_CHORUS_SRCINFO* src)
 {
     // clang-format off
@@ -389,14 +443,21 @@ L_00000344:
     // clang-format on
 }
 
+#endif
+
 int AXFXChorusInit(struct AXFX_CHORUS* c)
 {
-    long* left;
-    long* right;
-    long* sur;
+    s32* left;
+    s32* right;
+    s32* sur;
     u32 i;
     int old;
 
+#ifdef MELEE_NATIVE
+    if (!c) return 0;
+    memset(&c->work, 0, sizeof(c->work));
+    if (!native_chorus_valid(c)) return 0;
+#endif
     old = OSDisableInterrupts();
     c->work.lastLeft[0] = __AXFXAlloc(0x1680);
     if (c->work.lastLeft[0] != NULL) {
@@ -433,16 +494,27 @@ int AXFXChorusInit(struct AXFX_CHORUS* c)
 
 int AXFXChorusShutdown(struct AXFX_CHORUS* c)
 {
+#ifdef MELEE_NATIVE
+    if (!c) return 0;
+#endif
     int old;
 
     old = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    if (c->work.lastLeft[0]) __AXFXFree(c->work.lastLeft[0]);
+    memset(&c->work, 0, sizeof(c->work));
+#else
     __AXFXFree(c->work.lastLeft[0]);
+#endif
     OSRestoreInterrupts(old);
     return 1;
 }
 
 int AXFXChorusSettings(struct AXFX_CHORUS* c)
 {
+#ifdef MELEE_NATIVE
+    if (!native_chorus_valid(c) || !c->work.lastLeft[0]) return 0;
+#endif
     int old;
 
     old = OSDisableInterrupts();
@@ -461,15 +533,21 @@ int AXFXChorusSettings(struct AXFX_CHORUS* c)
 void AXFXChorusCallback(struct AXFX_BUFFERUPDATE* bufferUpdate,
                         struct AXFX_CHORUS* chorus)
 {
-    long* leftD;
-    long* rightD;
-    long* surD;
-    long* leftS;
-    long* rightS;
-    long* surS;
+    s32* leftD;
+    s32* rightD;
+    s32* surD;
+    s32* leftS;
+    s32* rightS;
+    s32* surS;
     u32 i;
     u8 nextCurrentLast;
 
+#ifdef MELEE_NATIVE
+    int old_interrupts = OSDisableInterrupts();
+    if (!chorus || !bufferUpdate || !chorus->work.lastLeft[0] ||
+        !bufferUpdate->left || !bufferUpdate->right || !bufferUpdate->surround)
+        OSPanic(__FILE__, __LINE__, "Invalid native chorus callback state");
+#endif
     nextCurrentLast = (chorus->work.currentLast + 1) % 3;
     leftD = chorus->work.lastLeft[nextCurrentLast];
     rightD = chorus->work.lastRight[nextCurrentLast];
@@ -483,7 +561,11 @@ void AXFXChorusCallback(struct AXFX_BUFFERUPDATE* bufferUpdate,
         *surD++ = *surS++;
     }
     chorus->work.src.pitchHi = (chorus->work.pitchOffset >> 0x10) + 1;
+#ifdef MELEE_NATIVE
+    chorus->work.src.pitchLo = (u32) (chorus->work.pitchOffset & 0xFFFF) << 16;
+#else
     chorus->work.src.pitchLo = (chorus->work.pitchOffset & 0xFFFF) << 0x10;
+#endif
     if (--chorus->work.pitchOffsetPeriodCount == 0) {
         chorus->work.pitchOffsetPeriodCount = chorus->work.pitchOffsetPeriod;
         chorus->work.pitchOffset = -chorus->work.pitchOffset;
@@ -520,4 +602,7 @@ void AXFXChorusCallback(struct AXFX_BUFFERUPDATE* bufferUpdate,
     chorus->work.currentPosHi = (chorus->work.src.posHi % 480);
     chorus->work.currentPosLo = chorus->work.src.posLo;
     chorus->work.currentLast = nextCurrentLast;
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(old_interrupts);
+#endif
 }

@@ -2,19 +2,113 @@
 #include <dolphin/ax.h>
 #include <dolphin/axfx.h>
 
+#ifdef MELEE_NATIVE
+#include <limits.h>
+#include <string.h>
+
+/* PPC mullw/add keep the low 32 bits. Use unsigned arithmetic so feedback
+ * overflow has the original wrapping behavior without signed C overflow. */
+static s32 sample_bits(u32 bits)
+{
+    s32 sample;
+    memcpy(&sample, &bits, sizeof(sample));
+    return sample;
+}
+
+void AXFXDelayCallback(struct AXFX_BUFFERUPDATE* buffers,
+                       struct AXFX_DELAY* delay)
+{
+    int old = OSDisableInterrupts();
+    s32* output[3] = {buffers->left, buffers->right, buffers->surround};
+    s32* history[3] = {delay->left, delay->right, delay->sur};
+    for (unsigned channel = 0; channel < 3; ++channel) {
+        if (!history[channel] || !output[channel] ||
+            !delay->currentSize[channel] ||
+            delay->currentPos[channel] >= delay->currentSize[channel])
+            OSPanic(__FILE__, __LINE__, "Invalid native delay callback state");
+        s32* block = history[channel] + delay->currentPos[channel] * 160;
+        for (unsigned i = 0; i < 160; ++i) {
+            u32 delayed = (u32) block[i];
+            s32 feedback = sample_bits(delayed * delay->currentFeedback[channel]) >> 7;
+            block[i] = sample_bits((u32) output[channel][i] + (u32) feedback);
+            output[channel][i] = sample_bits(delayed * delay->currentOutput[channel]) >> 7;
+        }
+        delay->currentPos[channel] = (delay->currentPos[channel] + 1) %
+                                    delay->currentSize[channel];
+    }
+    OSRestoreInterrupts(old);
+}
+
+int AXFXDelayShutdown(struct AXFX_DELAY* delay)
+{
+    if (!delay) return 0;
+    int old = OSDisableInterrupts();
+    if (delay->left) __AXFXFree(delay->left);
+    if (delay->right) __AXFXFree(delay->right);
+    if (delay->sur) __AXFXFree(delay->sur);
+    delay->left = delay->right = delay->sur = NULL;
+    memset(delay->currentSize, 0, sizeof(delay->currentSize));
+    memset(delay->currentPos, 0, sizeof(delay->currentPos));
+    OSRestoreInterrupts(old);
+    return 1;
+}
+
+int AXFXDelaySettings(struct AXFX_DELAY* delay)
+{
+    if (!delay) return 0;
+    u32 blocks[3];
+    for (unsigned i = 0; i < 3; ++i) {
+        if (delay->delay[i] < 6 || delay->feedback[i] > 100 || delay->output[i] > 100)
+            return 0;
+        u64 count = (((u64) delay->delay[i] - 5) * 32 + 159) / 160;
+        if (count > UINT32_MAX / (160 * sizeof(s32))) return 0;
+        blocks[i] = (u32) count;
+    }
+    int old = OSDisableInterrupts();
+    AXFXDelayShutdown(delay);
+    s32** history[3] = {&delay->left, &delay->right, &delay->sur};
+    for (unsigned i = 0; i < 3; ++i) {
+        size_t bytes = (size_t) blocks[i] * 160 * sizeof(s32);
+        *history[i] = __AXFXAlloc(bytes);
+        if (!*history[i]) {
+            AXFXDelayShutdown(delay);
+            OSRestoreInterrupts(old);
+            return 0;
+        }
+        memset(*history[i], 0, bytes);
+        delay->currentSize[i] = blocks[i];
+        delay->currentFeedback[i] = (delay->feedback[i] * 128) / 100;
+        delay->currentOutput[i] = (delay->output[i] * 128) / 100;
+    }
+    OSRestoreInterrupts(old);
+    return 1;
+}
+
+int AXFXDelayInit(struct AXFX_DELAY* delay)
+{
+    if (!delay) return 0;
+    int old = OSDisableInterrupts();
+    delay->left = delay->right = delay->sur = NULL;
+    memset(delay->currentSize, 0, sizeof(delay->currentSize));
+    memset(delay->currentPos, 0, sizeof(delay->currentPos));
+    int result = AXFXDelaySettings(delay);
+    OSRestoreInterrupts(old);
+    return result;
+}
+#else
 void AXFXDelayCallback(struct AXFX_BUFFERUPDATE* bufferUpdate,
                        struct AXFX_DELAY* delay)
 {
-    long l;
-    long r;
-    long s;
-    long* lBuf;
-    long* rBuf;
-    long* sBuf;
+    s32 l;
+    s32 r;
+    s32 s;
+    s32* lBuf;
+    s32* rBuf;
+    s32* sBuf;
     u32 i;
-    long* left;
-    long* right;
-    long* sur;
+    s32* left;
+    s32* right;
+    s32* sur;
 
     left = bufferUpdate->left;
     right = bufferUpdate->right;
@@ -45,9 +139,9 @@ void AXFXDelayCallback(struct AXFX_BUFFERUPDATE* bufferUpdate,
 int AXFXDelaySettings(struct AXFX_DELAY* delay)
 {
     unsigned long i;
-    long* l;
-    long* r;
-    long* s;
+    s32* l;
+    s32* r;
+    s32* s;
     int old;
 
     AXFXDelayShutdown(delay);
@@ -110,3 +204,5 @@ int AXFXDelayShutdown(struct AXFX_DELAY* delay)
     OSRestoreInterrupts(old);
     return 1;
 }
+
+#endif

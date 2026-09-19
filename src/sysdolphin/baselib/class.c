@@ -112,9 +112,13 @@ HSD_MemoryEntry* GetMemoryEntry(s32 idx)
             memcpy(new_list, memory_list,
                    sizeof(*memory_list) * nb_memory_list);
             memset(&new_list[nb_memory_list], 0,
+#ifdef MELEE_NATIVE
+                   sizeof(*new_list) * (new_nb - nb_memory_list));
+#else
                    4 * (new_nb -
                         nb_memory_list)); // You start *after* existing ptrs
                                           // and make sure memory is zero'd
+#endif
 
             old_list = memory_list;
             old_nb = OSRoundDown32B(nb_memory_list * sizeof(*memory_list));

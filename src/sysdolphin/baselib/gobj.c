@@ -106,7 +106,7 @@ void HSD_GObj_80390CFC(void)
             if (proc->flags_3 != HSD_GObj_804D783C) {
                 proc->flags_3 = HSD_GObj_804D783C;
                 gobj = proc->gobj;
-                if (!(var_r31 & (1LL << gobj->p_link)) && !(proc->flags_1) &&
+                if (!(var_r31 & (1ULL << gobj->p_link)) && !(proc->flags_1) &&
                     !(proc->flags_2))
                 {
                     HSD_GObj_CurrentInvokedProcGObj = gobj;

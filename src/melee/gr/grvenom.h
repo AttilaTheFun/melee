@@ -5,6 +5,23 @@
 
 #include <placeholder.h>
 
+struct grVenom_YakumonoParam {
+    f32 x0;
+    f32 x4;
+    f32 x8;
+    f32 xC;
+    f32 x10;
+    char x14[0x2C - 0x14];
+    f32 x2C;
+    char x30[0x34 - 0x30];
+    f32 x34;
+#ifdef MELEE_NATIVE
+    union ColorOverlay_x8_t* x38;
+#else
+    s32 x38;
+#endif
+};
+
 /* 20362C */ UNK_RET grVenom_8020362C(UNK_PARAMS);
 /* 203B14 */ void grVenom_80203B14(bool);
 /* 203B18 */ void grVenom_80203B18(void);

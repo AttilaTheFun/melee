@@ -85,9 +85,14 @@ struct itSword_UnkBytes {
 };
 
 struct itSword_UnkArticle1 {
+#ifdef MELEE_NATIVE
+    /* Serialized integer parameters, not pointers. */
+    u32 x0, x4, x8;
+#else
     /*  +0 */ UNK_T x0;
     /*  +4 */ UNK_T x4;
     /*  +8 */ UNK_T x8;
+#endif
     /*  +C */ float xC;
     /* +10 */ float x10;
     /* +14 */ float x14;

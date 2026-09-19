@@ -34,19 +34,38 @@
 #include <sysdolphin/baselib/tobj.h>
 
 struct lbl_80472D28_t {
+#ifdef MELEE_NATIVE
+    HSD_GObj* x0;
+    HSD_JObj *x4, *x8, *xC, *x10, *x14, *x18, *x1C;
+#else
     /*   +0 */ char pad_0[0x20];
+#endif
     /* +20 */ HSD_JObj* x20;
     /* +24 */ HSD_JObj* x24;
+#ifdef MELEE_NATIVE
+    HSD_JObj* x28;
+#else
     /* +28 */ char pad_28[4];
+#endif
     /* +2C */ HSD_GObj* x2C;
     /* +30 */ HSD_ImageDesc x30;
     /* +48 */ HSD_Archive* x48;
     /* +4C */ DynamicModelDesc x4C;
     /* +5C */ void* x5C;
     /* +60 */ void* x60;
+#ifdef MELEE_NATIVE
+    void *x64, *x68;
+    HSD_Text *x6C, *x70, *x74, *x78, *x7C, *x80;
+#else
     /* +64 */ char pad_64[0x20];
+#endif
     /* +84 */ HSD_Text* x84;
+#ifdef MELEE_NATIVE
+    HSD_Text* bonus_text[7];
+    s32 bonus_scores[7];
+#else
     /* +88 */ char pad_88[0x38];
+#endif
     /* +C0 */ u16 xC0;
     /* +C2 */ u16 pad_C2;
     /* +C4 */ u32 xC4;
@@ -281,7 +300,11 @@ s32 fn_8017F47C(HSD_Text** arg0, int arg1)
     fn_8016F39C(arg0 + 1, gm_8016B774(), 7, arg1, mask, 0);
 
     i = 0;
+#ifdef MELEE_NATIVE
+    p = (s32*) (arg0 + 8);
+#else
     p = (s32*) arg0;
+#endif
 
     do {
         mask = fn_8017F008();
@@ -293,13 +316,21 @@ s32 fn_8017F47C(HSD_Text** arg0, int arg1)
             break;
         }
 
+#ifdef MELEE_NATIVE
+        if (p[0] != val) {
+#else
         if (p[8] != val) {
+#endif
             if (val < 0) {
                 HSD_SisLib_803A70A0(*arg0, i, "%s%d", "－", -val);
             } else {
                 HSD_SisLib_803A70A0(*arg0, i, "%d", val);
             }
+#ifdef MELEE_NATIVE
+            p[0] = val;
+#else
             p[8] = val;
+#endif
         }
 
         prev_idx = idx;
@@ -322,6 +353,10 @@ s32 fn_8017F47C(HSD_Text** arg0, int arg1)
     PAD_STACK(0x18);
 }
 
+#ifdef MELEE_NATIVE
+/* Both views describe the same object; pointer growth must be shared. */
+typedef struct lbl_80472D28_t fn_8017FA1C_arg;
+#else
 typedef struct fn_8017FA1C_arg {
     /* 0x000 */ HSD_GObj* x0;
     /* 0x004 */ HSD_JObj* x4;
@@ -368,6 +403,7 @@ typedef struct fn_8017FA1C_arg {
     /* 0x11A */ u8 x11A;
     /* 0x11B */ u8 x11B;
 } fn_8017FA1C_arg;
+#endif
 
 static const Vec3 lbl_803B7C18 = { -41.0f, -0.25f, 0.0f };
 
@@ -927,6 +963,9 @@ fn_80180630_CreateLightAndCamera(struct lbl_80472D28_t* state,
     *cam_gobj = fn_80180630_CreateCameraGObj();
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline u8 fn_80180630_GetX118(const struct lbl_80472D28_t* state)
 {
     return state->x118;

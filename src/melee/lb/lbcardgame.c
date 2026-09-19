@@ -15,6 +15,44 @@
 #include <sysdolphin/baselib/gobjobject.h>
 #include <sysdolphin/baselib/gobjproc.h>
 #include <sysdolphin/baselib/jobj.h>
+#ifdef MELEE_NATIVE
+#include "lbfile.h"
+#include "lbheap.h"
+#include "lbdvd.h"
+#include "melee_scene_desc.h"
+#include "melee_card_icons.h"
+#include <dolphin/dvd.h>
+
+static MeleeSceneDesc* native_card_scene;
+static MeleeCardIcons* native_card_icons;
+static HSD_CardWord native_card_image_pointers[4];
+
+static HSD_CardWord* load_native_card_icons(void)
+{
+    size_t length = 0;
+    void* owned = NULL;
+    const char* filename = lbFileGetFullName("LbMcGame.");
+    const void* bytes = lbDvd_NativeGetRawData(
+        DVDConvertPathToEntrynum(filename), &length);
+    if (!bytes) {
+        lbFile_80016760("LbMcGame.", &owned, &length);
+        bytes = owned;
+    }
+    MeleeArchive archive;
+    HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, length));
+    MeleeCardIcons* fresh = melee_card_icons_create(&archive);
+    HSD_ASSERT(__LINE__, fresh);
+    if (owned) lbHeap_80015CA8(0, owned);
+    melee_card_icons_free(native_card_icons);
+    native_card_icons = fresh;
+    for (unsigned i = 0; i < 4; i++)
+        native_card_image_pointers[i] = (HSD_CardWord) melee_card_icons_data(fresh, i);
+    return native_card_image_pointers;
+}
+
+
+
+#endif
 
 #define _p(x) (lb_80433318.x)
 
@@ -68,7 +106,7 @@ static const char* lb_8001C658(void)
     return _p(_1C);
 }
 
-static int lb_8001C820(void)
+static HSD_CardWord lb_8001C820(void)
 {
     int var_r0;
 
@@ -161,7 +199,7 @@ int lb_8001CC4C(void)
 
 static int dont_inline_helper(void)
 {
-    int temp_r24;
+    HSD_CardWord temp_r24;
 
     if (lb_8001CAF4() != 0) {
         return 0xD;
@@ -274,8 +312,16 @@ void lb_8001CF18(void)
 void lbCardGame_LoadArchive(int arg0)
 {
     if (_p(x5C) == 0) {
+#ifdef MELEE_NATIVE
+        _p(x5C) = load_native_card_icons();
+#else
         lbArchive_80016DBC("LbMcGame.", &_p(x5C), "MemCardIconData", 0);
+#endif
+#ifdef MELEE_NATIVE
+        _p(x64) = lbArchive_NativeLoadScene("NtMemAc", &native_card_scene);
+#else
         lbArchive_80016DBC("NtMemAc", &_p(x64), "ScNtcCommon_scene_data", 0);
+#endif
         _p(x60) = arg0;
         _p(enable) = 1;
     }

@@ -2,6 +2,12 @@
 
 #include <math.h>
 #include <string.h>
+#ifdef MELEE_NATIVE
+#include "melee_sem.h"
+#include <stdlib.h>
+#include <limits.h>
+static MeleeSEM* native_sem;
+#endif
 
 #include "axdriver.static.h"
 #include "debug.h"
@@ -13,6 +19,15 @@
 
 void* AXDriverAlloc(size_t size)
 {
+#ifdef MELEE_NATIVE
+    if (!AXDriver_804D77D4 || axfxallocsize > axfxmaxsize ||
+        size > (size_t) (axfxmaxsize - axfxallocsize)) {
+        return NULL;
+    }
+    void* ptr = AXDriver_804D77D4 + axfxallocsize;
+    axfxallocsize += (u32) size;
+    return ptr;
+#else
     void* ptr = &AXDriver_804D77D4[axfxallocsize];
 
     // increment the size by the amount we will be indexing to.
@@ -22,6 +37,7 @@ void* AXDriverAlloc(size_t size)
     // outside the heap. Raise an assert.
     HSD_ASSERT(78, axfxallocsize < axfxmaxsize);
     return ptr;
+#endif
 }
 
 void AXDriverFree(void* ptr) {}
@@ -309,7 +325,11 @@ u32 AXDriver_8038C678(u32 param_type, u32 param_value)
 #define MAX2(x, y) ((x) < (y) ? (y) : (x))
 #define CLAMP(min, val, max) MAX2(MIN2(val, max), min)
 
+#ifdef MELEE_NATIVE
+static void native_sound_commands(HSD_SM* v)
+#else
 void AXDriver_8038C6C0(HSD_SM* v)
+#endif
 {
     u32 cmd_type;
     u32 cmd_word;
@@ -318,6 +338,11 @@ void AXDriver_8038C6C0(HSD_SM* v)
     PAD_STACK(8);
 
     while (v->x30 == (s32) AXDriver_804D778C) {
+#ifdef MELEE_NATIVE
+        u32* checked;
+        if (!melee_sem_command_target(native_sem, v->cmd_stream, 0, &checked))
+            OSPanic(__FILE__, __LINE__, "Sound command escaped the native SEM payload");
+#endif
         cmd_word = *v->cmd_stream;
         cmd_type = cmd_word >> 0x18U;
 
@@ -335,7 +360,22 @@ void AXDriver_8038C6C0(HSD_SM* v)
             break;
         case 3:
             if ((v->flags & 0x100000) || v->x2A != 0) {
+#ifdef MELEE_NATIVE
+                /* The console increments cmd_stream after the subtraction.
+                 * Validate the actual next instruction, allowing a loop back
+                 * to the first payload word without entering metadata. */
+                size_t backwards = cmd_word & 0xFFFFFF;
+                const u32* origin = v->cmd_stream;
+                if (backwards) --backwards;
+                else ++origin;
+                if (!melee_sem_command_target(native_sem, origin, backwards, &checked))
+                    OSPanic(__FILE__, __LINE__, "Sound command loop escaped the native SEM payload");
+                v->cmd_stream = checked;
+                v->x2A--;
+                continue;
+#else
                 v->cmd_stream -= *v->cmd_stream & 0xFFFFFF;
+#endif
                 v->x2A--;
             }
             break;
@@ -437,6 +477,15 @@ void AXDriver_8038C6C0(HSD_SM* v)
     }
 }
 
+#ifdef MELEE_NATIVE
+void AXDriver_8038C6C0(HSD_SM* voice)
+{
+    int old = OSDisableInterrupts();
+    native_sound_commands(voice);
+    OSRestoreInterrupts(old);
+}
+#endif
+
 static void fn_8038CC1C(void)
 {
     HSD_SM* v;
@@ -536,8 +585,15 @@ static inline HSD_SM* AXDriver_8038CFF4_inline(void)
     }
 }
 
+#ifdef MELEE_NATIVE
+static int native_sound_start(int sound_id, u8 volume, u8 pan, int track, int channel)
+#else
 int AXDriver_8038CFF4(int sound_id, u8 volume, u8 pan, int track, int channel)
+#endif
 {
+#ifdef MELEE_NATIVE
+    if (sound_id < 0) return -1;
+#endif
     HSD_SM* v;
     int sample_idx;
     int bank_idx;
@@ -615,6 +671,16 @@ int AXDriver_8038CFF4(int sound_id, u8 volume, u8 pan, int track, int channel)
 
     return v->unk;
 }
+
+#ifdef MELEE_NATIVE
+int AXDriver_8038CFF4(int sound_id, u8 volume, u8 pan, int track, int channel)
+{
+    int old = OSDisableInterrupts();
+    int result = native_sound_start(sound_id, volume, pan, track, channel);
+    OSRestoreInterrupts(old);
+    return result;
+}
+#endif
 
 bool AXDriver_8038D2B4(int vid, u8 pan)
 {
@@ -802,6 +868,40 @@ static void fn_8038DA5C(s32 result, DVDFileInfo* fileInfo)
 
 void AXDriver_8038DA70(const char* path, void (*callback)(void))
 {
+#ifdef MELEE_NATIVE
+    (void) callback;
+    DVDFileInfo info;
+    if (!DVDOpen(path, &info)) { OSReport("can not open %s\n", path); return; }
+    size_t length = info.length;
+    void* raw = NULL;
+    MeleeSEM* loaded = NULL;
+    if (length && length <= INT32_MAX - 31) {
+        size_t aligned = (length + 31) & ~(size_t)31;
+        if (!posix_memalign(&raw, 32, aligned) &&
+            DVDReadPrio(&info, raw, aligned, 0, 2) == (long)aligned)
+            loaded = melee_sem_open(raw, length);
+    }
+    free(raw);
+    DVDClose(&info);
+    if (!loaded) { OSReport("Invalid native SEM: %s\n", path); return; }
+    int old = OSDisableInterrupts();
+    for (HSD_SM* voice = AXDriver_804D7794; voice; voice = voice->next) {
+        if (voice->flags & SMSTATE_MASK) {
+            OSRestoreInterrupts(old); melee_sem_close(loaded);
+            OSReport("Cannot replace SEM while sound commands are active\n"); return;
+        }
+    }
+    melee_sem_close(native_sem);
+    native_sem = loaded;
+    AXDriver_804D7798 = loaded->words;
+    AXDriver_804D779C = length;
+    AXDriver_804D77A0 = loaded->counts[0]; AXDriver_804D77A4 = loaded->values[0];
+    AXDriver_804D77A8 = loaded->counts[1]; AXDriver_804D77AC = loaded->references[1];
+    AXDriver_804D77B0 = loaded->counts[2]; AXDriver_804D77B4 = loaded->values[2];
+    AXDriver_804D77B8 = loaded->counts[3]; AXDriver_804D77BC = loaded->references[3];
+    AXDriver_804D77C0 = loaded->counts[4]; AXDriver_804D77C4 = loaded->references[4];
+    OSRestoreInterrupts(old);
+#else
     DVDFileInfo fileInfo;
     s32 entrynum;
     s32 alignedSize;
@@ -902,15 +1002,52 @@ void AXDriver_8038DA70(const char* path, void (*callback)(void))
         *(u32*) ((u8*) AXDriver_804D77C4 + i) += (u32) AXDriver_804D7798 & ~3u;
         i += 4;
     }
+#endif
 }
 
 void AXDriver_8038DCFC(void)
 {
+#ifdef MELEE_NATIVE
+    int old = OSDisableInterrupts();
+    for (HSD_SM* voice = AXDriver_804D7794; voice; voice = voice->next) {
+        if (voice->flags & SMSTATE_MASK) {
+            OSRestoreInterrupts(old);
+            OSReport("Cannot unload SEM while sound commands are active\n"); return;
+        }
+    }
+    melee_sem_close(native_sem); native_sem = NULL;
+    AXDriver_804D7798 = AXDriver_804D77A4 = AXDriver_804D77AC = AXDriver_804D77C4 = NULL;
+    AXDriver_804D77B4 = NULL; AXDriver_804D77BC = NULL;
+    AXDriver_804D779C = 0;
+    AXDriver_804D77A0 = AXDriver_804D77A8 = AXDriver_804D77B0 =
+        AXDriver_804D77B8 = AXDriver_804D77C0 = 0;
+    OSRestoreInterrupts(old);
+#else
     if (AXDriver_804D7798 != NULL) {
         HSD_AudioFree(AXDriver_804D7798);
     }
     AXDriver_804D7798 = NULL;
+#endif
 }
+
+#ifdef MELEE_NATIVE
+/* AX invokes a callback with two void-pointer arguments; use real adapters rather than calling
+ * typed DSP functions through incompatible function pointer types. */
+#define AX_NATIVE_ADAPTER(name) \
+    static void name##_native(void* samples, void* effect) { \
+        struct AXFX_BUFFERUPDATE channels; \
+        memcpy(&channels, samples, sizeof(channels)); \
+        name(&channels, effect); \
+    }
+AX_NATIVE_ADAPTER(AXFXReverbHiCallback)
+AX_NATIVE_ADAPTER(AXFXReverbStdCallback)
+AX_NATIVE_ADAPTER(AXFXChorusCallback)
+AX_NATIVE_ADAPTER(AXFXDelayCallback)
+#undef AX_NATIVE_ADAPTER
+#define AX_EFFECT_CALLBACK(name) name##_native
+#else
+#define AX_EFFECT_CALLBACK(name) name
+#endif
 
 int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
 {
@@ -921,7 +1058,12 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
 
     int old_type;
     int result;
+#ifdef MELEE_NATIVE
+    void (*callback)(void*, void*);
+    HSD_ASSERT(0x49C, channel == 0 || channel == 1);
+#else
     void* callback;
+#endif
     void* callback_data;
 
     aux_data_hi = &AXDriver_804C5A40[channel];
@@ -979,7 +1121,7 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
     case AXDRIVER_AUX_REVERB_HI:
         memcpy(aux_data_hi, param, sizeof(struct AXFX_REVERBHI));
         if (AXFXReverbHiInit(aux_data_hi) == 1) {
-            callback = AXFXReverbHiCallback;
+            callback = AX_EFFECT_CALLBACK(AXFXReverbHiCallback);
             callback_data = aux_data_hi;
             result = 1;
         }
@@ -987,7 +1129,7 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
     case AXDRIVER_AUX_REVERB_STD:
         memcpy(aux_data_std, param, sizeof(struct AXFX_REVERBSTD));
         if (AXFXReverbStdInit(aux_data_std) == 1) {
-            callback = AXFXReverbStdCallback;
+            callback = AX_EFFECT_CALLBACK(AXFXReverbStdCallback);
             callback_data = aux_data_std;
             result = 1;
         }
@@ -995,7 +1137,7 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
     case AXDRIVER_AUX_CHORUS:
         memcpy(aux_data_chorus, param, sizeof(struct AXFX_CHORUS));
         if (AXFXChorusInit(aux_data_chorus) == 1) {
-            callback = AXFXChorusCallback;
+            callback = AX_EFFECT_CALLBACK(AXFXChorusCallback);
             callback_data = aux_data_chorus;
             result = 1;
         }
@@ -1003,7 +1145,7 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
     case AXDRIVER_AUX_DELAY:
         memcpy(aux_data_delay, param, sizeof(struct AXFX_DELAY));
         if (AXFXDelayInit(aux_data_delay) == 1) {
-            callback = AXFXDelayCallback;
+            callback = AX_EFFECT_CALLBACK(AXFXDelayCallback);
             callback_data = aux_data_delay;
             result = 1;
         }
@@ -1022,6 +1164,33 @@ int AXDriverSetupAux(int channel, AXDriverAuxType type, void* param)
 
 s32 HSD_AudioGetAuxHeapSize(AXDriverAuxType type, void* param)
 {
+#ifdef MELEE_NATIVE
+    if (type < AXDRIVER_AUX_OFF || type > AXDRIVER_AUX_DELAY ||
+        (type != AXDRIVER_AUX_OFF && !param)) return 0;
+    if (type == AXDRIVER_AUX_OFF) return 0;
+    if (type == AXDRIVER_AUX_CHORUS) return 0x1680;
+    u64 required = 0;
+    if (type == AXDRIVER_AUX_DELAY) {
+        struct AXFX_DELAY* delay = param;
+        for (unsigned i = 0; i < 3; ++i) {
+            if (delay->delay[i] < 6) return 0;
+            required += (((u64) delay->delay[i] - 5) * 32 + 159) / 160 * 640;
+        }
+    } else {
+        float pre_delay = type == AXDRIVER_AUX_REVERB_HI ?
+            ((struct AXFX_REVERBHI*) param)->preDelay :
+            ((struct AXFX_REVERBSTD*) param)->preDelay;
+        if (!isfinite(pre_delay) || pre_delay < 0 || pre_delay > 0.1f) return 0;
+        required = (u64) (32000.0f * pre_delay) * 4 * 3;
+        if (type == AXDRIVER_AUX_REVERB_STD) {
+            required += (1789 + 2 + 1999 + 2 + 433 + 2 + 149 + 2) * 4 * 3;
+        } else {
+            required += (1789 + 2 + 1999 + 2 + 2333 + 2 + 433 + 2 + 149 + 2) * 4 * 3;
+            required += (47 + 2 + 73 + 2 + 67 + 2) * 4;
+        }
+    }
+    return required <= INT32_MAX ? (s32) required : 0;
+#else
     s32 result = 0;
     int i;
     int k;
@@ -1080,6 +1249,7 @@ s32 HSD_AudioGetAuxHeapSize(AXDriverAuxType type, void* param)
     }
 
     return result;
+#endif
 }
 
 bool AXDriver_8038E30C(s32 channel, s32 type, void* param, u8* heap,
@@ -1091,10 +1261,25 @@ bool AXDriver_8038E30C(s32 channel, s32 type, void* param, u8* heap,
     if (type < 0 || type > 4 || (type != AXDRIVER_AUX_OFF && param == NULL)) {
         return false;
     }
+#ifdef MELEE_NATIVE
+    if (type != AXDRIVER_AUX_OFF) {
+        s32 required = HSD_AudioGetAuxHeapSize(type, param);
+        if (required <= 0 || !heap || ((uintptr_t) heap % _Alignof(float)) ||
+            heap_size < (size_t) required || heap_size > UINT32_MAX ||
+            (uintptr_t) heap > UINTPTR_MAX - heap_size) return false;
+    }
+    int old_interrupts = OSDisableInterrupts();
+#endif
     AXDriver_804D77D4 = heap;
     axfxallocsize = 0;
     axfxmaxsize = heap_size;
+#ifdef MELEE_NATIVE
+    bool result = AXDriverSetupAux(channel, type, param);
+    OSRestoreInterrupts(old_interrupts);
+    return result;
+#else
     return AXDriverSetupAux(channel, type, param);
+#endif
 }
 
 bool AXDriver_8038E37C(AXDriverAuxType type, void* param)

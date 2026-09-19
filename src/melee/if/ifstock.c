@@ -36,30 +36,55 @@ static struct ifStock_804A1378 ifStock_804A1378;
 static struct ifStock_804A1774 ifStock_804A1774;
 static HSD_GObj* ifStock_804A1A8C[16];
 static struct ifStock_804A1ACC ifStock_804A1ACC;
+#ifdef MELEE_NATIVE
+/* Host state contains native pointers; only the scalar animation record has
+ * the same layout as on the console. */
+STATIC_ASSERT(sizeof(ifStock_804A1A8C) / sizeof(ifStock_804A1A8C[0]) == 16);
+STATIC_ASSERT(offsetof(struct ifStock_804A1378_x204, steal) == 12);
+STATIC_ASSERT(sizeof(struct ifStock_804A1378_x204) == 0x54);
+#else
 STATIC_ASSERT(sizeof(ifStock_804A1378) == 0x3FC);
 STATIC_ASSERT(sizeof(ifStock_804A1774) == 0x318);
 STATIC_ASSERT(sizeof(ifStock_804A1A8C) == 0x40);
 STATIC_ASSERT(sizeof(ifStock_804A1ACC) == 0x314);
+#endif
 
 static char ifStock_SceneModels[] = "Stc_scemdls";
 
+#ifdef MELEE_NATIVE
+#define IF_STOCK_STEAL(data) ((data)->steal)
+#define IF_STOCK_RAW(data) ((u8*) (data))
+#else
+#define IF_STOCK_STEAL(data) ((data)->anim)
+#define IF_STOCK_RAW(data) ((data)->x0)
+#endif
 int ifStock_802F7EFC(int arg0, int arg1)
 {
     Vec3 pos;
     struct ifStock_804A1378* stock;
+#ifdef MELEE_NATIVE
+    struct ifStock_804A1378_x204* arg1_data;
+    struct ifStock_804A1378_x204* arg0_data;
+#else
     struct IfStockData* arg1_data;
     struct IfStockData* arg0_data;
     struct IfStockDataOffset* arg0_base;
     struct IfStockDataOffset* arg1_base;
+#endif
     int slot;
     int i, j;
     stock = &ifStock_804A1378;
+#ifdef MELEE_NATIVE
+    arg0_data = &stock->x204[arg0];
+    arg1_data = &stock->x204[arg1];
+#else
     arg0_base =
         (struct IfStockDataOffset*) ((struct IfStockData*) stock + arg0);
     arg1_base =
         (struct IfStockDataOffset*) ((struct IfStockData*) stock + arg1);
     arg0_data = (struct IfStockData*) ++arg0_base;
     arg1_data = (struct IfStockData*) ++arg1_base;
+#endif
     if (Player_GetStocks(arg1) == 0) {
         return 1;
     }
@@ -67,20 +92,20 @@ int ifStock_802F7EFC(int arg0, int arg1)
     if (stock->player[arg1].stocks < 0) {
         stock->player[arg1].stocks = 1;
     }
-    if (arg1_data->x0[10] == 0) {
+    if (IF_STOCK_RAW(arg1_data)[10] == 0) {
         slot = 5;
-    } else if (arg1_data->x0[11] == 0) {
+    } else if (IF_STOCK_RAW(arg1_data)[11] == 0) {
         slot = 6;
     } else {
         return 2;
     }
-    arg1_data->x0[slot + 5] = 1;
-    arg0_data->x0[2] = 0;
-    arg1_data->x0[slot - 2] = arg0;
+    IF_STOCK_RAW(arg1_data)[slot + 5] = 1;
+    IF_STOCK_RAW(arg0_data)[2] = 0;
+    IF_STOCK_RAW(arg1_data)[slot - 2] = arg0;
     {
         int stocks = stock->player[arg1].stocks;
         if (stocks <= 5 && stocks > 0) {
-            arg1_data->x0[stocks + 4] = 10;
+            IF_STOCK_RAW(arg1_data)[stocks + 4] = 10;
         }
         i = 0;
         if (stocks <= 5 && stocks > 0) {
@@ -92,10 +117,10 @@ int ifStock_802F7EFC(int arg0, int arg1)
     HSD_JObjReqAnimAll(stock->player[arg1].x4[j], 0.0f);
     HSD_JObjAnimAll(stock->player[arg1].x4[j]);
     HSD_JObjGetTranslation(stock->player[arg1].x4[j],
-                           &arg1_data->anim[slot - 5].start);
-    arg1_data->anim[slot - 5].start.x += pos.x;
-    arg1_data->anim[slot - 5].start.y += pos.y;
-    arg1_data->anim[slot - 5].start.z += pos.z;
+                           &IF_STOCK_STEAL(arg1_data)[slot - 5].start);
+    IF_STOCK_STEAL(arg1_data)[slot - 5].start.x += pos.x;
+    IF_STOCK_STEAL(arg1_data)[slot - 5].start.y += pos.y;
+    IF_STOCK_STEAL(arg1_data)[slot - 5].start.z += pos.z;
     i = Player_GetStocks(arg0) < 5 && Player_GetStocks(arg0) > 0;
     j = i != 0 ? Player_GetStocks(arg0) : 0;
     {
@@ -105,24 +130,33 @@ int ifStock_802F7EFC(int arg0, int arg1)
     HSD_JObjReqAnimAll(stock->player[arg0].x4[j], 0.0f);
     HSD_JObjAnimAll(stock->player[arg0].x4[j]);
     HSD_JObjGetTranslation(stock->player[arg0].x4[1],
-                           &arg1_data->anim[slot - 5].end);
-    arg1_data->anim[slot - 5].end.x += (2.4f * j) + pos.x;
-    arg1_data->anim[slot - 5].end.y = arg1_data->anim[slot - 5].start.y;
-    arg1_data->anim[slot - 5].end.z += pos.z;
-    arg1_data->anim[slot - 5].mid.x =
+                           &IF_STOCK_STEAL(arg1_data)[slot - 5].end);
+    IF_STOCK_STEAL(arg1_data)[slot - 5].end.x += (2.4f * j) + pos.x;
+    IF_STOCK_STEAL(arg1_data)[slot - 5].end.y = IF_STOCK_STEAL(arg1_data)[slot - 5].start.y;
+    IF_STOCK_STEAL(arg1_data)[slot - 5].end.z += pos.z;
+    IF_STOCK_STEAL(arg1_data)[slot - 5].mid.x =
         0.5f *
-        (arg1_data->anim[slot - 5].end.x + arg1_data->anim[slot - 5].start.x);
-    arg1_data->anim[slot - 5].mid.z =
+        (IF_STOCK_STEAL(arg1_data)[slot - 5].end.x + IF_STOCK_STEAL(arg1_data)[slot - 5].start.x);
+    IF_STOCK_STEAL(arg1_data)[slot - 5].mid.z =
         0.5f *
-        (arg1_data->anim[slot - 5].end.z + arg1_data->anim[slot - 5].start.z);
-    arg1_data->anim[slot - 5].mid.y =
-        10.0f + arg1_data->anim[slot - 5].start.y;
+        (IF_STOCK_STEAL(arg1_data)[slot - 5].end.z + IF_STOCK_STEAL(arg1_data)[slot - 5].start.z);
+    IF_STOCK_STEAL(arg1_data)[slot - 5].mid.y =
+        10.0f + IF_STOCK_STEAL(arg1_data)[slot - 5].start.y;
     return 0;
 }
+
+#undef IF_STOCK_STEAL
+#undef IF_STOCK_RAW
 
 /// @todo remove these cursed macros for something proper.
 /// Per-player animation data, addressed as a 0x54-byte element from the struct
 /// base with the x204 array offset applied afterwards.
+#ifdef MELEE_NATIVE
+#define ifStock_802F8298_data_in(e, p) (&stock->x204[(p)])
+#define ifStock_802F8298_data_at(p) (&stock->x204[(p)])
+#define ifStock_802F8298_data (&stock->x204[user_data->player])
+#define ifStock_802F8298_player_data(p) (&stock->x204[(p)])
+#else
 #define ifStock_802F8298_elem(p)                                              \
     ((struct IfStockDataOffset*) ((struct ifStock_804A1378_x204*) stock + (p)))
 #define ifStock_802F8298_data_in(e, p)                                        \
@@ -133,6 +167,7 @@ int ifStock_802F7EFC(int arg0, int arg1)
 /// accesses.
 #define ifStock_802F8298_player_data(p)                                       \
     ((elem = ifStock_802F8298_elem(p)), (struct ifStock_804A1378_x204*) ++elem)
+#endif
 
 static inline f32 ifStock_802F8298_tobj_frame(u8 player)
 {
@@ -173,8 +208,10 @@ void ifStock_802F8298(HSD_GObj* gobj)
     HSD_JObj* jobj2;
     HSD_JObj* steal_jobj;
     struct ifStock_804A1378_x204* data;
+#ifndef MELEE_NATIVE
     struct IfStockDataOffset* elem;
     struct IfStockDataOffset* other;
+#endif
     Vec3 vecA, vecB, vecC, vecD;
 
     if (stock->player[user_data->player].stocks <= 5) {
@@ -936,6 +973,35 @@ void fn_802FA8C0(HSD_GObj* arg)
     }
 }
 
+#ifdef MELEE_NATIVE
+static void ifStock_CopyAllstarRoster(struct ifStock_804A1ACC* stock,
+                                      const struct lbl_8046B668_t* source)
+{
+    unsigned i;
+    for(i=0;i<130;i++){stock->x10C[i]=NULL;stock->x83[i]=-2;stock->x1[i]=-2;}
+    /* The shared roster has 28 entries, including its terminator; the HUD
+     * buffer is larger for other displays. Never copy past the source. */
+    for(i=0;i<ARRAY_SIZE(source->arr1)&&source->arr2[i]!=-2&&source->arr1[i]!=-2;i++){
+        stock->x83[i]=source->arr2[i];stock->x1[i]=source->arr1[i];
+    }
+}
+int ifStock_NativeAllstarRosterTest(void)
+{
+    const unsigned lengths[]={0,1,27};struct lbl_8046B668_t source={0};
+    struct ifStock_804A1ACC stock={0};
+    for(unsigned test=0;test<3;test++){
+        unsigned n=lengths[test];
+        for(unsigned i=0;i<n;i++){source.arr1[i]=i%26;source.arr2[i]=i%4;}
+        source.arr2[n]=-2;ifStock_CopyAllstarRoster(&stock,&source);
+        for(unsigned i=0;i<130;i++){
+            HSD_ASSERT(__LINE__,!stock.x10C[i]);
+            HSD_ASSERT(__LINE__,stock.x1[i]==(i<n?source.arr1[i]:-2)&&stock.x83[i]==(i<n?source.arr2[i]:-2));
+        }
+    }
+    return 0;
+}
+#endif
+
 void fn_802FAC34(HSD_GObj* arg)
 {
     int i;
@@ -945,6 +1011,9 @@ void fn_802FAC34(HSD_GObj* arg)
     if (gm_8016A944()) {
         if (ifStock_804A1ACC.x0 == 0) {
             ifStock_804A1ACC.x0 = 1;
+#ifdef MELEE_NATIVE
+            ifStock_CopyAllstarRoster(&ifStock_804A1ACC,gm_8016A98C());
+#else
             q = gm_8016A97C();
             w = gm_8016A98C()->arr1;
             for (i = 0; i != 130; i++) {
@@ -952,6 +1021,7 @@ void fn_802FAC34(HSD_GObj* arg)
                 ifStock_804A1ACC.x83[i] = *q++;
                 ifStock_804A1ACC.x1[i] = *w++;
             }
+#endif
             for (n[0] = 0; n[0] < 130; n[0]++) {
                 if (ifStock_804A1ACC.x10C[n[0]]) {
                     HSD_GObjFree(ifStock_804A1ACC.x10C[n[0]]);

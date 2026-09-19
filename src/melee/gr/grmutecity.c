@@ -19,6 +19,7 @@
 #include <melee/lb/lbshadow.h>
 #include <melee/lb/lbvector.h>
 #include <melee/mp/mplib.h>
+#include <melee/sc/types.h>
 #include <sysdolphin/baselib/debug.h>
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/gobjproc.h>
@@ -338,22 +339,7 @@ StageData grMc_StageData = {
     ARRAY_SIZE(grMc_803E30B0),
 };
 
-struct grMc_YakumonoParam {
-    int x0;
-    void* x4;
-    DynamicsDesc* x8;
-    DynamicsDesc* xC;
-    u8 pad10[0x1C];
-    f32 x2C;
-    f32 x30;
-    f32 x34;
-    f32 x38;
-    f32 x3C;
-    f32 x40;
-    f32 x44;
-    f32 x48;
-    f32 x4C;
-};
+
 
 static struct grMc_YakumonoParam* yakumono_param;
 
@@ -894,7 +880,11 @@ void grMuteCity_801F04B8(Ground_GObj* gobj)
             Ground_801C39B0(gp->u.mutecity.x130);
             break;
         case 21:
+#ifdef MELEE_NATIVE
+            grMaterial_ApplyColorScript(gobj, yakumono_param->x0, 0);
+#else
             grMaterial_801C9604(gobj, yakumono_param->x0, 0);
+#endif
             break;
         case 20:
             un_802FD604(entry->param);
@@ -923,7 +913,11 @@ void grMuteCity_801F04B8(Ground_GObj* gobj)
             HSD_GObj* bg_gobj = Ground_GetMapGObj(0x1D);
             if (bg_gobj != NULL) {
                 if (param != 0) {
+#ifdef MELEE_NATIVE
+                    grMaterial_ApplyColorScript(bg_gobj, yakumono_param->x4, 0);
+#else
                     grMaterial_801C9604(bg_gobj, (s32) yakumono_param->x4, 0);
+#endif
                     if (gp->u.mutecity.x110 != NULL) {
                         HSD_LObjClearFlags(gp->u.mutecity.x110, LOBJ_HIDDEN);
                     }
@@ -1128,12 +1122,17 @@ void grMuteCity_801F0F4C(Ground_GObj* gobj)
 
 void grMuteCity_801F106C(s32 i)
 {
+    f32 max_x8;
+#ifdef MELEE_NATIVE
+    struct { grMc_CarEntry* cars; } native_state = { grMc_8049F4B8 };
+    typeof(native_state)* state = &native_state;
+#else
     typedef struct grMc_CarState {
         s32 idx[30];
         grMc_CarEntry cars[30];
     } grMc_CarState;
-    f32 max_x8;
     grMc_CarState* state = (grMc_CarState*) grMc_8049F440;
+#endif
     grMc_CarEntry* cars = state->cars;
     u16 flags16 = state->cars[i].x20;
 
@@ -1705,7 +1704,7 @@ void grMuteCity_801F1A34(HSD_GObj* arg0, Ground_GObj* arg1)
                             HSD_JObjSetTranslate(new_jobj, &spawn_pos);
                         }
                     }
-                    if ((u32) grMc_8049F4B8[car_idx].x24 != 0) {
+                    if (grMc_8049F4B8[car_idx].x24 != 0) {
                         grMaterial_801C8CDC(
                             (HSD_GObj*) grMc_8049F4B8[car_idx].x24);
                         grMc_8049F4B8[car_idx].x24 = 0;
@@ -1774,7 +1773,7 @@ void grMuteCity_801F1A34(HSD_GObj* arg0, Ground_GObj* arg1)
                 -100.0f < car_pos.z && car_pos.z < 50.0f)
             {
                 if (!grMc_8049F4B8[car_idx].x22_flags.b0 &&
-                    (u32) grMc_8049F4B8[car_idx].x24 == 0)
+                    grMc_8049F4B8[car_idx].x24 == 0)
                 {
                     Item_GObj* item_gobj = grMaterial_801C8CFC(
                         0, 2, car_gp, jobj, grMuteCity_801F1A0C,
@@ -1783,11 +1782,15 @@ void grMuteCity_801F1A34(HSD_GObj* arg0, Ground_GObj* arg1)
                         grMaterial_801C8DE0(item_gobj, 0.0f, 0.0f, -12.0f,
                                             0.0f, 0.0f, 2.0f, 15.0f);
                         grMaterial_801C8E08(item_gobj);
+#ifdef MELEE_NATIVE
+                        grMc_8049F4B8[car_idx].x24 = item_gobj;
+#else
                         grMc_8049F4B8[car_idx].x24 = (s32) item_gobj;
+#endif
                     }
                 }
             } else {
-                if ((u32) grMc_8049F4B8[car_idx].x24 != 0) {
+                if (grMc_8049F4B8[car_idx].x24 != 0) {
                     grMaterial_801C8CDC(
                         (HSD_GObj*) grMc_8049F4B8[car_idx].x24);
                     grMc_8049F4B8[car_idx].x24 = 0;
@@ -1818,7 +1821,17 @@ DynamicModelDesc* grMuteCity_801F28A8(void)
     HSD_ASSERT(2135, archive);
     dat = archive->unk4;
     if (dat != NULL) {
+#ifdef MELEE_NATIVE
+        static DynamicModelDesc native;
+        struct UnkStageDat_x8_t* model = &dat->unk8[38];
+        native.joint = model->unk0;
+        native.anims = model->unk4;
+        native.matanims = model->unk8;
+        native.shapeanims = model->unkC;
+        return &native;
+#else
         return (DynamicModelDesc*) ((char*) dat->unk8 + 0x7B8);
+#endif
     }
     return NULL;
 }
@@ -1910,7 +1923,11 @@ s32 grMuteCity_801F2AB0(s32 arg0, HSD_JObj* arg1)
         if ((appsrt = gen->appsrt) == NULL) {
             appsrt = psAddGeneratorAppSRT_begin(gen, 0);
             if (appsrt == NULL) {
+#ifdef MELEE_NATIVE
+                return 0;
+#else
                 return;
+#endif
             }
         }
         appsrt->xA2 = 0;
@@ -1920,6 +1937,12 @@ s32 grMuteCity_801F2AB0(s32 arg0, HSD_JObj* arg1)
         gen->type |= PSAPPSRT_UNK_B11;
         appsrt->gp = gen;
     }
+#ifdef MELEE_NATIVE
+    /* The console leaves r3 from Ground_801C0498 (stage_info.param) on
+     * success, or NULL from a failed allocation. Both callers only test
+     * zero/nonzero. Make that observed marker explicit on the host. */
+    return gen != NULL && stage_info.param != NULL;
+#endif
 }
 
 /// @copydoc mpLib_JointCollisionCallback

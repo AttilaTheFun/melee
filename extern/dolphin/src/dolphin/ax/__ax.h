@@ -18,12 +18,18 @@ void __AXPushStackHead(AXVPB* p, u32 priority);
 AXVPB* __AXPopStackFromBottom(u32 priority);
 
 // AXAux.c
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+typedef uintptr_t AXAuxAddress;
+#else
+typedef u32 AXAuxAddress;
+#endif
 void __AXAuxInit(void);
 void __AXAuxQuit(void);
-void __AXGetAuxAInput(u32* p);
-void __AXGetAuxAOutput(u32* p);
-void __AXGetAuxBInput(u32* p);
-void __AXGetAuxBOutput(u32* p);
+void __AXGetAuxAInput(AXAuxAddress* p);
+void __AXGetAuxAOutput(AXAuxAddress* p);
+void __AXGetAuxBInput(AXAuxAddress* p);
+void __AXGetAuxBOutput(AXAuxAddress* p);
 void __AXProcessAux(void);
 
 // AXCL.c

@@ -12,6 +12,9 @@
 #include <sysdolphin/baselib/object.h>
 
 struct HSD_TObj;
+#ifdef MELEE_NATIVE
+void HSD_TObjMakeTextureMtx(struct HSD_TObj* tobj);
+#endif
 
 #define TOBJ_ANIM 0x10
 
@@ -151,6 +154,10 @@ struct HSD_TObj {
     HSD_AObj* aobj;
     struct HSD_ImageDesc** imagetbl;
     struct _HSD_Tlut** tluttbl;
+#ifdef MELEE_NATIVE
+    u16 native_image_count;
+    u16 native_palette_count;
+#endif
     u8 tlut_no;
     Mtx mtx;
     GXTexCoordID coord;

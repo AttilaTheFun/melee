@@ -1,4 +1,8 @@
+#ifndef MELEE_NATIVE
 #include "__os.h"
+#else
+#include <stdint.h>
+#endif
 
 #include <macros.h>
 #include <dolphin/exi.h>
@@ -11,6 +15,7 @@ static int YearDays[MONTH_MAX] = { 0,   31,  59,  90,  120, 151,
 static int LeapYearDays[MONTH_MAX] = { 0,   31,  60,  91,  121, 152,
                                        182, 213, 244, 274, 305, 335 };
 
+#ifndef MELEE_NATIVE
 asm long long OSGetTime(void)
 {
     // clang-format off
@@ -102,6 +107,8 @@ asm void __OSSetTick(register unsigned long newTicks)
     // clang-format on
 }
 
+#endif /* !MELEE_NATIVE: native timebase is provided by time_backend.c. */
+
 static int IsLeapYear(int year)
 {
     return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
@@ -159,6 +166,13 @@ void OSTicksToCalendarTime(long long ticks, OSCalendarTime* td)
     int secs;
     long long d;
 
+#ifdef MELEE_NATIVE
+    /* The original calendar algorithm starts at year zero. Reject invalid
+     * input before signed subtraction or a negative month-table index. */
+    if (td == NULL || ticks < -(s64) 0xEB1E1BF80ULL * OS_TIMER_CLOCK) {
+        OSPanic(__FILE__, __LINE__, "Calendar ticks precede year zero or output is null");
+    }
+#endif
     d = ticks % OS_SEC_TO_TICKS(1);
     if (d < 0) {
         d += OS_SEC_TO_TICKS(1);
@@ -198,6 +212,11 @@ OSTime OSCalendarTimeToTicks(OSCalendarTime* td)
     int mon;
     int year;
 
+#ifdef MELEE_NATIVE
+    if (td == NULL) {
+        OSPanic(__FILE__, __LINE__, "Calendar input is null");
+    }
+#endif
     ov_mon = td->mon / MONTH_MAX;
     mon = td->mon - (ov_mon * MONTH_MAX);
 
@@ -209,8 +228,21 @@ OSTime OSCalendarTimeToTicks(OSCalendarTime* td)
     ASSERTLINE(0x182, (ov_mon <= 0 && 0 <= td->year + ov_mon) ||
                           (0 < ov_mon && td->year <= INT_MAX - ov_mon));
 
+#ifdef MELEE_NATIVE
+    s64 native_year = (s64) td->year + ov_mon;
+    if (native_year < 0 || native_year > INT32_MAX - 3) {
+        OSPanic(__FILE__, __LINE__, "Calendar year is outside native tick range");
+    }
+#endif
     year = td->year + ov_mon;
 
+#ifdef MELEE_NATIVE
+    secs = (s64) SECS_IN_YEAR * year +
+           (s64) SECS_IN_DAY * ((s64) GetLeapDays(year) +
+                                GetYearDays(year, mon) + td->mday - 1) +
+           (s64) SECS_IN_HOUR * td->hour +
+           (s64) SECS_IN_MIN * td->min + td->sec - (s64) 0xEB1E1BF80ULL;
+#else
     // clang-format off
     secs = (s64)SECS_IN_YEAR * year +
               (s64)SECS_IN_DAY * (GetLeapDays(year) + GetYearDays(year, mon) + td->mday - 1) +
@@ -219,7 +251,18 @@ OSTime OSCalendarTimeToTicks(OSCalendarTime* td)
               td->sec -
               (s64)0xEB1E1BF80ULL;
     // clang-format on
+#endif
 
+#ifdef MELEE_NATIVE
+    __int128 result = (__int128) secs * OS_TIMER_CLOCK +
+                     (__int128) td->msec * (OS_TIMER_CLOCK / 1000) +
+                     (__int128) td->usec * (OS_TIMER_CLOCK / 125000) / 8;
+    if (result < INT64_MIN || result > INT64_MAX) {
+        OSPanic(__FILE__, __LINE__, "Calendar conversion overflows native ticks");
+    }
+    return (OSTime) result;
+#else
     return OS_SEC_TO_TICKS(secs) + OS_MSEC_TO_TICKS((s64) td->msec) +
            OS_USEC_TO_TICKS((s64) td->usec);
+#endif
 }

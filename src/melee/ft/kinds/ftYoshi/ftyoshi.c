@@ -564,3 +564,9 @@ Fighter_CostumeStrings ftYs_Init_CostumeStrings[] = {
     { ftYs_Unk2_803CEC24, ftYs_Unk2_803CEC30, ftYs_Unk2_803CEC4C },
 };
 /* 45A000 */ UnkCostumeStruct ftYs_CostumeList[6];
+
+#ifdef MELEE_NATIVE
+_Static_assert(sizeof(struct S_UNK_YOSHI2)==2*sizeof(TempS),"Yoshi paired visibility choices");
+_Static_assert(offsetof(struct S_UNK_YOSHI2,x8_end_index)==sizeof(TempS),"Yoshi second choice count");
+_Static_assert(offsetof(struct S_UNK_YOSHI2,xC_start_index)==sizeof(TempS)+offsetof(TempS,x4),"Yoshi second choice indices");
+#endif

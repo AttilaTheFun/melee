@@ -209,6 +209,43 @@ static u8 ftAction_803C0870[ARRAY_SIZE(ftAction_803C06E8)] = {
     01, 01, 01, 01, 01, 01, 01, 01, 01, 01, 03, 03, 02, 01, 04
 };
 
+#ifdef MELEE_NATIVE
+bool ftAction_ModelCommand(Fighter_GObj* gobj, u32 word)
+{
+    union CmdUnion native[2] = { 0 };
+    CommandInfo command = { 0 };
+    command.u = native;
+    switch (word >> 26) {
+    case 31: {
+        int index = (word >> 19) & 127;
+        int value = word & 0x7FFFF;
+        if (index & 64) index -= 128;
+        if (value & 0x40000) value -= 0x80000;
+        Fighter* fp = GET_FIGHTER(gobj);
+        if (index < 0 || index >= fp->x5AC.model_num) return false;
+        native[0].set_dobj_flags.idx = index;
+        native[0].set_dobj_flags.value = value;
+        ftAction_80071D40(gobj, &command);
+        return true;
+    }
+    case 32: ftAction_80071D94(gobj, &command); return true;
+    case 33: ftAction_80071DCC(gobj, &command); return true;
+    default: return false;
+    }
+}
+
+u32 ftAction_CommandWordCount(u32 opcode)
+{
+    if (opcode < 10) {
+        return opcode == 5 || opcode == 7 ? 2 : 1;
+    }
+    opcode -= 10;
+    return opcode < ARRAY_SIZE(ftAction_803C0870)
+               ? ftAction_803C0870[opcode]
+               : 0;
+}
+#endif
+
 /*
 SubactionEvent 10 GFXSpawn
 
@@ -290,14 +327,23 @@ void ftAction_8007121C(Fighter_GObj* gobj, CommandInfo* cmd)
     HitCapsule* hitbox;
     u32 hit_group;
     u32 idx;
+#ifdef MELEE_NATIVE
+    u32 grabbed_only = cmd->u->create_hitbox_0.next_command_grabbed_only;
+#else
     struct spawn_hitbox_skip* skip;
+#endif
     PAD_STACK(8);
 
     fp = GET_FIGHTER(gobj);
     /// @todo this matches but isnt pretty. maybe an inline/macro as
     // we dont have enough stack in general?
+#ifdef MELEE_NATIVE
+    if (cmd->u[3].create_hitbox_3.ignore_thrown_fighters &&
+        fp->x1064_thrownHitbox.owner == NULL) {
+#else
     skip = (struct spawn_hitbox_skip*) cmd->u;
     if ((skip->xF_b4) && (fp->x1064_thrownHitbox.owner == NULL)) {
+#endif
         ftAction_800715EC(gobj, cmd);
     } else {
         hit_group = cmd->u->create_hitbox_0.hit_group;
@@ -350,7 +396,11 @@ void ftAction_8007121C(Fighter_GObj* gobj, CommandInfo* cmd)
         hitbox->x42_b0 = 0;
         hitbox->x42_b4 = 0;
         hitbox->x41_b7 = 0;
+#ifdef MELEE_NATIVE
+        hitbox->hit_grabbed_victim_only = grabbed_only;
+#else
         hitbox->hit_grabbed_victim_only = cmd->u->create_hitbox_5.x1_b4;
+#endif
         hitbox->x42_b1 = 1;
         hitbox->x42_b2 = 0;
         hitbox->x43_b2 = 0;
@@ -583,6 +633,16 @@ void ftAction_80071B50(Fighter_GObj* gobj, CommandInfo* cmd)
 
     fp = GET_FIGHTER(gobj);
     behavior = cmd->u->sound_effect_0.behavior;
+#ifdef MELEE_NATIVE
+    /* These commands reuse the serialized sound header with a different
+     * field layout. Reconstruct its behavior instead of aliasing bitfields. */
+    if (cmd->u->Command_00.code == 54) {
+        behavior = cmd->u->footstep_fx_0.boneId;
+    } else if (cmd->u->Command_00.code == 55) {
+        behavior = (cmd->u->unk_fx_0.x0_b6_7 << 6) |
+                   (cmd->u->unk_fx_0.x1_b0_7 >> 2);
+    }
+#endif
     NEXT_CMD(cmd);
 
     switch (behavior) {
@@ -1143,7 +1203,11 @@ void ftAction_80072CD8(Fighter_GObj* gobj, CommandInfo* cmd)
     int sp60;
     int gfx_id;
     CommandInfo _cmd;
+#ifdef MELEE_NATIVE
+    union CmdUnion cmd_words[3];
+#else
     u32 cmd_words[3];
+#endif
     Vec3 offset;
     Vec3 range;
     u32 part;
@@ -1156,9 +1220,16 @@ void ftAction_80072CD8(Fighter_GObj* gobj, CommandInfo* cmd)
     if (ft_80084BFC(gobj, &sp64, &sp60, &gfx_id) != false) {
         if (sp64 != -1) {
             _cmd.u = (union CmdUnion*) cmd_words;
+#ifdef MELEE_NATIVE
+            cmd_words[0] = cmd->u[0];
+            cmd_words[1] = (union CmdUnion) { 0 };
+            cmd_words[1].sound_effect_1.sfx_id = sp64;
+            cmd_words[2] = cmd->u[2];
+#else
             cmd_words[0] = *(u32*) cmd->u;
             cmd_words[1] = sp64;
             cmd_words[2] = *(u32*) ((u8*) cmd->u + 8);
+#endif
             ftAction_80071B50(gobj, &_cmd);
         }
 
@@ -1200,7 +1271,11 @@ void ftAction_80072E4C(Fighter_GObj* gobj, CommandInfo* cmd)
     int sp60;
     int gfx_id;
     CommandInfo _cmd;
+#ifdef MELEE_NATIVE
+    union CmdUnion cmd_words[3];
+#else
     u32 cmd_words[3];
+#endif
     Vec3 offset;
     Vec3 range;
     Fighter* fp;
@@ -1216,14 +1291,26 @@ void ftAction_80072E4C(Fighter_GObj* gobj, CommandInfo* cmd)
         (cmd_flag == 0) && (sp64 != -1))
     {
         _cmd.u = (union CmdUnion*) cmd_words;
+#ifdef MELEE_NATIVE
+        cmd_words[0] = cmd->u[0];
+        cmd_words[1] = (union CmdUnion) { 0 };
+        cmd_words[1].sound_effect_1.sfx_id = sp64;
+        cmd_words[2] = cmd->u[2];
+#else
         cmd_words[0] = *(u32*) cmd->u;
         cmd_words[1] = sp64;
         cmd_words[2] = ((u32*) cmd->u)[2];
+#endif
         ftAction_80071B50(gobj, &_cmd);
     }
 
     if (gfx_id == -1) {
+#ifdef MELEE_NATIVE
+        gfx_id = (cmd->u->unk_fx_0.x2_b0_7 << 8) |
+                 cmd->u->unk_fx_0.x3_b0_7;
+#else
         gfx_id = ((u16*) cmd->u)[1];
+#endif
     }
     offset.z = 0.0f;
     range.z = 0.0f;

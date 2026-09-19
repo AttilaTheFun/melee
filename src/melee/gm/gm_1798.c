@@ -1,4 +1,7 @@
 #include "gm_1798.h"
+#ifdef MELEE_NATIVE
+#include <melee/ft/ftdata.h>
+#endif
 
 #include <placeholder.h>
 
@@ -40,10 +43,14 @@
 
 extern ResultsData lbl_8046DBE8;
 
+#ifdef MELEE_NATIVE
+ResultsDisplayLayout melee_results_display;
+#else
 ResultsDisplayData lbl_8046E1B0;
 HSD_GObj* lbl_8046E38C[4];
 HSD_JObj* lbl_8046E39C[4];
 lbl_8046E3AC_t lbl_8046E3AC;
+#endif
 
 static U32Pair lbl_804D3FD0 ATTRIBUTE_ALIGN(8) = { 0x00500050, 0x00460034 };
 static U32Pair lbl_804D3FD8 = { 0x006E0072, 0x0064004A };
@@ -368,7 +375,21 @@ HSD_GObj* fn_8017A318(s32 arg0)
 {
     static Scissor const scissor_init = { 270, 370, 124, 276 };
     u32* config = (u32*) &lbl_803B7B68;
+#ifdef MELEE_NATIVE
+    CameraKindData native_camera = { 0 };
+    CameraKindData* data = &native_camera;
+    for (unsigned k = 0; k < 32; k++) {
+        for (unsigned v = 0; v < 4; v++) {
+            data->kind[k].x_off[v] = gmResultCharacterScaleData[k].x0[v];
+            data->kind[k].y_off[v] = gmResultCharacterScaleData[k].x0[v + 4];
+            data->kind[k].z_scale[v] = gmResultCharacterScaleData[k].x20[v];
+            for (unsigned axis = 0; axis < 3; axis++)
+                data->slot_off[k][axis][v] = gmResultCharacterData.slot_off[k][axis][v];
+        }
+    }
+#else
     CameraKindData* data = (CameraKindData*) gmResultPlayerColors;
+#endif
     ResultsDisplayLayout* disp = (ResultsDisplayLayout*) &lbl_8046E1B0;
     MatchEnd* match_end = &disp->state.match_end;
     s32 _pad[2];
@@ -401,7 +422,11 @@ HSD_GObj* fn_8017A318(s32 arg0)
     }
 
     gobj = GObj_Create(0x13, 0x14, 0);
+#ifdef MELEE_NATIVE
+    cobj = HSD_CObjLoadDesc((HSD_CObjDesc*) &gmResultCameraDesc);
+#else
     cobj = HSD_CObjLoadDesc(&data->cobj_desc);
+#endif
     HSD_GObjObject_80390A70(gobj, HSD_GObj_CameraKind, cobj);
 
     {
@@ -496,7 +521,15 @@ Fighter_GObj* fn_8017A67C(CharacterKind kind, int arg1, int arg2)
             }
         }
 
+#ifdef MELEE_NATIVE
+        melee_fighter_load_results(Player_800325C8(kind, false), gm_80160438(kind));
+        /* The shared Ice Climbers results archive contains both partners. */
+        if (kind == CKind_PopoNana) {
+            melee_fighter_load_results(Ft_Kind_Nana, gm_80160438(kind));
+        }
+#else
         Player_80036E20(kind, lbArchive_LoadArchive(gm_80160438(kind)), 0);
+#endif
         Player_SetPlayerCharacter(arg2, kind);
         Player_SetCostumeId(arg2, arg1);
         Player_SetPlayerId(arg2, arg2);
@@ -619,12 +652,26 @@ void fn_8017AA78(const u8* arg0)
     lbl_8046E3AC.x0_4 = 0;
     lbl_8046E3AC.x0_6 = 0;
 
+#ifdef MELEE_NATIVE
+    const U32Pair packed_dims[] = { lbl_804D3FD0, lbl_804D3FD8, lbl_804D3FE0,
+        lbl_804D3FE8, lbl_804D3FF0, lbl_804D3FF8 };
+    u16* dims[] = { lbl_8046E3AC.dim_w1, lbl_8046E3AC.dim_h1,
+        lbl_8046E3AC.dim_w2, lbl_8046E3AC.dim_h2,
+        lbl_8046E3AC.scissor_y, lbl_8046E3AC.scissor_x };
+    for (unsigned d = 0; d < 6; d++) {
+        dims[d][0] = packed_dims[d].lo >> 16;
+        dims[d][1] = packed_dims[d].lo;
+        dims[d][2] = packed_dims[d].hi >> 16;
+        dims[d][3] = packed_dims[d].hi;
+    }
+#else
     *(U32Pair*) lbl_8046E3AC.dim_w1 = lbl_804D3FD0;
     *(U32Pair*) lbl_8046E3AC.dim_h1 = lbl_804D3FD8;
     *(U32Pair*) lbl_8046E3AC.dim_w2 = lbl_804D3FE0;
     *(U32Pair*) lbl_8046E3AC.dim_h2 = lbl_804D3FE8;
     *(U32Pair*) lbl_8046E3AC.scissor_y = lbl_804D3FF0;
     *(U32Pair*) lbl_8046E3AC.scissor_x = lbl_804D3FF8;
+#endif
 
     for (i = 0; i < 4; i++) {
         lbl_8046E3AC.player_flags[i] = 0;
@@ -637,7 +684,15 @@ void fn_8017AA78(const u8* arg0)
                 .is_big_loser = 1;
         }
         lbl_8046E3AC.x6[i] = 0;
+#ifdef MELEE_NATIVE
+        for (unsigned h = 0; h < 4; h++) {
+            unsigned shift = h % 2 ? 0 : 16;
+            lbl_8046E3AC.score_tbl[i].h[h] = (s16) (gmResultScoreTableInit[i * 2 + h / 2] >> shift);
+            lbl_8046E3AC.x22F4[i].h[h] = (s16) (gmResultX22F4Init[i * 2 + h / 2] >> shift);
+        }
+#else
         lbl_8046E3AC.score_tbl[i] = ((PackedS16x4*) gmResultScoreTableInit)[i];
         lbl_8046E3AC.x22F4[i] = ((PackedS16x4*) gmResultX22F4Init)[i];
+#endif
     }
 }

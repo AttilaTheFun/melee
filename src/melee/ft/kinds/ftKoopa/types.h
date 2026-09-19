@@ -13,9 +13,9 @@ struct ftKoopa_FighterVars {
 union ftKoopa_MotionVars {
     /// @todo Proper state name.
     struct ftKoopa_State1Vars {
-        UNK_T x0;
+        s32 x0;
         bool x4;
-        UNK_T x8;
+        s32 x8;
         bool xC;
     } unk1;
     /// @todo Possibly #ftKoopa_State1Vars.

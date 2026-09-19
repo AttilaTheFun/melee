@@ -22,6 +22,10 @@ typedef struct CARDStat
 
 s32 CARDGetStatus(s32 chan, s32 fileNo, CARDStat *stat);
 s32 CARDSetStatusAsync(s32 chan, s32 fileNo, CARDStat *stat, CARDCallback callback);
+#ifdef MELEE_NATIVE
+s32 CARDSetStatus(s32 chan, s32 fileNo, struct CARDStat * stat);
+#else
 long CARDSetStatus(long chan, long fileNo, struct CARDStat * stat);
+#endif
 
 #endif // _DOLPHIN_CARDSTAT_H_

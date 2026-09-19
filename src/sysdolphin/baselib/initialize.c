@@ -94,7 +94,17 @@ void** HSD_AllocateXFB(s32 nbuffer, GXRenderModeObj* rm)
     if (rm == NULL) {
         return NULL;
     }
+#ifdef MELEE_NATIVE
+    if (nbuffer < 1 || nbuffer > HSD_VI_XFB_MAX || !rm->fbWidth || !rm->xfbHeight ||
+        (u64) (((u32) rm->fbWidth + 15) & ~15u) * rm->xfbHeight * 2 * nbuffer > UINT32_MAX) {
+        return NULL;
+    }
+#endif
+#ifdef MELEE_NATIVE
+    fb_size = (((u32) rm->fbWidth + 15) & ~15u) * (u32) rm->xfbHeight * 2u;
+#else
     fb_size = ((rm->fbWidth + 0xF) & 0xFFF0) * rm->xfbHeight * 2;
+#endif
     arena_lo = OSRoundUp32B(OSGetArenaLo());
     arena_hi = OSRoundDown32B(OSGetArenaHi());
     memReport.xfb = fb_size * nbuffer;
@@ -126,7 +136,11 @@ GXFifoObj* HSD_AllocateFifo(u32 size)
 
     arena_lo = OSRoundUp32B(OSGetArenaLo());
     arena_hi = OSRoundDown32B(OSGetArenaHi());
+#ifdef MELEE_NATIVE
+    if (arena_lo == arena_hi) {
+#else
     if (arena_lo == 0 && arena_hi == 0) {
+#endif
         fifo = OSAllocFromHeap(__OSCurrHeap, size);
         if (fifo == NULL) {
             HSD_Panic(__FILE__, 295, "cannot allocate memory for gx fifo.\n");
@@ -180,12 +194,16 @@ void HSD_OSInit(void)
     hsd_heap_next_arena_lo = (void*) new_arena_lo;
     hsd_heap_next_arena_hi = (void*) new_arena_hi;
     current_heap = OSCreateHeap((void*) new_arena_lo, (void*) new_arena_hi);
+#ifdef MELEE_NATIVE
+    HSD_SetHeap(current_heap);
+#endif
     OSSetCurrentHeap(current_heap);
     memReport.heap = new_arena_hi - new_arena_lo;
     HSD_ObjSetHeap(new_arena_hi - new_arena_lo, NULL);
     OSSetArenaLo((void*) new_arena_hi);
 }
 
+#ifndef MELEE_NATIVE
 OSHeapHandle HSD_GetHeap(void)
 {
     return current_heap;
@@ -195,6 +213,8 @@ void HSD_SetHeap(OSHeapHandle handle)
 {
     current_heap = handle;
 }
+
+#endif /* Native heap selection is owned by heap_backend.c. */
 
 void HSD_GetNextArena(void** lo, void** hi)
 {
@@ -225,9 +245,15 @@ OSHeapHandle HSD_CreateMainHeap(void* lo, void* hi)
     if (hi != NULL) {
         hsd_heap_next_arena_hi = hi;
     }
+#ifdef MELEE_NATIVE
+    current_heap = HSD_GetHeap();
+#endif
     OSDestroyHeap(current_heap);
     current_heap =
         OSCreateHeap(hsd_heap_next_arena_lo, hsd_heap_next_arena_hi);
+#ifdef MELEE_NATIVE
+    HSD_SetHeap(current_heap);
+#endif
     OSSetCurrentHeap(current_heap);
     HSD_ObjSetHeap((uintptr_t) hsd_heap_next_arena_hi -
                        (uintptr_t) hsd_heap_next_arena_lo,

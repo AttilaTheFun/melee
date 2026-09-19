@@ -393,7 +393,11 @@ void ftKb_SpecialNMs_8010BC40(Fighter_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     s32 i;
 
+#ifdef MELEE_NATIVE
+    if (fp->u.kb.hat.kind == Ft_Kind_Mars) {
+#else
     if (fp->u.gw.x2238_panicCharge == 0x12) {
+#endif
         i = ftKb_MS_MsSpecialNLoop;
     } else {
         i = ftKb_MS_FeSpecialNLoop;
@@ -407,7 +411,11 @@ void ftKb_SpecialNMs_8010BC90(Fighter_GObj* gobj)
     Fighter* fp = GET_FIGHTER(gobj);
     s32 i;
 
+#ifdef MELEE_NATIVE
+    if (fp->u.kb.hat.kind == Ft_Kind_Mars) {
+#else
     if (fp->u.gw.x2238_panicCharge == 0x12) {
+#endif
         i = ftKb_MS_MsSpecialAirNLoop;
     } else {
         i = ftKb_MS_FeSpecialAirNLoop;

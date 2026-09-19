@@ -25,9 +25,16 @@ static int HSD_VISearchXFBByStatus(HSD_VIXFBDrawDispStatus status)
 HSD_VIRetraceCallback HSD_VISetUserPreRetraceCallback(HSD_VIRetraceCallback cb)
 {
     bool intr;
+#ifdef MELEE_NATIVE
+    HSD_VIRetraceCallback old;
+#else
     HSD_VIRetraceCallback old = _p->pre_cb;
+#endif
 
     intr = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    old = _p->pre_cb;
+#endif
     _p->pre_cb = cb;
     OSRestoreInterrupts(intr);
 
@@ -38,9 +45,16 @@ HSD_VIRetraceCallback
 HSD_VISetUserPostRetraceCallback(HSD_VIRetraceCallback cb)
 {
     bool intr;
+#ifdef MELEE_NATIVE
+    HSD_VIRetraceCallback old;
+#else
     HSD_VIRetraceCallback old = _p->post_cb;
+#endif
 
     intr = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    old = _p->post_cb;
+#endif
     _p->post_cb = cb;
     OSRestoreInterrupts(intr);
 
@@ -51,9 +65,16 @@ HSD_VIGXDrawDoneCallback
 HSD_VISetUserGXDrawDoneCallback(HSD_VIGXDrawDoneCallback cb)
 {
     bool intr;
+#ifdef MELEE_NATIVE
+    HSD_VIGXDrawDoneCallback old;
+#else
     HSD_VIGXDrawDoneCallback old = _p->drawdone.cb;
+#endif
 
     intr = OSDisableInterrupts();
+#ifdef MELEE_NATIVE
+    old = _p->drawdone.cb;
+#endif
     _p->drawdone.cb = cb;
     OSRestoreInterrupts(intr);
 
@@ -211,10 +232,25 @@ static void HSD_VICopyEFB2XFBHiResoAA(GXRenderModeObj* rmode)
 
 void HSD_VICopyEFB2XFBPtr(HSD_VIStatus* vi, void* buffer, HSD_RenderPass rpass)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(0, vi && buffer);
+#endif
     GXRenderModeObj* rmode = &vi->rmode;
     int n_xfb_lines;
     u16 lines;
+#ifdef MELEE_NATIVE
+    uintptr_t offset;
+    HSD_ASSERT(0, rmode->fbWidth && rmode->efbHeight && rmode->xfbHeight);
+    if (rpass == HSD_RP_TOPHALF || rpass == HSD_RP_BOTTOMHALF) {
+        HSD_ASSERT(0, rmode->efbHeight > HSD_ANTIALIAS_OVERLAP);
+        HSD_ASSERT(0, rmode->fbWidth <= sizeof(garbage) /
+                         (HSD_ANTIALIAS_OVERLAP * VI_DISPLAY_PIX_SZ));
+        HSD_ASSERT(0, (uintptr_t) VIPadFrameBufferWidth(rmode->fbWidth) *
+                         HSD_ANTIALIAS_OVERLAP * VI_DISPLAY_PIX_SZ <= sizeof(garbage));
+    }
+#else
     u32 offset;
+#endif
 
     GXSetCopyFilter(rmode->aa, rmode->sample_pattern, vi->vf, rmode->vfilter);
     GXSetDispCopyGamma(vi->gamma);
@@ -249,9 +285,16 @@ void HSD_VICopyEFB2XFBPtr(HSD_VIStatus* vi, void* buffer, HSD_RenderPass rpass)
         GXSetCopyClamp(GX_CLAMP_BOTTOM);
         lines = rmode->efbHeight - HSD_ANTIALIAS_OVERLAP;
         GXSetDispCopySrc(0, HSD_ANTIALIAS_OVERLAP, rmode->fbWidth, lines);
+#ifdef MELEE_NATIVE
+        offset = (uintptr_t) VIPadFrameBufferWidth(rmode->fbWidth) * lines *
+                 VI_DISPLAY_PIX_SZ;
+        HSD_ASSERT(0, (uintptr_t) buffer <= UINTPTR_MAX - offset);
+        GXCopyDisp((void*) ((uintptr_t) buffer + offset), GX_TRUE);
+#else
         offset = (VIPadFrameBufferWidth(rmode->fbWidth) * lines *
                   (u32) VI_DISPLAY_PIX_SZ);
         GXCopyDisp((void*) ((u32) buffer + offset), GX_TRUE);
+#endif
         GXSetDispCopySrc(0, 0, rmode->fbWidth, HSD_ANTIALIAS_OVERLAP);
         GXSetCopyClamp((GXFBClamp) (GX_CLAMP_TOP | GX_CLAMP_BOTTOM));
         GXCopyDisp((void*) garbage, GX_TRUE);
@@ -266,12 +309,18 @@ void HSD_VICopyEFB2XFBPtr(HSD_VIStatus* vi, void* buffer, HSD_RenderPass rpass)
 
 void HSD_VIGXSetDrawDone(int arg)
 {
+#ifdef MELEE_NATIVE
+    bool intr = OSDisableInterrupts();
+#endif
     while (HSD_VIGetDrawDoneWaitingFlag()) {
         GXWaitDrawDone();
     }
     _p->drawdone.waiting = 1;
     _p->drawdone.arg = arg;
     GXSetDrawDone();
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(intr);
+#endif
 }
 
 void HSD_VISetXFBWaitDone(int idx)
@@ -380,19 +429,34 @@ int HSD_VIGetXFBLastDrawDone(void)
 
 void HSD_VISetConfigure(GXRenderModeObj* rmode)
 {
+#ifdef MELEE_NATIVE
+    bool intr = OSDisableInterrupts();
+#endif
     _p->current.vi.rmode = *rmode;
     _p->current.chg_flag = 1;
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(intr);
+#endif
 }
 
 void HSD_VISetBlack(bool black)
 {
+#ifdef MELEE_NATIVE
+    bool intr = OSDisableInterrupts();
+#endif
     _p->current.vi.black = black;
     _p->current.chg_flag = 1;
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(intr);
+#endif
 }
 
 void HSD_VIInit(HSD_VIStatus* vi, void* xfb0, void* xfb1, void* xfb2)
 {
     int i, fbnum, idx;
+#ifdef MELEE_NATIVE
+    bool intr = OSDisableInterrupts();
+#endif
 
     VIInit();
 
@@ -439,4 +503,7 @@ void HSD_VIInit(HSD_VIStatus* vi, void* xfb0, void* xfb1, void* xfb2)
     idx = HSD_VISearchXFBByStatus(HSD_VI_XFB_FREE);
     HSD_VICopyEFB2XFBPtr(HSD_VIGetVIStatus(), HSD_VIGetXFBPtr(idx),
                          HSD_RP_SCREEN);
+#ifdef MELEE_NATIVE
+    OSRestoreInterrupts(intr);
+#endif
 }

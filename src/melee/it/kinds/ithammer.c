@@ -1,3 +1,4 @@
+#include <melee/it/itCommonItems.h>
 #include "ithammer.h"
 
 #include <Runtime/platform.h>
@@ -14,11 +15,7 @@
 #include <melee/lb/lbvector.h>
 #include <sysdolphin/baselib/random.h>
 
-typedef struct itHammerData {
-    u32 x0;
-    u32 x4;
-    f32 x8;
-} itHammerData;
+
 
 /* 293FF4 */ static bool itHammer_UnkMotion0_Anim(HSD_GObj* gobj);
 /* 293FFC */ static void itHammer_UnkMotion0_Phys(HSD_GObj* gobj);

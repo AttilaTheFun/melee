@@ -8,6 +8,10 @@
 
 #include <melee/ft/types.h>
 
+#ifdef MELEE_NATIVE
+HSD_Joint* ftData_NativeCostumeJoint(FighterKind,int costume,const char* symbol);
+#endif
+
 /* 08521C */ void ft_8008521C(Fighter_GObj* gobj);
 /* 0852B0 */ void ft_800852B0(void);
 /* 08549C */ void ft_8008549C(void);
@@ -59,5 +63,10 @@
 /* 3C2800 */ extern MotionState ftData_MotionStateList[ftCo_MS_Count];
 /* 3C52A0 */ extern MotionState ftData_803C52A0[14];
 /* 4598B8 */ extern ftData* gFtDataList[Ft_Kind_Max];
+
+#ifdef MELEE_NATIVE
+void melee_fighter_load_results(int kind, const char* filename);
+void melee_fighter_load_demo(int kind,const void*,size_t,unsigned first,unsigned count);
+#endif
 
 #endif

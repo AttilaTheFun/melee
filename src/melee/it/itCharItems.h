@@ -197,8 +197,8 @@ typedef struct {
 } itFoxBlaster_ItemVars;
 
 typedef struct {
-    /* 0x00 */ int xDD4;
-    /* 0x00 */ Item_GObj* xDD8;
+    /* 0x00 */ void* xDD4; // shared Game & Watch outline descriptor
+    /* 0x04 */ Item_GObj* xDD8;
 } itGamewatchrescue_ItemVars;
 
 typedef struct itLeadead_ItemVars {
@@ -400,8 +400,8 @@ typedef struct {
 
 typedef struct itLinkBombAttributes {
     /* x0 */ u32 lifetime;
-    /* x4 */ f32 x4;
-    /* x8 */ f32 x8;
+    /* x4 */ u32 x4;
+    /* x8 */ u32 x8;
     /* xC */ u32 xC;
     /* x10 */ s32 x10;
     /* x14 */ f32 x14;
@@ -412,7 +412,6 @@ typedef struct itLinkBombAttributes {
     /* x28 */ f32 x28;
     /* x2C */ f32 x2C;
     /* x30 */ f32 x30;
-    /* x28 */ f32 vel[3];
 } itLinkBombAttributes;
 
 typedef struct {
@@ -518,7 +517,6 @@ typedef struct {
     f32 x20;
     HSD_Joint* x24;
     HSD_Joint* x28;
-    f32 x2C;
 } itLinkArrowAttributes;
 
 typedef struct {
@@ -622,9 +620,6 @@ typedef struct itSamusBombAttributes {
     /* +4 */ f32 x4;
     /* +8 */ f32 x8;
     /* +C */ f32 xC;
-    /* +10 */ f32 x10;
-    /* +14 */ f32 x14;
-    /* +18 */ f32 x18;
 } itSamusBombAttributes;
 
 typedef struct itSamusBomb_ItemVars {
@@ -737,8 +732,6 @@ typedef struct itSamusMissileAttributes {
     /* +2C */ f32 x2C;
     /* +30 */ f32 x30;
     /* +34 */ f32 x34;
-    /* +38 */ f32 x38;
-    /* +3C */ f32 x3C;
 } itSamusMissileAttributes;
 
 typedef struct itSamusMissile_ItemVars {
@@ -837,7 +830,7 @@ typedef struct itUnk4_ItemVars {
 } itUnk4_ItemVars;
 
 typedef struct itGamewatchchef_ItemVars {
-    /* +0 ip+DD4 */ s32 x0;
+    /* +0 ip+DD4 */ void* x0; // shared Game & Watch outline descriptor
     /* +4 ip+DD8 */ s32 x4;
 } itGamewatchchef_ItemVars;
 
@@ -854,7 +847,7 @@ typedef struct itGamewatchchefAttributes {
     /* +4 */ f32 x4;
     /* +8 */ f32 x8;
     /* +C */ f32 xC;
-    /* +10 */ itGamewatchchefAttrEntry entries[1];
+    /* +10 */ itGamewatchchefAttrEntry entries[5];
 } itGamewatchchefAttributes;
 
 typedef struct itGamewatchparachuteAttributes {
@@ -899,7 +892,12 @@ typedef struct itToolsAttributes {
     /* +04 */ f32 x4;
     /* +08 */ f32 x8;
     /* +0C */ s32 xC;
+#ifdef MELEE_NATIVE
+    /* The archive contains one motion record for each of five tool shapes. */
+    /* +10 */ itToolsMotionAttrs motions[5];
+#else
     /* +10 */ itToolsMotionAttrs motions[1];
+#endif
 } itToolsAttributes;
 
 typedef struct itNessYoyo_ItemVars {

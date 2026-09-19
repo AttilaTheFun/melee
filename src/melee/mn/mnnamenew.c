@@ -562,6 +562,9 @@ s32 mnNameNew_8023BAA8(NameNewEntry* arg0, s32 arg1, u8 arg2)
     return (s32) arg2;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline u8 GetAutoNameCharacter(u8** names, s32 char_idx)
 {
     return (*names)[char_idx];

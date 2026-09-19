@@ -136,6 +136,18 @@ typedef struct StageCallbacks {
     /* +10 */ union {
         /* +10 */ u32 flags;
         struct {
+#ifdef MELEE_NATIVE
+            /* Flags are initialized as numeric PowerPC masks. */
+            u32 flags_reserved : 24;
+            u32 flags_b7 : 1;
+            u32 flags_b6 : 1;
+            u32 flags_b5 : 1;
+            u32 flags_b4 : 1;
+            u32 flags_b3 : 1;
+            u32 flags_b2 : 1;
+            u32 flags_b1 : 1;
+            u32 flags_b0 : 1;
+#else
             /* +10:0 */ u8 flags_b0 : 1;
             /* +10:1 */ u8 flags_b1 : 1;
             /* +10:2 */ u8 flags_b2 : 1;
@@ -144,6 +156,7 @@ typedef struct StageCallbacks {
             /* +10:5 */ u8 flags_b5 : 1;
             /* +10:6 */ u8 flags_b6 : 1;
             /* +10:7 */ u8 flags_b7 : 1;
+#endif
         };
     };
 } StageCallbacks;
@@ -578,6 +591,9 @@ struct grVenom_GroundVars2 {
             u8 b7 : 1;
         };
     } xE0_state;
+#ifdef MELEE_NATIVE
+    f32 previous_environment_frame;
+#endif
 };
 
 struct grArwing_GroundVars {
@@ -705,6 +721,9 @@ struct grIceMt_GObj1_GroundVars {
     /* +2C   gp+F0   */ HSD_JObj* x2C;
     /* +30   gp+F4   */ HSD_JObj* x30;
     /* +34   gp+F8   */ HSD_GObj* x34[20];
+#ifdef MELEE_NATIVE
+    s16 collision_records[2][7];
+#endif
 };
 
 struct grIceMt_BG_GroundVars {
@@ -967,9 +986,45 @@ struct grYorster_GroundVars {
     struct grYorster_TrackElement elements[9];
 };
 
+#ifdef MELEE_NATIVE
+#include <stdint.h>
+typedef uintptr_t grZe_PointerWord;
+typedef intptr_t grZe_SignedPointerWord;
+#else
+typedef u32 grZe_PointerWord;
+typedef s32 grZe_SignedPointerWord;
+#endif
+
+typedef struct grZe_AcidState {
+    /* +00 */ u8 x00_state;
+    /* +01 */ u8 x01_next;
+    /* +02 */ s16 x02_timer;
+    /* +04 */ f32 x04_base_x;
+    /* +08 */ f32 x08_offset;
+    /* +0C */ f32 x0C_velocity;
+    /* +10 */ f32 x10_damage;
+    /* +14 */ HSD_JObj* x14_jobj1;
+    /* +18 */ HSD_JObj* x18_jobj2;
+    /* +1C */ Item_GObj* x1C_mat;
+    /* +20 */ s16 x20_anim_idx;
+} grZe_AcidState;
+
+#ifdef MELEE_NATIVE
+/* The platform's embedded state expands independently of the acid controller. */
+struct grZebes_PlatformVars {
+    s16 xC4, xC6;
+    union { u32 xC8; grZe_AcidState acid; };
+    s32 xEC;
+    grZe_PointerWord xF0;
+    s16 xF4, xF6;
+    u32 xF8;
+    grZe_PointerWord xFC, x100;
+};
+#endif
+
 struct grZebes_GroundVars {
     /*  +0 gp+C4:0 */ u8 x0_b0 : 1;
-    /*  +4 gp+C8 */ u32 x4;
+    /*  +4 gp+C8 */ grZe_PointerWord x4;
     /*  +8 gp+CC */ s16 x8;
     /*  +A gp+CE */ s16 xA;
     /*  +C gp+D0 */ Vec3 xC;
@@ -992,16 +1047,19 @@ struct grZebes_GroundVars4 {
     /* +08 gp+CC */ f32 xCC;
     /* +0C gp+D0 */ f32 xD0;
     /* +10 gp+D4 */ f32 xD4;
-    /* +14 gp+D8 */ u32 xD8;
-    /* +18 gp+DC */ u32 xDC;
-    /* +1C gp+E0 */ u32 xE0;
+    /* +14 gp+D8 */ grZe_PointerWord xD8;
+    /* +18 gp+DC */ grZe_PointerWord xDC;
+    /* +1C gp+E0 */ grZe_PointerWord xE0;
     /* +20 gp+E4 */ s16 xE4;
     /* +22 gp+E6 */ s16 xE6;
     /* +24 gp+E8 */ s32 xE8;
-    /* +28 gp+EC */ u32 xEC;
+    /* +28 gp+EC */ grZe_PointerWord xEC;
 };
 
 struct grZebes_GroundVars5 {
+#ifdef MELEE_NATIVE
+    HSD_LObj* light;
+#endif
     /* +00 gp+C4 */ s16 xC4;
     /* +02 gp+C6 */ s16 xC6;
     /* +04 gp+C8 */ u32 xC8;
@@ -1082,7 +1140,7 @@ struct grRCruise_GroundVars {
     /* +38 gp+FC */ s32 x38;
     /* +3C gp+100 */ struct grRCruise_SubEntry x3C[3];
     /* +6C gp+130 */ struct grRCruise_Entry* entries;
-    /* +70 gp+134 */ struct Map_VanishDesc* vanish;
+    /* +70 gp+134 */ struct Map_VanishEntry* vanish;
     /* +74 gp+138 */ u8 pad_74[0xC];
 };
 
@@ -1163,7 +1221,7 @@ struct grGreens_BlockVars {
     Item_GObj* x10;
     HSD_JObj* x14;
     int x18;
-    int x1C;
+    grGreens_PointerWord x1C;
 };
 ASSERT_SIZE(struct grGreens_BlockVars, 0x20);
 
@@ -1330,7 +1388,11 @@ struct grBigBlue_GroundData {
     /* gp+118 gp+16C gp+1C0 */ s32 x34;
     /* gp+11C gp+170 gp+1C4 */ Vec3 x38;
     /* gp+128 gp+17C gp+1D0 */ Vec3 x44;
+#ifdef MELEE_NATIVE
+    Item_GObj* x50;
+#else
     /* gp+134 gp+188 gp+1DC */ s32 x50;
+#endif
 };
 ASSERT_SIZE(struct grBigBlue_GroundData, 0x54);
 
@@ -1343,6 +1405,17 @@ struct grBigBlue_ManagerVars {
     /* gp+E4 */ struct grBigBlue_GroundData data[3];
 };
 ASSERT_SIZE(struct grBigBlue_ManagerVars, 0x11C);
+
+#ifdef MELEE_NATIVE
+struct grBigBlue_FlyerVars {
+    u8 state;
+    s32 timer;
+    f32 target_rotation;
+    f32 target_height;
+    f32 unused;
+    f32 speed;
+};
+#endif
 
 struct grBigBlue_PlatformVars {
     /* gp+C4 */ u32 xC4;
@@ -1459,6 +1532,9 @@ struct grBigBlue_GroundVars {
             /* pad */ char pad_3[4];
             /* +20 gp+E4 */ struct grBigBlue_GroundData data[3];
         };
+#ifdef MELEE_NATIVE
+        struct grBigBlue_FlyerVars flyer;
+#endif
         struct grBigBlue_ManagerVars manager;
         struct grBigBlue_PlatformVars platform;
         struct grBigBlue_RoadVars road;
@@ -1486,12 +1562,23 @@ struct grBigBlueRoute_Track {
 };
 
 struct grBigBlueRoute_GroundVars2 {
+#ifdef MELEE_NATIVE
+    HSD_GObj* car_gobj;
+#else
     /* +00 gp+C4 */ u8 pad_C4[0xC8 - 0xC4];
+#endif
     /* +04 gp+C8 */ s16 xC8;
     /* +06 gp+CA */ u8 pad_CA[0xCC - 0xCA];
     /* +08 gp+CC */ Vec3 xCC;
     /* +14 gp+D8 */ struct grBigBlueRoute_Track tracks[4];
 };
+
+#ifdef MELEE_NATIVE
+typedef uintptr_t grCastle_PointerWord;
+struct grCastle_ExplosionVars { grCastle_PointerWord xC4, xC8; };
+#else
+typedef u32 grCastle_PointerWord;
+#endif
 
 struct grCastle_GroundVars {
     /*  +0 gp+C4 */ u32 xC4;
@@ -1540,8 +1627,11 @@ struct grCastle_GroundVars7 {
     /* +00 gp+C4 */ s16 xC4;
     /* +02 gp+C6 */ u8 pad_xC6[0xA];
     /* +0C gp+D0 */ HSD_GObj* xD0;
-    /* +10 gp+D4 */ u32 xD4;
-    /* +14 gp+D8 */ s32 xD8;
+    /* +10 gp+D4 */ grCastle_PointerWord xD4;
+    /* +14 gp+D8 */ grCastle_PointerWord xD8;
+#ifdef MELEE_NATIVE
+    s16 native_countdown;
+#endif
 };
 
 struct grCastle_Platform {
@@ -1557,9 +1647,9 @@ struct grCastle_GroundVars8 {
 };
 
 struct grCastle_GroundVars9 {
-    /* +00   gp+C4 */ u32 xC4;
-    /* +04   gp+C8 */ u32 xC8;
-    /* +08   gp+CC */ u32 xCC;
+    /* +00   gp+C4 */ grCastle_PointerWord xC4;
+    /* +04   gp+C8 */ grCastle_PointerWord xC8;
+    /* +08   gp+CC */ grCastle_PointerWord xCC;
     /* +0C   gp+D0 */ u8 pad_xD0[4];
     /* +10   gp+D4 */ s16 xD4;
     /* +12   gp+D6 */ s16 xD6;
@@ -1579,7 +1669,7 @@ struct grCastle_GroundVars10 {
     /* +0C gp+D0 */ HSD_JObj* jobjs[5];
     /* +20 gp+E4 */ HSD_JObj* effect_a[5];
     /* +34 gp+F8 */ HSD_JObj* effect_b[5];
-    /* +48 gp+10C */ u32 x10C[5];
+    /* +48 gp+10C */ grCastle_PointerWord x10C[5];
     /* +5C gp+120 */ s32 x120[5];
     /* +70 gp+134 */ u8 state[5];
     /* +75 gp+139 */ u8 idx[5];
@@ -1598,17 +1688,22 @@ struct grCastle_GroundVars11 {
         u8 b6 : 1;
         u8 b7 : 1;
     } xC4;
+    #ifdef MELEE_NATIVE
+    u8 pad_01[1];
+    s16 xC6;
+#else
     /* +01 gp+C5 */ u8 pad_01[3];
+#endif
     /* +04 gp+C8 */ s16 xC8;
     /* +06 gp+CA */ s16 xCA;
-    /* +08 gp+CC */ u32 xCC;
-    /* +0C gp+D0 */ u32 xD0;
-    /* +10 gp+D4 */ u32 xD4;
-    /* +14 gp+D8 */ u32 xD8;
+    /* +08 gp+CC */ grCastle_PointerWord xCC;
+    /* +0C gp+D0 */ grCastle_PointerWord xD0;
+    /* +10 gp+D4 */ grCastle_PointerWord xD4;
+    /* +14 gp+D8 */ grCastle_PointerWord xD8;
 };
 
 struct grCastle_GroundVars12 {
-    /* +00 gp+C4 */ u32 xC4[3];
+    /* +00 gp+C4 */ grCastle_PointerWord xC4[3];
     /* +0C gp+D0 */ s16 xD0;
     /* +0E gp+D2 */ s16 xD2;
 };
@@ -1649,11 +1744,14 @@ struct grShrineroute_GroundVars {
     /*  +A gp+CE */ u16 xCE;
     /*  +C gp+D0 */ u16 xD0;
     u8 _pad[0xD4 - 0xD2];
-    /* +10 gp+D4 */ u32 xD4;
+    /* +10 gp+D4 */ uintptr_t xD4;
     /* +14 gp+D8 */ struct {
         /* +0 */ Vec3 offset;
         /* +C */ HSD_JObj* jobj;
     } platforms[3];
+#ifdef MELEE_NATIVE
+    HSD_GObj* symbols[6];
+#endif
 };
 
 struct grShrineroute_GroundVars2 {
@@ -1740,8 +1838,8 @@ struct grHomeRun_GroundVars {
 struct grHomeRun_GroundVars2 {
     /* +00 gp+C4 */ u16 xC4;
     /* +02 gp+C6 */ u16 xC6;
-    /* +04 gp+C8 */ int xC8;
-    /* +08 gp+CC */ int xCC;
+    /* +04 gp+C8 */ HSD_Text* xC8;
+    /* +08 gp+CC */ HSD_JObj* xCC;
     /* +0C gp+D0 */ float xD0;
 };
 
@@ -1866,6 +1964,9 @@ struct Ground {
         struct grCastle_GroundVars10 castle10;
         struct grCastle_GroundVars11 castle11;
         struct grCastle_GroundVars12 castle12;
+#ifdef MELEE_NATIVE
+        struct grCastle_ExplosionVars castle_explosion;
+#endif
         struct grCorneria_GroundVars corneria;
         struct grCorneria_GroundVars2 corneria2;
         struct grGreatBay_GroundVars greatbay;
@@ -1937,6 +2038,9 @@ struct Ground {
         struct grZebes_GroundVars3 zebes3;
         struct grZebes_GroundVars4 zebes4;
         struct grZebes_GroundVars5 zebes5;
+#ifdef MELEE_NATIVE
+        struct grZebes_PlatformVars zebes_platform;
+#endif
         struct grStadium_GroundVars stadium;
         struct grStadium_type9_GroundVars stadium9;
         struct grStadium_Display display; ///< Pokemon Stadium jumbotron
@@ -2051,6 +2155,23 @@ struct GroundShadowEntry {
     HSD_LightAnim* unk0;
     u8 flag : 1;
 };
+
+/* map_head joint-to-stage-point mapping; shared by every consumer so pointer
+ * widening cannot give different views of the same array different strides. */
+typedef struct LightOverrideEntry {
+    /* 0x0 */ HSD_LightDesc* desc;
+    /* 0x4 */ u8 a : 1;
+    /* 0x4 */ u8 b : 1;
+    /* 0x4 */ u8 c : 1;
+    /* 0x4 */ u8 _ : 5;
+    /* 0x5 */ u8 _pad[3];
+} LightOverrideEntry;
+
+typedef struct GroundJointMapEntry {
+    HSD_Joint* joint;
+    s16* pairs;
+    s32 pair_count;
+} GroundJointMapEntry;
 
 struct UnkStageDat {
     void* unk0;

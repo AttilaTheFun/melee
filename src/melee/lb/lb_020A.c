@@ -209,11 +209,26 @@ void fn_8002113C(HSD_JObj* jobj, Vec3* axis, f32 angle)
     PSMTXRotAxisRad(rotMtx, (Vec*) &localAxis, -angle);
 
     if (!(jobj->flags & JOBJ_USE_QUATERNION)) {
+#ifdef MELEE_NATIVE
+        /* The quaternion accessor copies four floats; rot holds only three. */
+        HSD_JObjGetRotation(jobj, &rot2);
+        rot.x = rot2.x;
+        rot.y = rot2.y;
+        rot.z = rot2.z;
+#else
         HSD_JObjGetRotation(jobj, (Quaternion*) &rot);
+#endif
         HSD_MkRotationMtx(tmpMtx, &rot);
         PSMTXConcat(tmpMtx, rotMtx, result);
         HSD_QuatLib_8037EB28(result, &rot);
+#ifdef MELEE_NATIVE
+        rot2.x = rot.x;
+        rot2.y = rot.y;
+        rot2.z = rot.z;
+        HSD_JObjSetRotation(jobj, &rot2);
+#else
         HSD_JObjSetRotation(jobj, (Quaternion*) &rot);
+#endif
     } else {
         HSD_JObjGetRotation(jobj, &rot2);
         HSD_MtxQuat(tmpMtx, &rot2);

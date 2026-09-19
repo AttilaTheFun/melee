@@ -7,6 +7,9 @@
 #include "ifcoget.h"
 #include "ifstock.h"
 #include "types.h"
+#ifdef MELEE_NATIVE
+#include "melee_hud.h"
+#endif
 #include <melee/gm/gm_unsplit.h>
 #include <melee/lb/lb_00B0.h>
 #include <melee/lb/lbarchive.h>
@@ -135,6 +138,35 @@ static inline void* jobj_get(HSD_JObj* jobj_r30, UnkX* value, s32 i)
     return value->x54_jobj[i];
 }
 
+#ifdef MELEE_NATIVE
+void melee_hud_death_animation(IfDamageState* state)
+{
+    /* UnkX encodes GameCube offsets; native pointers move the velocity and
+     * joint arrays. Use the owning type, including its named flag. */
+    if (state->flags.randomize_velocity) {
+        for (int i = 0; i < HUD_PLACE_MAX; ++i) {
+            state->velocity_x[i] = foo(0.6083f * HSD_Randf(), 0.3041f);
+            state->velocity_y[i] = 0.811f * HSD_Randf() + 1.2165f;
+        }
+        state->flags.randomize_velocity = 0;
+        return;
+    }
+    for (int i = 0; i < HUD_PLACE_MAX; ++i) {
+        HSD_JObj* joint = state->jobjs[i];
+        HSD_ASSERT(__LINE__, joint);
+        if (fabsf_bitwise(joint->translate.x) < 100.0f) {
+            joint->translate.x += state->velocity_x[i];
+            jobj_flagCheckSetMtxDirtySub(joint);
+        }
+        if (joint->translate.y > -100.0f) {
+            joint->translate.y += state->velocity_y[i];
+            jobj_flagCheckSetMtxDirtySub(joint);
+            state->velocity_y[i] -= 0.2028f;
+        }
+    }
+}
+#endif
+
 void ifStatus_PercentOnDeathAnimationThink(UnkX* value, s32 arg1, s32 arg2)
 {
     s32 i;
@@ -231,6 +263,19 @@ void ifStatus_802F4B84(IfDamageState* state, s32 is_stamina)
     PAD_STACK(8);
 }
 
+/* The descriptor table contains material animations, even though the retail
+ * code traverses it through animation-joint aliases. Pointer-sized fields in
+ * HSD_MatAnim and HSD_AObjDesc no longer share offsets on native builds. */
+static HSD_TexAnim* ifStatus_DigitTextureAnim(void* table)
+{
+#ifdef MELEE_NATIVE
+    return ((HSD_MatAnimJoint**) table)[0]->child->matanim->texanim;
+#else
+    return (HSD_TexAnim*) ((HSD_AnimJoint*) table)
+        ->child->child->aobjdesc->fobjdesc;
+#endif
+}
+
 static inline void ifStatus_InitDamageDigits(IfDamageState* state,
                                              HSD_MatAnimJoint** anim_base)
 {
@@ -242,24 +287,21 @@ static inline void ifStatus_InitDamageDigits(IfDamageState* state,
     ones_jobj = state->jobjs[Ones];
     digit = state->damage_percent % 10;
     HSD_TObjAddAnimAll(ones_jobj->u.dobj->mobj->tobj,
-                       (HSD_TexAnim*) ((HSD_AnimJoint*) anim_base[0])
-                           ->child->child->aobjdesc->fobjdesc);
+                       ifStatus_DigitTextureAnim(anim_base[0]));
     HSD_TObjReqAnimAll(ones_jobj->u.dobj->mobj->tobj, 2.0F * digit);
     HSD_AObjSetRate(ones_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
 
     tens_jobj = state->jobjs[Tens];
     digit = (state->damage_percent % 100) / 10;
     HSD_TObjAddAnimAll(tens_jobj->u.dobj->mobj->tobj,
-                       (HSD_TexAnim*) ((HSD_AnimJoint*) anim_base[0])
-                           ->child->child->aobjdesc->fobjdesc);
+                       ifStatus_DigitTextureAnim(anim_base[0]));
     HSD_TObjReqAnimAll(tens_jobj->u.dobj->mobj->tobj, 2.0F * digit);
     HSD_AObjSetRate(tens_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
 
     hundreds_jobj = state->jobjs[Hundreds];
     digit = (state->damage_percent % 1000) / 100;
     HSD_TObjAddAnimAll(hundreds_jobj->u.dobj->mobj->tobj,
-                       (HSD_TexAnim*) ((HSD_AnimJoint*) anim_base[0])
-                           ->child->child->aobjdesc->fobjdesc);
+                       ifStatus_DigitTextureAnim(anim_base[0]));
     HSD_TObjReqAnimAll(hundreds_jobj->u.dobj->mobj->tobj, 2.0F * digit);
     HSD_AObjSetRate(hundreds_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
 }
@@ -402,7 +444,11 @@ void ifStatus_802F4EDC(HSD_GObj* gobj)
 
     /* Check for death animation flag (bit 7 of flags byte at offset 0x10) */
     if (state->flags.explode_animation) {
+#ifdef MELEE_NATIVE
+        melee_hud_death_animation(state);
+#else
         ifStatus_PercentOnDeathAnimationThink((UnkX*) state, i, (u32) ptr);
+#endif
         return;
     }
 
@@ -425,10 +471,17 @@ void ifStatus_802F4EDC(HSD_GObj* gobj)
         digit_jobj = state->jobjs[Percent];
         if (digit_jobj != NULL) {
             tobj = digit_jobj->u.dobj->mobj->tobj;
+#ifdef MELEE_NATIVE
+            HSD_MatAnimJoint** materials =
+                (HSD_MatAnimJoint**) hud->janim_selection_joints;
+            HSD_TObjAddAnimAll(
+                tobj, materials[0]->child->next->next->next->matanim->texanim);
+#else
             HSD_TObjAddAnimAll(
                 tobj,
                 (HSD_TexAnim*) ((HSD_AnimJoint*) anim_base[0])
                     ->child->child->next->next->next->aobjdesc->fobjdesc);
+#endif
             if (Player_GetMoreFlagsBit2((s8) state->player_slot)) {
                 HSD_TObjReqAnimAll(tobj, 1.0F);
             } else {
@@ -452,7 +505,7 @@ void ifStatus_802F4EDC(HSD_GObj* gobj)
         digit = state->damage_percent % 10;
         HSD_TObjAddAnimAll(
             post_digit_jobj->u.dobj->mobj->tobj,
-            (HSD_TexAnim*) anim_joints[0]->child->child->aobjdesc->fobjdesc);
+            ifStatus_DigitTextureAnim(anim_joints[0]));
         HSD_TObjReqAnimAll(post_digit_jobj->u.dobj->mobj->tobj, 2.0F * digit);
         HSD_AObjSetRate(post_digit_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
 
@@ -460,7 +513,7 @@ void ifStatus_802F4EDC(HSD_GObj* gobj)
         digit = (state->damage_percent % 100) / 10;
         HSD_TObjAddAnimAll(
             post_digit_jobj->u.dobj->mobj->tobj,
-            (HSD_TexAnim*) anim_joints[0]->child->child->aobjdesc->fobjdesc);
+            ifStatus_DigitTextureAnim(anim_joints[0]));
         HSD_TObjReqAnimAll(post_digit_jobj->u.dobj->mobj->tobj, 2.0F * digit);
         HSD_AObjSetRate(post_digit_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
 
@@ -476,7 +529,7 @@ void ifStatus_802F4EDC(HSD_GObj* gobj)
         digit = (state->damage_percent % 1000) / 100;
         HSD_TObjAddAnimAll(
             post_digit_jobj->u.dobj->mobj->tobj,
-            (HSD_TexAnim*) anim_joints[0]->child->child->aobjdesc->fobjdesc);
+            ifStatus_DigitTextureAnim(anim_joints[0]));
         HSD_TObjReqAnimAll(post_digit_jobj->u.dobj->mobj->tobj, 2.0F * digit);
         HSD_AObjSetRate(post_digit_jobj->u.dobj->mobj->tobj->aobj, 0.0F);
     }
@@ -715,9 +768,14 @@ HSD_GObj* ifStatus_802F5EC0(IfDamageState* state, s32 player_idx)
     }
     if (state->jobjs[3] != NULL) {
         tobj = state->jobjs[3]->u.dobj->mobj->tobj;
+#ifdef MELEE_NATIVE
+        HSD_MatAnimJoint** materials=(HSD_MatAnimJoint**)hud->janim_selection_joints;
+        HSD_TObjAddAnimAll(tobj,materials[0]->child->next->next->next->matanim->texanim);
+#else
         HSD_TObjAddAnimAll(
             tobj, (HSD_TexAnim*) ((HSD_AnimJoint*) anim_base[0])
                       ->child->child->next->next->next->aobjdesc->fobjdesc);
+#endif
         if (Player_GetMoreFlagsBit2((s8) state->player_slot) != 0) {
             HSD_TObjReqAnimAll(tobj, 1.0f);
         } else {
@@ -735,6 +793,14 @@ HSD_GObj* ifStatus_802F5EC0(IfDamageState* state, s32 player_idx)
 
 HSD_GObj* ifStatus_802F6194(HSD_GObj* node, s32 n)
 {
+#ifdef MELEE_NATIVE
+    /* The console decompilation aliases JObj fields through GObj offsets. */
+    HSD_JObj* joint=(HSD_JObj*)node;
+    if(!joint||n<0)return NULL;
+    joint=joint->child;
+    while(joint&&n--)joint=joint->next;
+    return (HSD_GObj*)joint;
+#else
     HSD_GObj* gx_head;
     HSD_GObj* gx_next;
     HSD_GObj* gx_cur;
@@ -768,8 +834,12 @@ check_done:
         goto advance_node;
     }
     return gx_cur;
+#endif
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void ifStatus_CreateMarkGObj(HSD_GObj** gobj)
 {
     *gobj = GObj_Create(0xE, 0xF, 0);
@@ -912,7 +982,7 @@ void ifStatus_802F66A4(void)
         if (reset != 0) {
 #endif
             ifStatus_804D6D60 = 0;
-            memzero(hud, 0x258);
+            memzero(hud->players, sizeof(hud->players));
 #ifdef MUST_MATCH
         }
     }

@@ -1,11 +1,10 @@
 #include "hsd_3A94.h"
 
 #include "hsd_3B2B.h"
+#include "hsd_3B27.h"
 #include "hsd_3B2E.h"
 
-#ifdef MUST_MATCH
 #include <stddef.h>
-#endif
 #include <string.h>
 
 #include <dolphin/card.h>
@@ -20,9 +19,9 @@ typedef struct {
 } __baselib_UnkType003;
 
 typedef struct CardBufEntry {
-    s32 x0, x4, x8, xC;
-    s32 x10;
-    s32 x14, x18, x1C, x20;
+    HSD_CardWord x0, x4, x8, xC;
+    HSD_CardWord x10;
+    HSD_CardWord x14, x18, x1C, x20;
 } CardBufEntry;
 
 typedef struct CardBlock {
@@ -35,21 +34,21 @@ typedef struct CardBlock {
 } CardBlock;
 
 typedef struct CardCmd {
-    /* 0x00 */ s32 type;
+    /* 0x00 */ HSD_CardWord type;
     /* 0x04 */ CardState* state;
-    /* 0x08 */ s32 x8;
-    /* 0x0C */ s32 xC;
-    /* 0x10 */ s32 x10;
-    /* 0x14 */ s32 x14;
+    /* 0x08 */ HSD_CardWord x8;
+    /* 0x0C */ HSD_CardWord xC;
+    /* 0x10 */ HSD_CardWord x10;
+    /* 0x14 */ HSD_CardWord x14;
     /* 0x18 */ void* x18;
-    /* 0x1C */ s32 x1C;
-    /* 0x20 */ s32 x20;
+    /* 0x1C */ HSD_CardWord x1C;
+    /* 0x20 */ HSD_CardWord x20;
 } CardCmd;
 
 /// Stack staging slot for one queued command.
 typedef union CardCmdBuf {
     CardCmd cmd;
-    s32 words[10];
+    HSD_CardWord words[10];
 } CardCmdBuf;
 
 #ifdef MUST_MATCH
@@ -62,35 +61,29 @@ typedef union CardCmdStorage {
     storage.words[(offsetof(CardCmd, member) - adjustment) / sizeof(s32)]
 #endif
 
-typedef struct HsdCmdEntry {
-    s32 type;
-    s32 f1;
-    s32 f2;
-    s32 f3;
-    s32 f4;
-    s32 f5;
-} HsdCmdEntry;
 
 typedef struct CardContext {
-    /* 0x0000 */ s32 x0;
+    /* 0x0000 */ HSD_CardWord x0;
     /* 0x0004 */ CardState* x4;
     /* 0x0008 */ void (*x8)(s32, s32);
-    /* 0x000C */ s32 xC;
+    /* 0x000C */ HSD_CardWord xC;
     /* 0x0010 */ CardCmd x10[128];
     /* 0x1210 */ HsdCmdEntry x1210[32];
 } CardContext;
 
-typedef struct CardQueueEntry {
-    /* 0x00 */ s32 x0;
-    /* 0x04 */ s32 x4;
-    /* 0x08 */ s32 x8;
-    /* 0x0C */ s32 xC;
-    /* 0x10 */ s32 x10;
-    /* 0x14 */ void (*x14)(s32, s32);
-} CardQueueEntry;
+typedef HsdCmdEntry CardQueueEntry;
 
 #define CMD_S32(off)                                                          \
     (((CardBufEntry*) ((unsigned char*) op + (off)))[hsd_804D7980].x0)
+#ifdef MELEE_NATIVE
+#undef CMD_S32
+#define CMD_S32(off) (((HSD_CardWord*) op)[(off)/4 + hsd_804D7980*9])
+_Static_assert(sizeof(CardCmd)==9*sizeof(HSD_CardWord), "Native command stride");
+_Static_assert(offsetof(CardContext,x10)==4*sizeof(HSD_CardWord), "Native context prefix");
+#define CARD_STAGING_WORDS 9
+#else
+#define CARD_STAGING_WORDS 8
+#endif
 #define CMD_STATE ((CardState*) CMD_S32(0x14))
 #define CMD_PTR(off) ((void*) CMD_S32(off))
 #define CMD_TYPE (op[hsd_804D7980].x10)
@@ -110,6 +103,11 @@ typedef struct CardQueueEntry {
 /* 4D798C */ extern s32 hsd_804D798C;
 /* 4D7998 */ extern s32 hsd_804D7998;
 /* 4D799C */ extern s32 hsd_804D799C;
+#ifdef MELEE_NATIVE
+#define hsd_804D1138 ((u8*) &hsd_native_card_commands)
+#define hsd_804D1148 hsd_native_card_commands.commands
+#endif
+
 /// .sbss globals emit in reverse declaration order.
 /* 4D79C8 */ u8 hsd_804D79C8;
 /* 4D79C4 */ s32 hsd_804D79C4;
@@ -185,7 +183,7 @@ void hsd_803A949C(s32 chan, s32 arg1)
                     break;
                 }
                 if (CMD_PTR(0x28) != NULL) {
-                    u8* src = (u8*) (offset + (u32) state->x0);
+                    u8* src = state->x0 + offset;
                     memcpy(CMD_PTR(0x28), src + 0x20, CMD_S32(0x30));
                 }
             }
@@ -250,7 +248,11 @@ void hsd_803A949C(s32 chan, s32 arg1)
             }
             result = hsd_804D7980;
             block = state->x0 + offset;
+#ifdef MELEE_NATIVE
+            result = ((HSD_CardWord*) op)[8 + result * 9];
+#else
             result = ((CardBufEntry*) ((u8*) op + 0x20))[result].x0;
+#endif
             if (((block[0x10] << 8) | block[0x11]) != result) {
                 hsd_804D7988 = 2;
             } else if ((s32) block[0x12] != CMD_S32(0x24)) {
@@ -559,7 +561,7 @@ void hsd_803A949C(s32 chan, s32 arg1)
             } else {
                 state->x270[slot] = state->x0[offset13 + 0x12];
                 {
-                    u8* src13 = (u8*) (offset13 + (u32) state->x0);
+                    u8* src13 = state->x0 + offset13;
                     hsd_803AC558(state, src13 + 0x13);
                 }
             }
@@ -586,15 +588,19 @@ void hsd_803A949C(s32 chan, s32 arg1)
     hsd_804D7980 = (hsd_804D7980 + 1) % 128;
 }
 
-#define CMD_QUEUE(base) ((HsdCmdEntry*) ((base) + 0x1210))
+#define CMD_QUEUE(base) HSD_CARD_REQUESTS(base)
 
 s32 fn_803AA790(void)
 {
     CardQueueEntry* entry;
     s32 result;
-    s32 arg0;
+    HSD_CardWord arg0;
 
+#ifdef MELEE_NATIVE
+    entry = &hsd_native_card_requests[hsd_804D7990];
+#else
     entry = &((CardQueueEntry*) &hsd_804D2348)[hsd_804D7990];
+#endif
     arg0 = entry->x4;
     hsd_804D7990 = (hsd_804D7990 + 1) % 32;
 
@@ -610,19 +616,19 @@ s32 fn_803AA790(void)
         entry->x0 = 0;
         return result;
     case 2:
-        switch (((s32*) (arg0 + 0x28))[entry->x8]) {
+        switch (((CardState*) arg0)->x28[entry->x8]) {
         case 0:
             result = fn_803AE7F8((struct CardState*) entry->x4, entry->x8,
-                                 entry->xC, 1, (s32) entry->x14);
+                                 entry->xC, 1, (HSD_CardWord) entry->x14);
             break;
         case 1:
         case 2:
             result = fn_803AF3F0((CardState*) entry->x4, entry->x8, entry->xC,
-                                 1, (s32) entry->x14);
+                                 1, (HSD_CardWord) entry->x14);
             break;
         case 3:
             result = fn_803B0120((CardState*) entry->x4, entry->x8, entry->xC,
-                                 1, (s32) entry->x14);
+                                 1, (HSD_CardWord) entry->x14);
             break;
         default:
             result = -0x101;
@@ -637,7 +643,7 @@ s32 fn_803AA790(void)
         return result;
     case 3:
         result = fn_803B1F78((CardState*) entry->x4, entry->x8, entry->xC,
-                             entry->x10, (s32) entry->x14);
+                             entry->x10, (HSD_CardWord) entry->x14);
         if (result < 0) {
             if (entry->x14 != NULL) {
                 entry->x14(0, result);
@@ -647,7 +653,7 @@ s32 fn_803AA790(void)
         return result;
     case 4:
         result =
-            fn_803B21E8(entry->x4, entry->xC, entry->x10, (s32) entry->x14);
+            fn_803B21E8(entry->x4, entry->xC, entry->x10, (HSD_CardWord) entry->x14);
         if (result < 0) {
             if (entry->x14 != NULL) {
                 entry->x14(0, result);
@@ -656,7 +662,7 @@ s32 fn_803AA790(void)
         entry->x0 = 0;
         return result;
     case 5:
-        result = fn_803ADE4C(arg0, entry->x8, (s32) entry->x14);
+        result = fn_803ADE4C(arg0, entry->x8, (HSD_CardWord) entry->x14);
         if (result < 0) {
             if (entry->x14 != NULL) {
                 entry->x14(0, result);
@@ -814,7 +820,7 @@ static inline s32 retryCardSetStatusAsync(s32 chan, s32 file_no,
 
     return result;
 }
-static inline int setupCardIcons(const s32* cmd)
+static inline int setupCardIcons(const HSD_CardWord* cmd)
 {
     u32 bit;
     s32 k;
@@ -831,7 +837,7 @@ static inline int setupCardIcons(const s32* cmd)
     }
     return k;
 }
-static inline void unpackCardStat(const s32* cmd, CARDStat* stat)
+static inline void unpackCardStat(const HSD_CardWord* cmd, CARDStat* stat)
 {
     s32 k;
 
@@ -860,8 +866,8 @@ static inline void rollbackCardCommands(CardContext* context, s32 snap)
     hsd_804D7984 = snap;
 }
 static inline void initHeaderBlockCommand(CardCmd* buf, CardState* state,
-                                          u32 block, s32 file_id, s32 seq_num,
-                                          s32 version)
+                                          u32 block, HSD_CardWord file_id, HSD_CardWord seq_num,
+                                          HSD_CardWord version)
 {
     buf->type = 11;
     buf->state = state;
@@ -870,16 +876,16 @@ static inline void initHeaderBlockCommand(CardCmd* buf, CardState* state,
     buf->x10 = seq_num;
     buf->x14 = version;
 }
-static inline s32 queueHeaderBlock(CardState* state, u32 block, s32 file_id,
-                                   s32 seq_num, s32 version)
+static inline s32 queueHeaderBlock(CardState* state, u32 block, HSD_CardWord file_id,
+                                   HSD_CardWord seq_num, HSD_CardWord version)
 {
-    CardCmd buf;
+    CardCmd buf = {0};
 
     initHeaderBlockCommand(&buf, state, block, file_id, seq_num, version);
-    return fn_803AC168((s32*) &buf);
+    return fn_803AC168((HSD_CardWord*) &buf);
 }
-static inline s32 queueHeaderBlocks(CardState* state, s32 file_id, s32 seq_num,
-                                    s32 version)
+static inline s32 queueHeaderBlocks(CardState* state, HSD_CardWord file_id, HSD_CardWord seq_num,
+                                    HSD_CardWord version)
 {
     u32 i;
     int result;
@@ -900,7 +906,7 @@ void hsd_803AAA48(void)
     while (1) {
         CardContext* ctx = (CardContext*) hsd_804D1138;
         CardState** state = &ctx->x4;
-        s32* cmd;
+        HSD_CardWord* cmd;
         s32 type;
         BOOL intr = OSDisableInterrupts();
         BOOL intr2;
@@ -922,7 +928,7 @@ void hsd_803AAA48(void)
             }
         }
 
-        cmd = (s32*) &((CardBufEntry*) ctx)[hsd_804D7980];
+        cmd = (HSD_CardWord*) &((CardBufEntry*) ctx)[hsd_804D7980];
         type = *(cmd += 4);
 
         switch ((u32) type) {
@@ -1429,7 +1435,7 @@ void hsd_803AAA48(void)
     }
 }
 
-s32 fn_803AC168(s32* cmd_buf)
+s32 fn_803AC168(HSD_CardWord* cmd_buf)
 {
     BOOL state;
     s32 mode;
@@ -1464,7 +1470,7 @@ s32 fn_803AC168(s32* cmd_buf)
 
 s32 fn_803AC258(CardState* card_state, s32 block_idx)
 {
-    CardCmd buf;
+    CardCmd buf = {0};
     buf.type = 13;
     buf.state = card_state;
     buf.x10 = block_idx;
@@ -1472,15 +1478,15 @@ s32 fn_803AC258(CardState* card_state, s32 block_idx)
     buf.x18 = NULL;
     buf.x20 = 0;
     buf.x1C = fn_803ACBE8(card_state, block_idx);
-    return fn_803AC168((s32*) &buf);
+    return fn_803AC168((HSD_CardWord*) &buf);
 }
 
 s32 fn_803AC2A4(CardState* card_state)
 {
-    CardCmd buf;
+    CardCmd buf = {0};
     buf.type = 14;
     buf.state = card_state;
-    return fn_803AC168((s32*) &buf);
+    return fn_803AC168((HSD_CardWord*) &buf);
 }
 
 void fn_803AC2D4(void)
@@ -1713,7 +1719,7 @@ s32 fn_803AC6B8(struct CardState* file_desc, s32 file_count)
 static inline s32 fn_803AC6B8_blocks_before(struct CardState* file_desc,
                                             s32 file_count)
 {
-    u8* total;
+    s32 total;
     s32 i;
 
     if (file_count >= 9) {
@@ -1723,17 +1729,16 @@ static inline s32 fn_803AC6B8_blocks_before(struct CardState* file_desc,
         return 0;
     }
 
-    total = (u8*) 1;
+    total = 1;
     if (file_desc->x4C[0] > 0) {
-        total = (u8*) &((CardState*) fn_803AC634(file_desc, 0))->x8;
-        total -= 8;
+        total = fn_803AC634(file_desc, 0);
     }
 
     for (i = 1; i < file_count; i++) {
         total += fn_803AC634(file_desc, i);
     }
 
-    return (s32) total;
+    return total;
 }
 
 static inline s32 fn_803AC7DC_block_count(struct CardState* file_state,
@@ -2010,7 +2015,7 @@ s32 fn_803ACD58(CardState* state, void* icon_data, void* file_data)
 
 s32 fn_803ACF30(CardState* state, s32 file_id, s32 seq_num, s32 version)
 {
-    CardCmd buf;
+    CardCmd buf = {0};
     s32 ret;
     u32 i;
     PAD_STACK(4);
@@ -2022,7 +2027,7 @@ s32 fn_803ACF30(CardState* state, s32 file_id, s32 seq_num, s32 version)
         buf.xC = file_id;
         buf.x10 = seq_num;
         buf.x14 = version;
-        ret = fn_803AC168((s32*) &buf);
+        ret = fn_803AC168((HSD_CardWord*) &buf);
         if (ret < 0) {
             return ret;
         }
@@ -2034,7 +2039,7 @@ typedef u8* CardSectorPtr;
 
 static inline u8* fn_803ACFC0_header(CardState* state, s32 hdr_offset)
 {
-    return (CardSectorPtr) (hdr_offset + (s32) state->x0);
+    return state->x0 + hdr_offset;
 }
 
 static inline u8* fn_803ACFC0_checksum_start(s32 hdr_offset, CardState* state)
@@ -2090,7 +2095,7 @@ s32 fn_803ACFC0(CardState* state, s32 block_idx, s32 file_id, s32 seq_num,
         s32 remaining = (state->x8 - hdr_offset) - payload_size - 0x20;
         if (remaining != 0) {
             s32 off = payload_size + 0x20;
-            s32 addr = (s32) state->x0;
+            HSD_CardWord addr = (HSD_CardWord) state->x0;
             memset((CardSectorPtr) (hdr_offset + off + addr), 0, remaining);
         }
     }
@@ -2154,7 +2159,7 @@ static inline int fn_803AD16C_nonnegative(s32 logical)
     return logical >= 0;
 }
 
-static inline s32 fn_803AD16C_queue_cmd(s32* cmd)
+static inline s32 fn_803AD16C_queue_cmd(HSD_CardWord* cmd)
 {
     return fn_803AC168(cmd);
 }
@@ -2172,10 +2177,10 @@ static inline void fn_803AD16C_own(void* value)
 static inline s32 fn_803AD16C_queue_clear(CardState* state, s32 block, s32 pad,
                                           s32 file_id)
 {
-    s32 cmd[9];
+    HSD_CardWord cmd[9] = {0};
 
     cmd[0] = 1;
-    cmd[1] = (s32) state;
+    cmd[1] = (HSD_CardWord) state;
     cmd[3] = block;
     cmd[4] = 0xFFFF;
     cmd[5] = 0;
@@ -2188,7 +2193,7 @@ static inline s32 fn_803AD16C_queue_clear(CardState* state, s32 block, s32 pad,
 
 static inline s32 fn_803AD16C_queue_read(CardState* state, s32 block)
 {
-    s32 cmd[8];
+    HSD_CardWord cmd[CARD_STAGING_WORDS] = {0};
     u32 size = state->x8;
     u32 temp = state->x24 + size;
     u32 num = temp + 0x2F;
@@ -2201,7 +2206,7 @@ static inline s32 fn_803AD16C_queue_read(CardState* state, s32 block)
     pad = size * idx;
 
     cmd[0] = 0xF;
-    cmd[1] = (s32) state;
+    cmd[1] = (HSD_CardWord) state;
     cmd[3] = block;
     cmd[7] = pad;
     return fn_803AC168(cmd);
@@ -2210,7 +2215,7 @@ static inline s32 fn_803AD16C_queue_read(CardState* state, s32 block)
 static inline s32 fn_803AD16C_queue_write(CardState* state, s32 block,
                                           s32 logical, s32 target_seq)
 {
-    s32 cmd[8];
+    HSD_CardWord cmd[CARD_STAGING_WORDS] = {0};
     u32 size = state->x8;
     u32 temp = state->x24 + size;
     u32 num = temp + 0x2F;
@@ -2223,7 +2228,7 @@ static inline s32 fn_803AD16C_queue_write(CardState* state, s32 block,
     pad = size * idx;
 
     cmd[0] = 0x10;
-    cmd[1] = (s32) state;
+    cmd[1] = (HSD_CardWord) state;
     cmd[3] = block;
     cmd[4] = logical;
     cmd[5] = target_seq;
@@ -2235,7 +2240,7 @@ static inline s32 fn_803AD16C_queue_write_last(CardState* state, s32 block,
                                                s32 logical, s32 target_seq)
 {
     s32 tail[2];
-    s32 cmd[8];
+    HSD_CardWord cmd[CARD_STAGING_WORDS] = {0};
     u32 size = state->x8;
     u32 temp = state->x24 + size;
     u32 num = temp + 0x2F;
@@ -2248,7 +2253,7 @@ static inline s32 fn_803AD16C_queue_write_last(CardState* state, s32 block,
     pad = size * idx;
 
     cmd[0] = 0x10;
-    cmd[1] = (s32) state;
+    cmd[1] = (HSD_CardWord) state;
     cmd[3] = block;
     cmd[4] = logical;
     cmd[5] = target_seq;
@@ -2502,10 +2507,10 @@ s32 fn_803AD16C(CardState* state)
     return result;
 }
 
-s32 fn_803ADE4C(s32 card_state, s32 channel, s32 callback)
+s32 fn_803ADE4C(HSD_CardWord card_state, s32 channel, HSD_CardWord callback)
 {
-    CardCmd buf1;
-    CardCmd buf2;
+    CardCmd buf1 = {0};
+    CardCmd buf2 = {0};
     s32 result;
     s32 saved;
     s32 snap;
@@ -2518,7 +2523,7 @@ s32 fn_803ADE4C(s32 card_state, s32 channel, s32 callback)
     buf1.type = 12;
     buf1.state = (CardState*) card_state;
     buf1.x8 = channel;
-    result = fn_803AC168((s32*) &buf1);
+    result = fn_803AC168((HSD_CardWord*) &buf1);
     if (result < 0) {
         snap1 = hsd_804D7998;
         if (snap1 >= 0) {
@@ -2534,7 +2539,7 @@ s32 fn_803ADE4C(s32 card_state, s32 channel, s32 callback)
 
     buf2.type = 17;
     buf2.state = (CardState*) card_state;
-    result = fn_803AC168((s32*) &buf2);
+    result = fn_803AC168((HSD_CardWord*) &buf2);
     if (result < 0) {
         snap = hsd_804D7998;
         if (snap >= 0) {
@@ -2559,7 +2564,7 @@ s32 fn_803ADE4C(s32 card_state, s32 channel, s32 callback)
 static inline s32 queueCardCommand2First(CardState* state, s32 block,
                                          void* data, s32 length, s32 offset)
 {
-    CardCmd command;
+    CardCmd command = {0};
 
     command.type = 2;
     command.state = state;
@@ -2568,7 +2573,7 @@ static inline s32 queueCardCommand2First(CardState* state, s32 block,
     command.x18 = data;
     command.x20 = length;
     command.x1C = offset;
-    return fn_803AC168((s32*) &command);
+    return fn_803AC168((HSD_CardWord*) &command);
 }
 
 static inline s32 queueCardCommand2Final(CardState* state, s32 block,
@@ -2582,15 +2587,15 @@ static inline s32 queueCardCommand2Final(CardState* state, s32 block,
     /// these stack displacements. This still addresses before the C object;
     /// reproduce that stack coloring and remove the matching-only adjustment.
     MATCH_CARD_CMD_FIELD(storage, type, 0x1C) = 2;
-    MATCH_CARD_CMD_FIELD(storage, state, 0x1C) = (s32) state;
+    MATCH_CARD_CMD_FIELD(storage, state, 0x1C) = (HSD_CardWord) state;
     MATCH_CARD_CMD_FIELD(storage, x10, 0x1C) = block;
     MATCH_CARD_CMD_FIELD(storage, x14, 0x1C) = 0;
     MATCH_CARD_CMD_FIELD(storage, x18, 0x1C) = (s32) data;
     MATCH_CARD_CMD_FIELD(storage, x20, 0x1C) = length;
     MATCH_CARD_CMD_FIELD(storage, x1C, 0x1C) = offset;
-    return fn_803AC168((s32*) ((u8*) storage.words - 0x1C));
+    return fn_803AC168((HSD_CardWord*) ((u8*) storage.words - 0x1C));
 #else
-    CardCmd command;
+    CardCmd command = {0};
 
     command.type = 2;
     command.state = state;
@@ -2599,7 +2604,7 @@ static inline s32 queueCardCommand2Final(CardState* state, s32 block,
     command.x18 = data;
     command.x20 = length;
     command.x1C = offset;
-    return fn_803AC168((s32*) &command);
+    return fn_803AC168((HSD_CardWord*) &command);
 #endif
 }
 
@@ -2679,16 +2684,16 @@ static inline s32 queueClearDataBlock(CardState* state, const u8* dst,
     /// these stack displacements. This still addresses before the C object;
     /// reproduce that stack coloring and remove the matching-only adjustment.
     MATCH_CARD_CMD_FIELD(storage, type, 0x5C) = 4;
-    MATCH_CARD_CMD_FIELD(storage, state, 0x5C) = (s32) state;
+    MATCH_CARD_CMD_FIELD(storage, state, 0x5C) = (HSD_CardWord) state;
     MATCH_CARD_CMD_FIELD(storage, x10, 0x5C) = 0;
     MATCH_CARD_CMD_FIELD(storage, x14, 0x5C) = 0;
     MATCH_CARD_CMD_FIELD(storage, x18, 0x5C) = (s32) dst;
     MATCH_CARD_CMD_FIELD(storage, x20, 0x5C) = size;
     MATCH_CARD_CMD_FIELD(storage, x1C, 0x5C) = 0;
     MATCH_CARD_CMD_FIELD(storage, x8, 0x5C) = 0;
-    return fn_803AC168((s32*) ((u8*) storage.words - 0x5C));
+    return fn_803AC168((HSD_CardWord*) ((u8*) storage.words - 0x5C));
 #else
-    CardCmd command;
+    CardCmd command = {0};
 
     command.type = 4;
     command.state = state;
@@ -2698,7 +2703,7 @@ static inline s32 queueClearDataBlock(CardState* state, const u8* dst,
     command.x20 = size;
     command.x1C = 0;
     command.x8 = 0;
-    return fn_803AC168((s32*) &command);
+    return fn_803AC168((HSD_CardWord*) &command);
 #endif
 }
 
@@ -2977,8 +2982,8 @@ s32 fn_803ADF90(struct CardState* arg0, s32 arg1, u8* arg2, s32 arg3,
         }
     } else {
         entries[0].x0 = 1;
-        entries[0].x4 = (s32) arg0;
-        entries[0].x8 = (s32) arg4;
+        entries[0].x4 = (HSD_CardWord) arg0;
+        entries[0].x8 = (HSD_CardWord) arg4;
         entries[0].xC = arg1;
         hsd_804D7998 = -1;
     }
@@ -3017,13 +3022,13 @@ static inline void fn_803AE7F8_close(CardState* state)
     }
 }
 
-s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
+s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, HSD_CardWord arg2, s32 arg3, HSD_CardWord arg4)
 {
     CardState* state = arg0;
     CardBufEntry* entries = (CardBufEntry*) hsd_804D1138;
     s32 block_map[3][64];
     UNUSED u8 pad_block_map[32];
-    CardCmd cmd_done;
+    CardCmd cmd_done = {0};
     s32* block_map_ptr;
     s32 blocks_before;
     s32 current_seq;
@@ -3174,7 +3179,7 @@ s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                                 cmd_result = 0;
                             } else {
                                 s32 ofs = fn_803ACBE8(arg0, phys);
-                                CardCmd cmd;
+                                CardCmd cmd = {0};
 
                                 cmd.type = 5;
                                 cmd.state = arg0;
@@ -3183,7 +3188,7 @@ s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                                 cmd.x18 = data;
                                 cmd.x20 = chunk;
                                 cmd.x1C = ofs;
-                                cmd_result = fn_803AC168((s32*) &cmd);
+                                cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
                             }
                             if (cmd_result < 0) {
                                 fn_803AE7F8_rewind(entries);
@@ -3216,7 +3221,7 @@ s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                                 cmd_result = 0;
                             } else {
                                 s32 ofs = fn_803ACBE8(arg0, phys);
-                                CardCmd cmd;
+                                CardCmd cmd = {0};
 
                                 cmd.type = 5;
                                 cmd.state = arg0;
@@ -3225,7 +3230,7 @@ s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                                 cmd.x18 = data;
                                 cmd.x20 = remaining;
                                 cmd.x1C = ofs;
-                                cmd_result = fn_803AC168((s32*) &cmd);
+                                cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
                             }
                             if (cmd_result < 0) {
                                 fn_803AE7F8_rewind(entries);
@@ -3254,7 +3259,7 @@ s32 fn_803AE7F8(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
 
             cmd_done.type = 6;
             cmd_done.state = arg0;
-            cmd_result = fn_803AC168((s32*) &cmd_done);
+            cmd_result = fn_803AC168((HSD_CardWord*) &cmd_done);
             if (cmd_result < 0) {
                 fn_803AE7F8_rewind(entries);
                 return cmd_result;
@@ -3295,9 +3300,9 @@ after_verify:
                         if (arg3 != 0) {
                             s32 zero;
                             s32 cmd_result;
-                            CardCmd init_cmd;
+                            CardCmd init_cmd = {0};
                             s32 ofs;
-                            CardCmd cmd;
+                            CardCmd cmd = {0};
 
                             ofs = fn_803ACBE8(arg0, phys);
                             if (phys == 0) {
@@ -3310,10 +3315,10 @@ after_verify:
                                 init_cmd.state = arg0;
                                 init_cmd.x10 = zero;
                                 init_cmd.x14 = zero;
-                                init_cmd.x18 = (void*) zero;
+                                init_cmd.x18 = NULL;
                                 init_cmd.x20 = zero;
                                 init_cmd.x1C = ofs;
-                                fn_803AC168((s32*) &init_cmd);
+                                fn_803AC168((HSD_CardWord*) &init_cmd);
                             }
                             cmd.type = 1;
                             cmd.state = arg0;
@@ -3324,7 +3329,7 @@ after_verify:
                             cmd.x20 = chunk;
                             cmd.x1C = ofs;
                             cmd.x8 = arg1;
-                            cmd_result = fn_803AC168((s32*) &cmd);
+                            cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
                         repair_full_queued:
                             if (cmd_result < 0) {
                                 fn_803AE7F8_rewind(entries);
@@ -3353,9 +3358,9 @@ after_verify:
                         if (arg3 != 0) {
                             s32 zero;
                             s32 cmd_result;
-                            CardCmd init_cmd;
+                            CardCmd init_cmd = {0};
                             s32 ofs;
-                            CardCmd cmd;
+                            CardCmd cmd = {0};
 
                             ofs = fn_803ACBE8(arg0, phys);
                             if (phys == 0) {
@@ -3368,10 +3373,10 @@ after_verify:
                                 init_cmd.state = arg0;
                                 init_cmd.x10 = zero;
                                 init_cmd.x14 = zero;
-                                init_cmd.x18 = (void*) zero;
+                                init_cmd.x18 = NULL;
                                 init_cmd.x20 = zero;
                                 init_cmd.x1C = ofs;
-                                fn_803AC168((s32*) &init_cmd);
+                                fn_803AC168((HSD_CardWord*) &init_cmd);
                             }
                             cmd.type = 1;
                             cmd.state = arg0;
@@ -3382,7 +3387,7 @@ after_verify:
                             cmd.x20 = remaining;
                             cmd.x1C = ofs;
                             cmd.x8 = arg1;
-                            cmd_result = fn_803AC168((s32*) &cmd);
+                            cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
                         repair_tail_queued:
                             if (cmd_result < 0) {
                                 fn_803AE7F8_rewind(entries);
@@ -3425,7 +3430,7 @@ after_verify:
         CardBufEntry* entry = entries;
 
         entry->x0 = 2;
-        entry->x4 = (s32) arg0;
+        entry->x4 = (HSD_CardWord) arg0;
         entry->x8 = arg4;
         entry->xC = arg1;
         hsd_804D7998 = -1;
@@ -3447,7 +3452,7 @@ static inline s32 fn_803AF3F0_queue_verify_first(CardState* state, s32 block,
         return 0;
     }
     {
-        CardCmd cmd;
+        CardCmd cmd = {0};
         s32 ofs = fn_803ACBE8(state, block);
         cmd.type = 5;
         cmd.state = state;
@@ -3456,7 +3461,7 @@ static inline s32 fn_803AF3F0_queue_verify_first(CardState* state, s32 block,
         cmd.x18 = data;
         cmd.x20 = size;
         cmd.x1C = ofs;
-        return fn_803AC168((s32*) &cmd);
+        return fn_803AC168((HSD_CardWord*) &cmd);
     }
 }
 
@@ -3470,7 +3475,7 @@ static inline s32 fn_803AF3F0_queue_verify_final(CardState* state, s32 block,
         return 0;
     }
     {
-        CardCmd cmd;
+        CardCmd cmd = {0};
         s32 ofs = fn_803ACBE8(state, block);
         cmd.type = 5;
         cmd.state = state;
@@ -3479,7 +3484,7 @@ static inline s32 fn_803AF3F0_queue_verify_final(CardState* state, s32 block,
         cmd.x18 = data;
         cmd.x20 = size;
         cmd.x1C = ofs;
-        result = fn_803AC168((s32*) &cmd);
+        result = fn_803AC168((HSD_CardWord*) &cmd);
     }
     return result;
 }
@@ -3489,9 +3494,9 @@ static inline s32 fn_803AF3F0_queue_write_first(CardState* state, s32 block,
                                                 void* data, s32 size,
                                                 s32 file_id)
 {
-    CardCmd cmd;
+    CardCmd cmd = {0};
     s32 ofs = fn_803ACBE8(state, block);
-    CardCmd init_cmd;
+    CardCmd init_cmd = {0};
 
     if (block == 0) {
         s32 zero = 0;
@@ -3503,10 +3508,10 @@ static inline s32 fn_803AF3F0_queue_write_first(CardState* state, s32 block,
         init_cmd.state = state;
         init_cmd.x10 = zero;
         init_cmd.x14 = zero;
-        init_cmd.x18 = (void*) zero;
+        init_cmd.x18 = NULL;
         init_cmd.x20 = zero;
         init_cmd.x1C = ofs;
-        fn_803AC168((s32*) &init_cmd);
+        fn_803AC168((HSD_CardWord*) &init_cmd);
     }
     cmd.type = 1;
     cmd.state = state;
@@ -3517,7 +3522,7 @@ static inline s32 fn_803AF3F0_queue_write_first(CardState* state, s32 block,
     cmd.x20 = size;
     cmd.x1C = ofs;
     cmd.x8 = file_id;
-    return fn_803AC168((s32*) &cmd);
+    return fn_803AC168((HSD_CardWord*) &cmd);
 }
 
 static inline s32 fn_803AF3F0_queue_write_final(CardState* state, s32 block,
@@ -3525,9 +3530,9 @@ static inline s32 fn_803AF3F0_queue_write_final(CardState* state, s32 block,
                                                 void* data, s32 size,
                                                 s32 file_id)
 {
-    CardCmd cmd;
+    CardCmd cmd = {0};
     s32 ofs = fn_803ACBE8(state, block);
-    CardCmd init_cmd;
+    CardCmd init_cmd = {0};
     s32 result;
 
     if (block == 0) {
@@ -3540,10 +3545,10 @@ static inline s32 fn_803AF3F0_queue_write_final(CardState* state, s32 block,
         init_cmd.state = state;
         init_cmd.x10 = zero;
         init_cmd.x14 = zero;
-        init_cmd.x18 = (void*) zero;
+        init_cmd.x18 = NULL;
         init_cmd.x20 = zero;
         init_cmd.x1C = ofs;
-        fn_803AC168((s32*) &init_cmd);
+        fn_803AC168((HSD_CardWord*) &init_cmd);
     }
     cmd.type = 1;
     cmd.state = state;
@@ -3554,7 +3559,7 @@ static inline s32 fn_803AF3F0_queue_write_final(CardState* state, s32 block,
     cmd.x20 = size;
     cmd.x1C = ofs;
     cmd.x8 = file_id;
-    result = fn_803AC168((s32*) &cmd);
+    result = fn_803AC168((HSD_CardWord*) &cmd);
     return result;
 }
 
@@ -3643,7 +3648,7 @@ static inline void fn_803AF3F0_calc_file_blocks(s32 file_idx, CardState* state,
     *total_blocks = fn_803AC7DC(state);
 }
 
-s32 fn_803AF3F0(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
+s32 fn_803AF3F0(CardState* state, s32 arg1, HSD_CardWord arg2, s32 arg3, HSD_CardWord arg4)
 {
     CardBufEntry* entries = (CardBufEntry*) hsd_804D1138;
     s32 block_map[3][64];
@@ -3788,11 +3793,11 @@ s32 fn_803AF3F0(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
         }
 
         if (arg3 != 0) {
-            CardCmd cmd;
+            CardCmd cmd = {0};
             s32 cmd_result;
             cmd.type = 6;
             cmd.state = state;
-            cmd_result = fn_803AC168((s32*) &cmd);
+            cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
             if (cmd_result < 0) {
                 fn_803AF3F0_rewind(entries);
                 return cmd_result;
@@ -3946,7 +3951,7 @@ after_verify:
         CardBufEntry* entry = entries;
 
         entry->x0 = 3;
-        entry->x4 = (s32) state;
+        entry->x4 = (HSD_CardWord) state;
         entry->x8 = arg4;
         entry->xC = arg1;
         hsd_804D7998 = -1;
@@ -4030,7 +4035,7 @@ static inline s32 fn_803B0120_queue_verify(CardState* state, s32 block,
         return 0;
     }
     {
-        CardCmd cmd;
+        CardCmd cmd = {0};
         s32 ofs = fn_803B0120_block_offset(state, block);
         cmd.type = 5;
         cmd.state = state;
@@ -4039,7 +4044,7 @@ static inline s32 fn_803B0120_queue_verify(CardState* state, s32 block,
         cmd.x18 = data;
         cmd.x20 = size;
         cmd.x1C = ofs;
-        result = fn_803AC168((s32*) &cmd);
+        result = fn_803AC168((HSD_CardWord*) &cmd);
     }
     return result;
 }
@@ -4048,9 +4053,9 @@ static inline s32 fn_803B0120_queue_write(CardState* state, s32 block,
                                           s32 logical, s32 seq, void* data,
                                           s32 size, s32 file_id)
 {
-    CardCmd cmd;
+    CardCmd cmd = {0};
     s32 ofs = fn_803ACBE8(state, block);
-    CardCmd init_cmd;
+    CardCmd init_cmd = {0};
     s32 result;
 
     if (block == 0) {
@@ -4063,10 +4068,10 @@ static inline s32 fn_803B0120_queue_write(CardState* state, s32 block,
         init_cmd.state = state;
         init_cmd.x10 = zero;
         init_cmd.x14 = zero;
-        init_cmd.x18 = (void*) zero;
+        init_cmd.x18 = NULL;
         init_cmd.x20 = zero;
         init_cmd.x1C = ofs;
-        fn_803AC168((s32*) &init_cmd);
+        fn_803AC168((HSD_CardWord*) &init_cmd);
     }
     cmd.type = 1;
     cmd.state = state;
@@ -4077,11 +4082,11 @@ static inline s32 fn_803B0120_queue_write(CardState* state, s32 block,
     cmd.x20 = size;
     cmd.x1C = ofs;
     cmd.x8 = file_id;
-    result = fn_803AC168((s32*) &cmd);
+    result = fn_803AC168((HSD_CardWord*) &cmd);
     return result;
 }
 
-s32 fn_803B0120(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
+s32 fn_803B0120(CardState* state, s32 arg1, HSD_CardWord arg2, s32 arg3, HSD_CardWord arg4)
 {
     CardBufEntry* entries = (CardBufEntry*) hsd_804D1138;
     s32 block_map[3][64];
@@ -4278,11 +4283,11 @@ s32 fn_803B0120(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
         }
 
         if (arg3 != 0) {
-            CardCmd cmd;
+            CardCmd cmd = {0};
             s32 cmd_result;
             cmd.type = 6;
             cmd.state = state;
-            cmd_result = fn_803AC168((s32*) &cmd);
+            cmd_result = fn_803AC168((HSD_CardWord*) &cmd);
             if (cmd_result < 0) {
                 fn_803B0120_rewind(entries);
                 return cmd_result;
@@ -4400,7 +4405,7 @@ s32 fn_803B0120(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
         }
     } else {
         entries[0].x0 = 4;
-        entries[0].x4 = (s32) state;
+        entries[0].x4 = (HSD_CardWord) state;
         entries[0].x8 = arg4;
         entries[0].xC = arg1;
         hsd_804D7998 = -1;
@@ -4411,7 +4416,7 @@ s32 fn_803B0120(CardState* state, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
 }
 
 static inline s32 fn_803B0E9C_read_icons(struct CardState* arg0, CardCmd* cmd,
-                                         s32 file_id, s32 seq)
+                                         HSD_CardWord file_id, HSD_CardWord seq)
 {
     u32 block_idx;
     s32 result;
@@ -4424,7 +4429,7 @@ static inline s32 fn_803B0E9C_read_icons(struct CardState* arg0, CardCmd* cmd,
         cmd->xC = file_id;
         cmd->x10 = seq;
         cmd->x8 = block_idx;
-        result = fn_803AC168((s32*) cmd);
+        result = fn_803AC168((HSD_CardWord*) cmd);
         if (result < 0) {
             return result;
         }
@@ -4485,17 +4490,17 @@ static inline s32 fn_803B0E9C_read_first(struct CardState* arg0,
     return result;
 }
 
-s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
+s32 fn_803B0E9C(struct CardState* arg0, HSD_CardWord arg1, HSD_CardWord arg2, s32 arg3, s32 arg4)
 {
     u8 digest[0x30];
-    CardCmd cmd_done;
-    CardCmd cmd_clear;
+    CardCmd cmd_done = {0};
+    CardCmd cmd_clear = {0};
     UNUSED u8 pad_cmd_clear[4];
-    CardCmd cmd_patch;
+    CardCmd cmd_patch = {0};
     UNUSED u8 pad_cmd_patch[8];
-    CardCmd cmd_write_icon;
+    CardCmd cmd_write_icon = {0};
     UNUSED u8 pad_cmd_write_icon[16];
-    CardCmd cmd_read_icon;
+    CardCmd cmd_read_icon = {0};
     UNUSED u8 pad_cmd_read_icon[8];
     s32 remaining;
     s32 payload_pos;
@@ -4516,7 +4521,7 @@ s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
             {
                 cmd_done.type = 6;
                 cmd_done.state = arg0;
-                result = fn_803AC168((s32*) &cmd_done);
+                result = fn_803AC168((HSD_CardWord*) &cmd_done);
             }
             if (result < 0) {
                 return result;
@@ -4551,7 +4556,7 @@ s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                     cmd_clear.x20 = sector_size;
                     cmd_clear.x1C = zero;
                     cmd_clear.x8 = zero;
-                    result = fn_803AC168((s32*) &cmd_clear);
+                    result = fn_803AC168((HSD_CardWord*) &cmd_clear);
                 } else {
                     if (arg0->x4C[0] > 0) {
                         has_blocks = 1;
@@ -4565,7 +4570,7 @@ s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                     cmd_patch.x18 = NULL;
                     cmd_patch.x20 = has_blocks;
                     cmd_patch.x1C = arg4 * sector_size;
-                    result = fn_803AC168((s32*) &cmd_patch);
+                    result = fn_803AC168((HSD_CardWord*) &cmd_patch);
                 }
                 if (result < 0) {
                     return result;
@@ -4578,7 +4583,7 @@ s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
                 cmd_write_icon.x8 = arg4;
                 cmd_write_icon.xC = arg1;
                 cmd_write_icon.x10 = arg2;
-                result = fn_803AC168((s32*) &cmd_write_icon);
+                result = fn_803AC168((HSD_CardWord*) &cmd_write_icon);
                 if (result < 0) {
                     return result;
                 }
@@ -4639,7 +4644,7 @@ s32 fn_803B0E9C(struct CardState* arg0, s32 arg1, s32 arg2, s32 arg3, s32 arg4)
             payload_pos = 0;
             block_idx++;
 
-            if (remaining + 0x30 < (s32) arg0->x24) {
+            if (remaining + 0x30 < (HSD_CardWord) arg0->x24) {
                 if (arg3 != 0) {
                     memset(arg0->x0, 0, arg0->x8);
                 } else {
@@ -5082,11 +5087,11 @@ s32 fn_803B1338(CardState* state, s32 arg1)
     }
 }
 
-s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id, s32 seq_num,
-                s32 callback)
+s32 fn_803B1F78(CardState* state, HSD_CardWord channel, HSD_CardWord file_id, HSD_CardWord seq_num,
+                HSD_CardWord callback)
 {
-    CardCmd buf1;
-    CardCmd buf2;
+    CardCmd buf1 = {0};
+    CardCmd buf2 = {0};
     s32 result;
     s32 blocks;
     s32 saved;
@@ -5108,7 +5113,7 @@ s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id, s32 seq_num,
     buf1.state = state;
     buf1.x8 = channel;
     buf1.xC = blocks;
-    result = fn_803AC168((s32*) &buf1);
+    result = fn_803AC168((HSD_CardWord*) &buf1);
     if (result < 0) {
         snap1 = hsd_804D7998;
         if (snap1 >= 0) {
@@ -5152,7 +5157,7 @@ s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id, s32 seq_num,
 
     buf2.type = 8;
     buf2.state = state;
-    result = fn_803AC168((s32*) &buf2);
+    result = fn_803AC168((HSD_CardWord*) &buf2);
     if (result < 0) {
         snap = hsd_804D7998;
         if (snap >= 0) {
@@ -5167,7 +5172,7 @@ s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id, s32 seq_num,
     }
 
     entries[0].x0 = 6;
-    entries[0].x4 = (s32) state;
+    entries[0].x4 = (HSD_CardWord) state;
     entries[0].x8 = callback;
     result = 0;
     entries[0].xC = result;
@@ -5187,9 +5192,9 @@ s32 fn_803B1F78(CardState* state, s32 channel, s32 file_id, s32 seq_num,
     return 0;
 }
 
-s32 fn_803B21E8(s32 card_state, s32 file_id, s32 seq_num, s32 callback)
+s32 fn_803B21E8(HSD_CardWord card_state, HSD_CardWord file_id, HSD_CardWord seq_num, HSD_CardWord callback)
 {
-    CardCmd buf;
+    CardCmd buf = {0};
     s32 result;
     s32 saved;
     s32 snap;
@@ -5217,7 +5222,7 @@ s32 fn_803B21E8(s32 card_state, s32 file_id, s32 seq_num, s32 callback)
 
     buf.type = 8;
     buf.state = (CardState*) card_state;
-    result = fn_803AC168((s32*) &buf);
+    result = fn_803AC168((HSD_CardWord*) &buf);
     if (result < 0) {
         snap2 = hsd_804D7998;
         if (snap2 >= 0) {
@@ -5258,7 +5263,12 @@ void hsd_803B2374(void)
 
     hsd_804D7990 = 0;
     hsd_804D7994 = 0;
+#ifdef MELEE_NATIVE
+    memset(hsd_native_card_requests, 0, sizeof(hsd_native_card_requests));
+    memset(&hsd_native_card_commands, 0, sizeof(hsd_native_card_commands));
+#else
     memset(&hsd_804D2348, 0, sizeof(hsd_804D2348));
+#endif
     hsd_804D7980 = 0;
     hsd_804D7984 = 0;
     hsd_804D799C = 2;
@@ -5279,14 +5289,14 @@ void hsd_803B24E4(s32* ctx, int channel, int file_no, void* work_buf)
 
 static inline HsdCmdEntry* hsd_803B2550_inline(u8* arg0, s32 arg1)
 {
-    return &((HsdCmdEntry*) (arg0 + 0x1210))[arg1];
+    return &CMD_QUEUE(arg0)[arg1];
 }
 
 int hsd_803B2550(s32* arg0, const char* arg1, void (*arg2)(int, int))
 {
     s32 new_var;
     u8* base = hsd_804D1138;
-    s32 chan = arg0[1];
+    s32 chan = ((CardState*) arg0)->x4;
     s32 new_var3;
     s32 new_var2;
     s32 retries;
@@ -5294,7 +5304,7 @@ int hsd_803B2550(s32* arg0, const char* arg1, void (*arg2)(int, int))
     s32 write_idx;
     new_var2 = chan;
     for (retries = 0; retries < 10; retries++) {
-        result = CARDOpen(new_var2, (char*) arg1, (CARDFileInfo*) (arg0 + 3));
+        result = CARDOpen(new_var2, (char*) arg1, &((CardState*) arg0)->file_info);
         if (result != -1) {
             break;
         }
@@ -5306,15 +5316,15 @@ int hsd_803B2550(s32* arg0, const char* arg1, void (*arg2)(int, int))
 
     result = 0;
     {
-        s32 tmp = arg0[4];
+        s32 tmp = ((CardState*) arg0)->file_info.fileNo;
         do {
             if (tmp != -1) {
                 break;
             }
             result++;
         } while (result < 10);
-        write_idx = arg0[4];
-        retries = (new_var = (new_var3 = arg0[4]));
+        write_idx = ((CardState*) arg0)->file_info.fileNo;
+        retries = (new_var = (new_var3 = ((CardState*) arg0)->file_info.fileNo));
         write_idx = retries;
         if (tmp < 0) {
             return new_var;
@@ -5322,7 +5332,7 @@ int hsd_803B2550(s32* arg0, const char* arg1, void (*arg2)(int, int))
     }
 
     for (chan = 0; chan < 10; chan++) {
-        if (CARDClose((CARDFileInfo*) (arg0 + 3)) != -1) {
+        if (CARDClose(&((CardState*) arg0)->file_info) != -1) {
             break;
         }
     }
@@ -5342,9 +5352,9 @@ int hsd_803B2550(s32* arg0, const char* arg1, void (*arg2)(int, int))
         HsdCmdEntry* entry = hsd_803B2550_inline(base, retries);
         s32 next = retries + 1;
         entry->type = 5;
-        entry->f1 = (s32) arg0;
+        entry->f1 = (HSD_CardWord) arg0;
         entry->f2 = write_idx;
-        entry->f5 = (s32) arg2;
+        entry->f5 = (HSD_CardWord) arg2;
         hsd_804D7994 = next % 32;
     }
 
@@ -5363,7 +5373,7 @@ s32 hsd_803B2674(CardState* state)
     return blocks;
 }
 
-s32 fn_803B26CC(CardState* state, s32 file_id, s32 seq_num, s32 version,
+s32 fn_803B26CC(CardState* state, HSD_CardWord file_id, HSD_CardWord seq_num, HSD_CardWord version,
                 void (*callback)(s32, s32))
 {
     s32 result;

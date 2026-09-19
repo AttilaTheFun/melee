@@ -88,11 +88,22 @@ void __ARQPushTempQueue(struct ARQRequest * task) {
     __ARQRequestTailTemp = task;
 }
 
+#ifdef MELEE_NATIVE
+static void nativeARQInterrupt(ARQRequest* unused) {
+    (void)unused;
+    __ARQInterruptServiceRoutine();
+}
+#endif
+
 void ARQInit(void) {
     if (__ARQ_init_flag != 1) {
         __ARQRequestQueueHi = __ARQRequestQueueLo = NULL;
         __ARQChunkSize = 0x1000;
+#ifdef MELEE_NATIVE
+        ARRegisterDMACallback(nativeARQInterrupt);
+#else
         ARRegisterDMACallback(__ARQInterruptServiceRoutine);
+#endif
         __ARQRequestPendingHi = NULL;
         __ARQRequestPendingLo = NULL;
         __ARQCallbackHi = NULL;
@@ -105,13 +116,16 @@ void ARQReset(void) {
     __ARQ_init_flag = 0;
 }
 
-void ARQPostRequest(struct ARQRequest * request, u32 owner, u32 type, u32 priority, u32 source, u32 dest, u32 length, ARQCallback callback) {
+void ARQPostRequest(struct ARQRequest * request, u32 owner, u32 type, u32 priority, ARAddress source, ARAddress dest, u32 length, ARQCallback callback) {
     int level;
 
     ASSERTLINE(0x1A9, request);
     ASSERTLINE(0x1AA, (type == ARQ_TYPE_MRAM_TO_ARAM) || (type == ARQ_TYPE_ARAM_TO_MRAM));
     ASSERTLINE(0x1AB, (priority == ARQ_PRIORITY_LOW) || (priority == ARQ_PRIORITY_HIGH));
     ASSERTLINE(0x1AE, (length % ARQ_DMA_ALIGNMENT) == 0);
+#ifdef MELEE_NATIVE
+    ASSERTLINE(0, (type == ARQ_TYPE_MRAM_TO_ARAM ? dest : source) <= UINT32_MAX);
+#endif
     request->next = NULL;
     request->owner = owner;
     request->type = type;
@@ -221,6 +235,9 @@ void ARQFlushQueue(void) {
 
 void ARQSetChunkSize(u32 size) {
     u32 i;
+#ifdef MELEE_NATIVE
+    ASSERTLINE(0, size && size <= UINT32_MAX - 31);
+#endif
 
     i = size & 0x1F;
     if (i) {

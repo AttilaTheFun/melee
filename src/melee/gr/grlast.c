@@ -91,7 +91,12 @@ Vec3 const grLast_803B848C = { 0.0f, 1.0f, 0.0f };
 Vec3 const grLast_803B8498 = { 0.0f, 0.0f, 1.0f };
 
 /// @todo yakumono struct
+#ifdef MELEE_NATIVE
+static union ColorOverlay_x8_t** yakumono_param;
+#define grMaterial_801C9604 grMaterial_ApplyColorScript
+#else
 static int* yakumono_param;
+#endif
 
 static void grLast_OnDemoInit(enum_t arg0)
 {

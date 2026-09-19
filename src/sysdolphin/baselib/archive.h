@@ -6,6 +6,9 @@
 #include <sysdolphin/baselib/forward.h> // IWYU pragma: export
 
 #define HSD_ARCHIVE_DONT_FREE 1
+#ifdef MELEE_NATIVE
+#define HSD_ARCHIVE_NATIVE 0x80000000U
+#endif
 
 struct HSD_ArchiveHeader {
     u32 file_size; /* 0x00 */
@@ -43,6 +46,10 @@ struct HSD_Archive {
     char* name;                            /* 0x38 */
     u32 flags;                             /* 0x3C */
     void* top_ptr;                         /* 0x40 */
+#ifdef MELEE_NATIVE
+    void* (*native_public_lookup)(HSD_Archive*, const char*);
+    void (*native_destroy)(HSD_Archive*);
+#endif
 };
 ASSERT_SIZE(struct HSD_Archive, 0x44);
 

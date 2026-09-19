@@ -1,3 +1,6 @@
+#ifdef MELEE_NATIVE
+#include "melee_scene_desc.h"
+#endif
 #include "ftdemo.h"
 
 #include <Runtime/platform.h>
@@ -137,6 +140,27 @@ void ftDemo_SetArchiveData(int pairs_idx, HSD_Archive* archive, int arr_idx)
 {
     static int ints[5] = { 9, 10, 11, 14, 15 };
     ftData_UnkCountStruct* pair = &ftData_UnkIntPairs[pairs_idx];
+#ifdef MELEE_NATIVE
+    if(arr_idx>=0&&arr_idx<=8){
+        const char* name;
+        unsigned first,count;
+        if(arr_idx>=4){
+            enum_t begin=-1,end=-1;
+            HSD_ASSERT(__LINE__,ftData_UnkDemoCallbacks0[pairs_idx]);
+            ftData_UnkDemoCallbacks0[pairs_idx](ints[arr_idx-4],&begin,&end);
+            HSD_ASSERT(__LINE__,begin>=0&&end>=begin);
+            first=begin;count=end-begin+1;
+            name=ftDemo_GetMotionFileString(pairs_idx,ints[arr_idx-4]);
+        }else{
+            name=((char***)ftData_803C2468)[pairs_idx][arr_idx];
+            first=arr_idx==0?0:arr_idx==1?10:arr_idx==2?12:13;count=arr_idx==0?10:arr_idx==1?2:1;
+        }
+        size_t size=0;const void* bytes=melee_intro_motion_bytes(archive,name,&size);
+        HSD_ASSERT(__LINE__,bytes);
+        melee_fighter_load_demo(pairs_idx,bytes,size,first,count);
+        return;
+    }
+#endif
     if (pair->data == NULL) {
         if (arr_idx >= 4) {
             pair->data = HSD_ArchiveGetPublicAddress(

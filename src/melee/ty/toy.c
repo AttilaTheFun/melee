@@ -27,6 +27,13 @@
 #include <melee/lb/lb_00B0.h>
 #include <melee/lb/lb_00CE.h>
 #include <melee/lb/lbarchive.h>
+#ifdef MELEE_NATIVE
+#include "melee_trophy_data.h"
+#include <melee/lb/lbfile.h>
+#include <melee/lb/lbheap.h>
+#include <melee/lb/lbdvd.h>
+static MeleeTrophyData* native_trophy_data;
+#endif
 #include <melee/lb/lbaudio_ax.h>
 #include <melee/lb/lblanguage.h>
 #include <melee/lb/lbspdisplay.h>
@@ -241,11 +248,21 @@ bool un_80304780(void)
     { 7, 65 }, { 6, 66 }, { 5, 67 }, { 4, 68 }, { 3, 69 },
     { 2, 70 }, { 0, 73 }, { 1, 88 }, { 8, 83 },
 };
+#ifdef MELEE_NATIVE
+/* Retail code views these adjacent symbols as one trophy session object. */
+Toy26B8 Toy_NativeState;
+#define _Toy_804A26B8 Toy_NativeState
+_Static_assert(offsetof(Toy26B8, trophy_flags) == 0x19E,
+               "Trophy session byte-offset access must match its typed view");
+#else
 /* 4A26B8 */ static struct _Toy_804A26B8_t _Toy_804A26B8;
+#endif
 /* 4A26C4 */ static char _Toy_devtext_buf_804A26C4[0x8C];
 /* 4A2750 */ static char _Toy_devtext_buf_804A2750[0xFC];
+#ifndef MELEE_NATIVE
 /* 4A284C */ u16 Toy_804A284C[302];
 /* 4A2AA8 */ ToyAnimState Toy_804A2AA8;
+#endif
 /* 4D5A40 */ static GXColor _Toy_color_E2E2E2FF = { 0xE2, 0xE2, 0xE2, 0xFF };
 /* 4D5A44 */ static GXColor _Toy_color_FF8020FF = { 0xFF, 0x80, 0x20, 0xFF };
 
@@ -1618,6 +1635,31 @@ static char* getDataiDatFilename(void)
         return "TyDatai.usd";
     }
 }
+
+#ifdef MELEE_NATIVE
+static void load_native_trophy_data(void)
+{
+    if (native_trophy_data) return;
+    const char* filename=getDataiDatFilename();
+    size_t length=0;void* owned=NULL;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename),&length);
+    if(!bytes){lbFile_80016760(filename,&owned,&length);bytes=owned;}
+    MeleeArchive archive;
+    HSD_ASSERT(__LINE__, melee_archive_open(&archive,bytes,length));
+    native_trophy_data=melee_trophy_data_decode(&archive);
+    HSD_ASSERT(__LINE__, native_trophy_data);
+    HSD_ASSERT(__LINE__, melee_trophy_data_count(native_trophy_data,MELEE_TROPHY_INIT)>TY_TROPHY_COUNT);
+    HSD_ASSERT(__LINE__, melee_trophy_data_count(native_trophy_data,MELEE_TROPHY_SORT)>TY_TROPHY_COUNT);
+    if(owned)lbHeap_80015CA8(0,owned);
+    _Toy_sbss_804D6EC4=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_INIT);
+    _Toy_sbss_804D6EC0=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_INIT_DIFFERENT);
+    _Toy_sbss_804D6EB4=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_NO_US);
+    _Toy_sbss_804D6EB8=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_EXP_DIFFERENT);
+    _Toy_sbss_804D6EBC=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_SORT);
+    Toy_sbss_804D6EB0=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_DISPLAY);
+    Toy_sbss_804D6EAC=melee_trophy_data_table(native_trophy_data,MELEE_TROPHY_DISPLAY_US);
+}
+#endif
 
 #ifdef MUST_MATCH
 static char* getInfoDatFilename(void)
@@ -5510,6 +5552,9 @@ static inline void _Toy_8030FE48_init_sort_key(s16** ptr)
     (void) sort_mode;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void _Toy_8030FE48_setup_entry(ToyListEntry* entry, s16 trophy_idx)
 {
     char* result = Toy_8030813C(trophy_idx);
@@ -5523,6 +5568,9 @@ inline void _Toy_8030FE48_setup_entry(ToyListEntry* entry, s16 trophy_idx)
     entry->trophy_id = trophy_idx;
 }
 
+#ifdef MELEE_NATIVE
+static
+#endif
 inline void _Toy_8030FE48_link_entries(ToyDisplayList* data, s32 entry_count)
 {
     s32 i;
@@ -6405,10 +6453,24 @@ void Toy_80311960(void)
 
     for (i = 0; i < TY_TROPHY_COUNT; i++) {
         save_data[i] = 0;
+#ifdef MELEE_NATIVE
+        Toy_804A284C[i + 5] = 0;
+#else
         ((u16*) (base + 0x194))[i + 5] = 0;
+#endif
     }
 
     *save_data2 = 0;
+#ifdef MELEE_NATIVE
+    /* These console offsets name the separate trophy-state global. */
+    Toy_804A284C[4] = 0;
+    Toy_804A284C[3] = 0;
+    Toy_804A284C[298] = 0;
+    Toy_804A284C[299] = 0;
+    ((u8*) Toy_804A284C)[3] = 0;
+    *gmMainLib_GetTrophyCount() = 0;
+    Toy_804A284C[300] = 0;
+#else
     ((u16*) base)[0xCE] = 0;
     ((u16*) base)[0xCD] = 0;
     ((u16*) base)[0x1F4] = 0;
@@ -6416,6 +6478,7 @@ void Toy_80311960(void)
     ((Toy26B8*) base)->x197 = 0;
     *gmMainLib_GetTrophyCount() = 0;
     ((u16*) base)[0x1F6] = 0;
+#endif
 }
 
 void Toy_Scene_OnEnter(void* arg0)
@@ -6462,7 +6525,11 @@ void Toy_Scene_OnEnter(void* arg0)
     }
 
     _Toy_sbss_804D6E68 = HSD_MemAlloc(sizeof(*_Toy_sbss_804D6E68));
+#ifdef MELEE_NATIVE
+    Toy_sbss_804D6ED8 = HSD_MemAlloc(sizeof(union ToyArchiveStorage));
+#else
     Toy_sbss_804D6ED8 = HSD_MemAlloc(sizeof(*Toy_sbss_804D6ED8));
+#endif
     Toy_sbss_804D6ED4 = HSD_MemAlloc(sizeof(TyLightArray_));
     Toy_sbss_804D6EDC =
         HSD_MemAlloc(sizeof(*Toy_sbss_804D6EDC) * TY_TROPHY_COUNT);
@@ -6472,7 +6539,11 @@ void Toy_Scene_OnEnter(void* arg0)
     _Toy_sbss_804D6E6C = HSD_MemAlloc(sizeof(*_Toy_sbss_804D6E6C));
 
     memzero(_Toy_sbss_804D6E68, sizeof(*_Toy_sbss_804D6E68));
+#ifdef MELEE_NATIVE
+    memzero(Toy_sbss_804D6ED8, sizeof(union ToyArchiveStorage));
+#else
     memzero(Toy_sbss_804D6ED8, sizeof(*Toy_sbss_804D6ED8));
+#endif
     memzero(Toy_sbss_804D6ED4, sizeof(TyLightArray_));
     memzero(Toy_sbss_804D6EDC, sizeof(*Toy_sbss_804D6EDC) * TY_TROPHY_COUNT);
     memzero(_Toy_sbss_804D6E64, sizeof(*_Toy_sbss_804D6E64) * TY_TROPHY_COUNT);
@@ -6529,9 +6600,13 @@ void _Toy_80311F5C(void)
     void** p1 = (void**) Toy_sbss_804D6ED8;
     void** p2 = (void**) _Toy_sbss_804D6E68;
 
+#ifdef MELEE_NATIVE
+    Toy_sbss_804D6ED8->archive = NULL;
+#else
     if (p1[0x14] != NULL) {
         p1[0x14] = NULL;
     }
+#endif
     if (p1[0] != NULL) {
         p1[0] = NULL;
     }
@@ -6637,19 +6712,31 @@ void Toy_Mode_OnInit(void)
     Toy* userData = (Toy*) &_Toy_804A26B8;
     void* targetPtr;
 
+#ifdef MELEE_NATIVE
+    memzero(Toy_804A284C, 0x25A);
+#else
     memzero(&userData->x194, 0x25A);
+#endif
 
     _Toy_sbss_804D6EA1 = 0;
 
     if (gm_IsCurrently1PMode() || gm_GetCurrentGameMode() == GM_TOY_LOTTERY) {
+#ifdef MELEE_NATIVE
+        targetPtr = &Toy_804A284C[3];
+#else
         targetPtr = &userData->x19A;
+#endif
     } else {
         targetPtr = gmMainLib_GetTrophyCategoryFlags();
     }
 
     *(u16*) targetPtr |= 4;
 
+#ifdef MELEE_NATIVE
+    *(u8*) Toy_804A284C = 1;
+#else
     *(u8*) &userData->x194 = 1;
+#endif
 }
 
 void Toy_8031234C(s32 arg0)
@@ -6716,6 +6803,9 @@ void Toy_803124BC(void)
     table1 = gmMainLib_GetTrophyFlags();
     table2 = gmMainLib_GetTrophyCategoryFlags();
 
+#ifdef MELEE_NATIVE
+    load_native_trophy_data();
+#else
     if (_Toy_sbss_804D6ED0 == NULL) {
         _Toy_sbss_804D6ED0 = lbArchive_LoadSymbols(
             getDataiDatFilename(), &_Toy_sbss_804D6EC4, "tyInitModelTbl",
@@ -6725,6 +6815,7 @@ void Toy_803124BC(void)
             "tyDisplayModelTbl", &Toy_sbss_804D6EAC, "tyDisplayModelUsTbl",
             NULL);
     }
+#endif
 
     i = 0;
 loop: {
@@ -6767,6 +6858,9 @@ void Toy_8031263C(void)
     table1 = gmMainLib_GetTrophyFlags();
     table2 = gmMainLib_GetTrophyCategoryFlags();
 
+#ifdef MELEE_NATIVE
+    load_native_trophy_data();
+#else
     if (_Toy_sbss_804D6ED0 == NULL) {
         _Toy_sbss_804D6ED0 = lbArchive_LoadSymbols(
             getDataiDatFilename(), &_Toy_sbss_804D6EC4, "tyInitModelTbl",
@@ -6776,6 +6870,7 @@ void Toy_8031263C(void)
             "tyDisplayModelTbl", &Toy_sbss_804D6EAC, "tyDisplayModelUsTbl",
             NULL);
     }
+#endif
 
     i = 0;
     do {
@@ -6796,6 +6891,9 @@ void Toy_8031263C(void)
 
 void Toy_803127D4(void)
 {
+#ifdef MELEE_NATIVE
+    melee_trophy_data_free(native_trophy_data);native_trophy_data=NULL;
+#endif
     _Toy_sbss_804D6ED0 = NULL;
     _Toy_sbss_804D6EC4 = NULL;
     _Toy_sbss_804D6EC0 = NULL;

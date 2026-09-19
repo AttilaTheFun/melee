@@ -1,4 +1,61 @@
 #include "mnstagesel.h"
+#ifdef MELEE_NATIVE
+#include <stdatomic.h>
+static atomic_uint native_stage_frames;
+/* Read-only cursor guidance for the windowless input probe. Bit 4 means
+ * valid; the low two pairs encode left/right and down/up respectively. */
+static atomic_uint native_onett_guidance;
+static atomic_uint native_final_guidance;
+unsigned mnStageSel_NativeFinalGuidance(void){return atomic_load(&native_final_guidance);}
+static atomic_uint native_battle_guidance;
+static atomic_uint native_fountain_guidance;
+unsigned mnStageSel_NativeFountainGuidance(void){return atomic_load(&native_fountain_guidance);}
+static atomic_uint native_story_guidance;
+unsigned mnStageSel_NativeStoryGuidance(void){return atomic_load(&native_story_guidance);}
+static atomic_uint native_stadium_guidance;
+unsigned mnStageSel_NativeStadiumGuidance(void){return atomic_load(&native_stadium_guidance);}
+static atomic_uint native_greatbay_guidance;
+unsigned mnStageSel_NativeGreatbayGuidance(void){return atomic_load(&native_greatbay_guidance);}
+static atomic_uint native_kongo_guidance;
+unsigned mnStageSel_NativeKongoGuidance(void){return atomic_load(&native_kongo_guidance);}
+static atomic_uint native_japes_guidance;
+unsigned mnStageSel_NativeJapesGuidance(void){return atomic_load(&native_japes_guidance);}
+static atomic_uint native_icemt_guidance;
+unsigned mnStageSel_NativeIcemtGuidance(void){return atomic_load(&native_icemt_guidance);}
+static atomic_uint native_flatzone_guidance;
+unsigned mnStageSel_NativeFlatzoneGuidance(void){return atomic_load(&native_flatzone_guidance);}
+static atomic_uint native_kraid_guidance;
+unsigned mnStageSel_NativeKraidGuidance(void){return atomic_load(&native_kraid_guidance);}
+static atomic_uint native_rcruise_guidance;
+unsigned mnStageSel_NativeRCruiseGuidance(void){return atomic_load(&native_rcruise_guidance);}
+static atomic_uint native_pura_guidance;
+unsigned mnStageSel_NativePuraGuidance(void){return atomic_load(&native_pura_guidance);}
+static atomic_uint native_fourside_guidance;
+unsigned mnStageSel_NativeFoursideGuidance(void){return atomic_load(&native_fourside_guidance);}
+static atomic_uint native_bigblue_guidance;
+unsigned mnStageSel_NativeBigBlueGuidance(void){return atomic_load(&native_bigblue_guidance);}
+static atomic_uint native_mutecity_guidance;
+unsigned mnStageSel_NativeMuteCityGuidance(void){return atomic_load(&native_mutecity_guidance);}
+static atomic_uint native_corneria_guidance;
+unsigned mnStageSel_NativeCorneriaGuidance(void){return atomic_load(&native_corneria_guidance);}
+static atomic_uint native_venom_guidance;
+unsigned mnStageSel_NativeVenomGuidance(void){return atomic_load(&native_venom_guidance);}
+static atomic_uint native_shrine_guidance;
+unsigned mnStageSel_NativeShrineGuidance(void){return atomic_load(&native_shrine_guidance);}
+static atomic_uint native_greens_guidance;
+unsigned mnStageSel_NativeGreensGuidance(void){return atomic_load(&native_greens_guidance);}
+static atomic_uint native_yorster_guidance;
+unsigned mnStageSel_NativeYorsterGuidance(void){return atomic_load(&native_yorster_guidance);}
+static atomic_uint native_castle_guidance;
+unsigned mnStageSel_NativeCastleGuidance(void){return atomic_load(&native_castle_guidance);}
+static atomic_uint native_brinstar_guidance;
+unsigned mnStageSel_NativeBrinstarGuidance(void){return atomic_load(&native_brinstar_guidance);}
+static atomic_uint native_dreamland_guidance;
+unsigned mnStageSel_NativeDreamlandGuidance(void){return atomic_load(&native_dreamland_guidance);}
+unsigned mnStageSel_NativeBattleGuidance(void){return atomic_load(&native_battle_guidance);}
+unsigned mnStageSel_NativeFrames(void){return atomic_load(&native_stage_frames);}
+unsigned mnStageSel_NativeOnettGuidance(void){return atomic_load(&native_onett_guidance);}
+#endif
 
 #include <placeholder.h>
 
@@ -7,6 +64,7 @@
 #include "mnstagesel.static.h"
 #include <melee/gm/gm_unsplit.h>
 #include <melee/gm/gmmain_lib.h>
+#include <melee/gr/forward.h>
 #include <melee/lb/lb_00B0.h>
 #include <melee/lb/lb_013B.h>
 #include <melee/lb/lbarchive.h>
@@ -235,7 +293,11 @@ void fn_8025A090(HSD_GObj* gobj)
     jobj = GET_JOBJ(gobj);
     temp_r30 = HSD_GObjGetUserData(gobj);
     var_r3 = mnStageSel_804D6CAE;
-    if (mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 < 2) {
+    if (
+#ifdef MELEE_NATIVE
+        mnStageSel_804D6CAE >= ARRAY_SIZE(mnStageSel_803F06D0) ||
+#endif
+        mnStageSel_803F06D0[mnStageSel_804D6CAE].x8 < 2) {
         var_r3 = 0x1E;
     }
     if (temp_r30->x0 != var_r3) {
@@ -253,7 +315,11 @@ void fn_8025A090(HSD_GObj* gobj)
     }
     if (temp_r30->x4 < 0x5A) {
         temp_r30->x4++;
-        if (temp_r30->x4 == 0x14) {
+        if (temp_r30->x4 == 0x14
+#ifdef MELEE_NATIVE
+            && temp_r30->x0 < 0x1D
+#endif
+        ) {
             HSD_JObjReqAnimAll(jobj,
                                50.0F * mnStageSel_803F06D0[temp_r30->x0].x9);
         }
@@ -299,6 +365,383 @@ void fn_8025A310(HSD_GObj* gobj)
 
     HSD_JObjSetTranslate(jobj, &sp1C);
     lb_8000B1CC(jobj, NULL, &sp1C);
+#ifdef MELEE_NATIVE
+    atomic_store(&native_onett_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Onett &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_onett_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_fountain_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Izumi &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_fountain_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_story_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Story &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_story_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_stadium_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_PStadium &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_stadium_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_greatbay_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_GreatBay &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_greatbay_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_kongo_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Kongo &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_kongo_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_japes_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Garden &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_japes_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_icemt_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Icemt &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_icemt_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_flatzone_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Flatzone &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_flatzone_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_kraid_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Kraid &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_kraid_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_rcruise_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_RCruise &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_rcruise_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_pura_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Pura &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_pura_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_fourside_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Fourside &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_fourside_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_bigblue_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_BigBlue &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_bigblue_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_mutecity_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_MuteCity &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_mutecity_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_corneria_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Corneria &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_corneria_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_venom_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Venom &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_venom_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_shrine_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Shrine &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_shrine_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_greens_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Greens &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_greens_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_yorster_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Yoster &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_yorster_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_castle_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Castle &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_castle_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_brinstar_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Zebes &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_brinstar_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_dreamland_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_OldPupupu &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_dreamland_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_battle_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Battle &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_battle_guidance, guidance);
+            break;
+        }
+    }
+    atomic_store(&native_final_guidance, 0);
+    for (i = 0; i < 0x1E; i++) {
+        if (mnStageSel_803F06D0[i].xB == St_Kind_Last &&
+            mnStageSel_803F06D0[i].x8 >= 2)
+        {
+            unsigned guidance = 16;
+            lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
+            if (sp10.x - sp1C.x < -0.6f) guidance |= 1;
+            if (sp10.x - sp1C.x > 0.6f) guidance |= 2;
+            if (sp10.y - sp1C.y < -0.6f) guidance |= 4;
+            if (sp10.y - sp1C.y > 0.6f) guidance |= 8;
+            atomic_store(&native_final_guidance, guidance);
+            break;
+        }
+    }
+#endif
     for (i = 0; i < 0x1E; i++) {
         if (mnStageSel_803F06D0[i].x8 != 0) {
             lb_8000B1CC(mnStageSel_803F06D0[i].x0, NULL, &sp10);
@@ -434,6 +877,12 @@ static inline HSD_JObj* get_jobj(HSD_GObj* gobj)
 
 void mnStageSel_Scene_OnEnter(void* arg0)
 {
+#ifdef MELEE_NATIVE
+    atomic_store(&native_stage_frames,0);
+    atomic_store(&native_onett_guidance,0);
+    atomic_store(&native_battle_guidance,0);
+    atomic_store(&native_final_guidance,0);
+#endif
     HSD_JObj* spDC[0x13];
     u8 _[0xDC - 0xD8];
     Vec3 spCC;
@@ -763,6 +1212,9 @@ static inline HSD_PadStatus* get_pad(u8 i)
 /// OnFrame
 void mnStageSel_Scene_OnFrame(void)
 {
+#ifdef MELEE_NATIVE
+    atomic_fetch_add(&native_stage_frames,1);
+#endif
     if (sss_data->force_stage_id >= 0) {
         mnStageSel_804D6CAF = 2;
         sss_data->vs.start.rules.stkind = sss_data->force_stage_id;
@@ -834,6 +1286,12 @@ void mnStageSel_Scene_OnFrame(void)
 
 void mnStageSel_Scene_OnExit(UNUSED void* exit_data)
 {
+#ifdef MELEE_NATIVE
+    atomic_store(&native_stage_frames,0);
+    atomic_store(&native_onett_guidance,0);
+    atomic_store(&native_battle_guidance,0);
+    atomic_store(&native_final_guidance,0);
+#endif
     if (mnStageSel_804D6C94 != NULL) {
         lbArchive_80016EFC(mnStageSel_804D6C94);
         mnStageSel_804D6C94 = NULL;

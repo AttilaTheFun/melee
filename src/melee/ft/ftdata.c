@@ -1,4 +1,58 @@
 #include "ftdata.h"
+#ifdef MELEE_NATIVE
+#include "melee_character_motions.h"
+#include "melee_fox_data.h"
+#include "melee_hand_data.h"
+#include "melee_ness_data.h"
+#include "melee_mario_data.h"
+#include "melee_captain_data.h"
+#include "melee_wireframe_data.h"
+#include "melee_sandbag_data.h"
+#include "melee_mars_data.h"
+#include "melee_pikachu_data.h"
+#include "melee_donkey_data.h"
+#include "melee_luigi_data.h"
+#include "melee_purin_data.h"
+#include "melee_yoshi_data.h"
+#include "melee_zelda_data.h"
+#include "melee_link_data.h"
+#include "melee_samus_data.h"
+#include "melee_peach_data.h"
+#include "melee_mewtwo_data.h"
+#include "melee_gamewatch_data.h"
+#include "melee_kirby_data.h"
+#include "melee_iceclimbers_data.h"
+#include "melee_sheik_data.h"
+#include "melee_koopa_data.h"
+#include "melee_scene.h"
+#include <melee/lb/lbheap.h>
+#include <melee/lb/lbdvd.h>
+#include <dolphin/dvd.h>
+#include <stdlib.h>
+static MeleeFoxData* native_fox_data[2];
+static MeleeHandData* native_hand_data[2];
+static MeleeNessData* native_ness_data;
+static MeleeDonkeyData* native_donkey_data;
+static MeleeLuigiData* native_luigi_data;
+static MeleePurinData* native_purin_data;
+static MeleeYoshiData* native_yoshi_data;
+static MeleeZeldaData* native_zelda_data;
+static MeleeLinkData* native_link_data[2];
+static MeleeSamusData* native_samus_data;
+static MeleePeachData* native_peach_data;
+static MeleeMewtwoData* native_mewtwo_data;
+static MeleeGameWatchData* native_gamewatch_data;
+static MeleeKirbyData* native_kirby_data;
+static MeleeIceClimbersData* native_iceclimbers_data[2];
+static MeleeSheikData* native_sheik_data;
+static MeleeMarioData* native_mario_data[2];
+static MeleeCaptainData* native_captain_data[2];
+static MeleeWireframeData* native_wireframe_data[2];
+static MeleeSandbagData* native_sandbag_data;
+static MeleeMarsData* native_mars_data[2];
+static MeleePikachuData* native_pikachu_data[2];
+static MeleeKoopaData* native_koopa_data[2];
+#endif
 
 #include <Runtime/platform.h>
 
@@ -168,19 +222,31 @@ void ft_8008521C(HSD_GObj* gobj)
 
 static inline void ft_800852B0_Reset_ft_8045993C(ftData** list, int i)
 {
+#ifdef MELEE_NATIVE
+    /* Native globals do not share the original executable's placement. */
+    ft_8045993C[i].pad_x0 = 0;
+    ft_8045993C[i].x6_b0 = 0;
+    ft_8045993C[i].x6_b1_b2 = 0;
+#else
     /// @todo Bitfields seem off
     ((ft_8045993C_t*) &list[Ft_Kind_Max])[i].pad_x0 = 0;
     ((ft_8045993C_t*) &list[Ft_Kind_Max])[i].x6_b0 = 0;
     ((ft_8045993C_t*) &list[Ft_Kind_Max])[i].x6_b1_b2 = 0;
+#endif
 }
 
 void ft_800852B0(void)
 {
     ftData** list;
+#ifdef MELEE_NATIVE
+    ftData_UnkCountStruct* unk0 = ftData_Table_Unk0;
+    ftData_UnkCountStruct* pairs = ftData_UnkIntPairs;
+#else
     ftData_UnkCountStruct* unk0 =
         (ftData_UnkCountStruct*) &CostumeListsForeachCharacter[Ft_Kind_Max];
     ftData_UnkCountStruct* pairs =
         (ftData_UnkCountStruct*) ((u8*) CostumeListsForeachCharacter + 5940);
+#endif
     int i;
     int new_var = 0;
 
@@ -1567,10 +1633,492 @@ void ftData_800855C8(FighterKind kind, u8 color)
 void ftData_8008572C(FighterKind kind)
 {
     if (gFtDataList[kind] == NULL) {
+#ifdef MELEE_NATIVE
+        if (kind == Ft_Kind_Koopa || kind == Ft_Kind_GKoops) {
+            unsigned index = kind == Ft_Kind_GKoops;
+            if (!native_koopa_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_koopa_data[index] = melee_koopa_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_koopa_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_koopa_data_header(native_koopa_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Pikachu || kind == Ft_Kind_Pichu) {
+            unsigned index = kind == Ft_Kind_Pichu;
+            if (!native_pikachu_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_pikachu_data[index] = melee_pikachu_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_pikachu_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_pikachu_data_header(native_pikachu_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Mars || kind == Ft_Kind_Emblem) {
+            unsigned index = kind == Ft_Kind_Emblem;
+            if (!native_mars_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_mars_data[index] = melee_mars_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_mars_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_mars_data_header(native_mars_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Boy || kind == Ft_Kind_Girl) {
+            unsigned index = kind == Ft_Kind_Girl;
+            if (!native_wireframe_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_wireframe_data[index] = melee_wireframe_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_wireframe_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_wireframe_data_header(native_wireframe_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Sandbag) {
+            if (!native_sandbag_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_sandbag_data = melee_sandbag_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_sandbag_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_sandbag_data_header(native_sandbag_data);
+            return;
+        }
+        if (kind == Ft_Kind_Captain || kind == Ft_Kind_Ganon) {
+            unsigned index = kind == Ft_Kind_Ganon;
+            if (!native_captain_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_captain_data[index] = melee_captain_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_captain_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_captain_data_header(native_captain_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Mario || kind == Ft_Kind_DrMario) {
+            unsigned index = kind == Ft_Kind_DrMario;
+            if (!native_mario_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_mario_data[index] = melee_mario_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_mario_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_mario_data_header(native_mario_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_MasterH || kind == Ft_Kind_CrezyH) {
+            unsigned index = kind == Ft_Kind_CrezyH;
+            if (!native_hand_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_hand_data[index] = melee_hand_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_hand_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_hand_data_header(native_hand_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Fox || kind == Ft_Kind_Falco) {
+            unsigned index = kind == Ft_Kind_Falco;
+            if (!native_fox_data[index]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_fox_data[index] = melee_fox_data_decode(&archive, bytes[1], sizes[1], index);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_fox_data[index]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_fox_data_header(native_fox_data[index]);
+            return;
+        }
+        if (kind == Ft_Kind_Popo || kind == Ft_Kind_Nana) {
+            /* Nana's normal-motion lookup falls back to Popo's table. */
+            for (unsigned index = 0; index < 2; index++) {
+                FighterKind climber = index ? Ft_Kind_Nana : Ft_Kind_Popo;
+                if (!native_iceclimbers_data[index]) {
+                    const char* names[2] = { ftData_803C1F40[climber].a, ftData_803C23E4[climber] };
+                    const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                    for (unsigned i = 0; i < 2; i++) {
+                        bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                        if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                    }
+                    MeleeArchive archive;
+                    HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                    native_iceclimbers_data[index] = melee_iceclimbers_data_decode(&archive, bytes[1], sizes[1]);
+                    for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                    HSD_ASSERT(__LINE__, native_iceclimbers_data[index]);
+                }
+                gFtDataList[climber] = melee_iceclimbers_data_header(native_iceclimbers_data[index]);
+            }
+            return;
+        }
+        if (kind == Ft_Kind_Kirby) {
+            if (!native_kirby_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_kirby_data = melee_kirby_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_kirby_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_kirby_data_header(native_kirby_data);
+            return;
+        }
+        if (kind == Ft_Kind_GameWatch) {
+            if (!native_gamewatch_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_gamewatch_data = melee_gamewatch_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_gamewatch_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_gamewatch_data_header(native_gamewatch_data);
+            return;
+        }
+        if (kind == Ft_Kind_Mewtwo) {
+            if (!native_mewtwo_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_mewtwo_data = melee_mewtwo_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_mewtwo_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_mewtwo_data_header(native_mewtwo_data);
+            return;
+        }
+        if (kind == Ft_Kind_Peach) {
+            if (!native_peach_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_peach_data = melee_peach_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_peach_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_peach_data_header(native_peach_data);
+            return;
+        }
+        if (kind == Ft_Kind_Samus) {
+            if (!native_samus_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_samus_data = melee_samus_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_samus_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_samus_data_header(native_samus_data);
+            return;
+        }        if (kind == Ft_Kind_Link || kind == Ft_Kind_CLink) {
+            unsigned young = kind == Ft_Kind_CLink;
+            if (!native_link_data[young]) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_link_data[young] = melee_link_data_decode(&archive, bytes[1], sizes[1], young);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_link_data[young]);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_link_data_header(native_link_data[young]);
+            return;
+        }
+        if (kind == Ft_Kind_Zelda) {
+            if (!native_zelda_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_zelda_data = melee_zelda_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_zelda_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_zelda_data_header(native_zelda_data);
+            return;
+        }
+        if (kind == Ft_Kind_Seak) {
+            if (!native_sheik_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_sheik_data = melee_sheik_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_sheik_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_sheik_data_header(native_sheik_data);
+            return;
+        }
+        if (kind == Ft_Kind_Yoshi) {
+            if (!native_yoshi_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_yoshi_data = melee_yoshi_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_yoshi_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_yoshi_data_header(native_yoshi_data);
+            return;
+        }
+        if (kind == Ft_Kind_Purin) {
+            if (!native_purin_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_purin_data = melee_purin_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_purin_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_purin_data_header(native_purin_data);
+            return;
+        }
+        if (kind == Ft_Kind_Luigi) {
+            if (!native_luigi_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_luigi_data = melee_luigi_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_luigi_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_luigi_data_header(native_luigi_data);
+            return;
+        }
+        if (kind == Ft_Kind_Donkey) {
+            if (!native_donkey_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_donkey_data = melee_donkey_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_donkey_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_donkey_data_header(native_donkey_data);
+            return;
+        }        if (kind == Ft_Kind_Ness) {
+            if (!native_ness_data) {
+                const char* names[2] = { ftData_803C1F40[kind].a, ftData_803C23E4[kind] };
+                const void* bytes[2]; void* owned[2] = { NULL, NULL }; size_t sizes[2];
+                for (unsigned i = 0; i < 2; i++) {
+                    bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+                    if (!bytes[i]) { lbFile_80016760((char*) names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+                }
+                MeleeArchive archive;
+                HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes[0], sizes[0]));
+                native_ness_data = melee_ness_data_decode(&archive, bytes[1], sizes[1]);
+                for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+                HSD_ASSERT(__LINE__, native_ness_data);
+            }
+            /* Cache descriptors for the process lifetime, including match resets. */
+            gFtDataList[kind] = melee_ness_data_header(native_ness_data);
+            return;
+        }
+#endif
         lbArchive_80017040(NULL, ftData_803C1F40[kind].a, &gFtDataList[kind],
                            ftData_803C1F40[kind].b, 0);
     }
 }
+
+#ifdef MELEE_NATIVE
+void melee_fighter_load_demo(int kind,const void* motions,size_t length,unsigned first,unsigned count)
+{
+    static struct {const void* source;MeleeCharacterMotions* owner;} cache[Ft_Kind_Max][8];
+    HSD_ASSERT(__LINE__,kind>=0&&kind<Ft_Kind_Max&&motions&&length);
+    ftData_8008572C(kind);
+    unsigned slot;
+    for(slot=0;slot<8;slot++)if(!cache[kind][slot].source||cache[kind][slot].source==motions)break;
+    HSD_ASSERT(__LINE__,slot<8);
+    if(!cache[kind][slot].owner){
+        void* owned=NULL;size_t size=0;
+        const char* filename=ftData_803C1F40[kind].a;
+        const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename),&size);
+        if(!bytes){lbFile_80016760(filename,&owned,&size);bytes=owned;}
+        MeleeArchive data;u32 root;
+        HSD_ASSERT(__LINE__,melee_archive_open(&data,bytes,size));
+        HSD_ASSERT(__LINE__,melee_archive_find(&data,ftData_803C1F40[kind].b,&root));
+        cache[kind][slot].owner=melee_character_motions_decode_range(&data,root+20,
+            ftData_UnkIntPairs[kind].count,first,count,motions,length);
+        if(owned)lbHeap_80015CA8(0,owned);
+        HSD_ASSERT(__LINE__,cache[kind][slot].owner);
+        cache[kind][slot].source=motions;
+    }
+    gFtDataList[kind]->x14=melee_character_motions_records(cache[kind][slot].owner);
+}
+
+void melee_fighter_load_results(int kind, const char* filename)
+{
+    static MeleeCharacterMotions* owners[Ft_Kind_Max];
+    HSD_ASSERT(__LINE__, kind >= 0 && kind < Ft_Kind_Max);
+    ftData_8008572C(kind);
+    if (!owners[kind]) {
+        const char* names[2] = { ftData_803C1F40[kind].a, filename };
+        const void* bytes[2]; void* owned[2] = { NULL, NULL };
+        size_t sizes[2] = { 0, 0 };
+        for (unsigned i = 0; i < 2; i++) {
+            bytes[i] = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names[i]), &sizes[i]);
+            if (!bytes[i]) { lbFile_80016760(names[i], &owned[i], &sizes[i]); bytes[i] = owned[i]; }
+        }
+        MeleeArchive data, motion;
+        u32 root, start;
+        HSD_ASSERT(__LINE__, melee_archive_open(&data, bytes[0], sizes[0]));
+        HSD_ASSERT(__LINE__, melee_archive_open(&motion, bytes[1], sizes[1]));
+        HSD_ASSERT(__LINE__, melee_archive_find(&data, ftData_803C1F40[kind].b, &root));
+        HSD_ASSERT(__LINE__, melee_archive_find(&motion, ((char**) ftData_803C2468[kind])[0], &start));
+        HSD_ASSERT(__LINE__, start < motion.data_size);
+        owners[kind] = melee_character_motions_decode_range(&data, root + 20,
+            ftData_UnkIntPairs[kind].count, 0, 10,
+            motion.bytes + 32 + start, motion.data_size - start);
+        for (unsigned i = 0; i < 2; i++) if (owned[i]) lbHeap_80015CA8(0, owned[i]);
+        HSD_ASSERT(__LINE__, owners[kind]);
+    }
+    gFtDataList[kind]->x14 = melee_character_motions_records(owners[kind]);
+}
+#endif
 
 void ftData_8008578C(int arg0, u8 color)
 {
@@ -1590,8 +2138,75 @@ void ftData_800857E0(FighterKind kind)
     }
 }
 
+#ifdef MELEE_NATIVE
+/* Additional costume roots (such as Jigglypuff hats) outlive match instances. */
+typedef struct NativeCostumeJoint {
+    FighterKind kind;int costume;char* symbol;MeleeScene* scene;
+    struct NativeCostumeJoint* next;
+} NativeCostumeJoint;
+static NativeCostumeJoint* native_costume_joints;
+HSD_Joint* ftData_NativeCostumeJoint(FighterKind kind,int costume,const char* symbol)
+{
+    HSD_ASSERT(__LINE__,kind>=0&&kind<Ft_Kind_Max&&symbol);
+    HSD_ASSERT(__LINE__,costume>=0&&(unsigned)costume<CostumeListsForeachCharacter[kind].numCostumes);
+    for(NativeCostumeJoint* n=native_costume_joints;n;n=n->next)
+        if(n->kind==kind&&n->costume==costume&&!strcmp(n->symbol,symbol))return melee_scene_joint_descriptor(n->scene);
+    const char* filename=ftData_803C2360[kind][costume].dat_filename;
+    void* owned=NULL;size_t size=0;
+    const void* bytes=lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(filename),&size);
+    if(!bytes){lbFile_80016760((char*)filename,&owned,&size);bytes=owned;}
+    MeleeArchive archive;u32 root;
+    HSD_ASSERT(__LINE__,melee_archive_open(&archive,bytes,size));
+    HSD_ASSERT(__LINE__,melee_archive_find(&archive,symbol,&root));
+    MeleeScene* scene=melee_scene_decode(&archive,root);HSD_ASSERT(__LINE__,scene);
+    melee_scene_release_objects(scene);
+    if(owned)lbHeap_80015CA8(0,owned);
+    NativeCostumeJoint* n=calloc(1,sizeof(*n));HSD_ASSERT(__LINE__,n);
+    n->symbol=malloc(strlen(symbol)+1);HSD_ASSERT(__LINE__,n->symbol);strcpy(n->symbol,symbol);
+    n->kind=kind;n->costume=costume;n->scene=scene;n->next=native_costume_joints;native_costume_joints=n;
+    return melee_scene_joint_descriptor(scene);
+}
+static MeleeScene** native_character_costumes[Ft_Kind_Max];
+static bool ftData_NativeCostume(FighterKind kind, int costume_id)
+{
+    HSD_ASSERT(__LINE__, kind >= 0 && kind < Ft_Kind_Max);
+    unsigned count = CostumeListsForeachCharacter[kind].numCostumes;
+    HSD_ASSERT(__LINE__, costume_id >= 0 && (unsigned) costume_id < count);
+    if (!native_character_costumes[kind]) {
+        native_character_costumes[kind] = calloc(count, sizeof(MeleeScene*));
+        HSD_ASSERT(__LINE__, native_character_costumes[kind]);
+    }
+    MeleeScene* scene = native_character_costumes[kind][costume_id];
+    Fighter_CostumeStrings* names = &ftData_803C2360[kind][costume_id];
+    if (!scene) {
+        void* owned = NULL; size_t size = 0;
+        const void* bytes = lbDvd_NativeGetRawData(DVDConvertPathToEntrynum(names->dat_filename), &size);
+        if (!bytes) { lbFile_80016760(names->dat_filename, &owned, &size); bytes = owned; }
+        MeleeArchive archive; u32 root;
+        HSD_ASSERT(__LINE__, melee_archive_open(&archive, bytes, size));
+        HSD_ASSERT(__LINE__, melee_archive_find(&archive, names->joint_name, &root));
+        scene = melee_scene_decode(&archive, root); HSD_ASSERT(__LINE__, scene);
+        if (names->matanim_joint_name) {
+            HSD_ASSERT(__LINE__, melee_archive_find(&archive, names->matanim_joint_name, &root));
+            HSD_ASSERT(__LINE__, melee_scene_bind_materials(scene, root));
+        }
+        melee_scene_release_objects(scene);
+        if (owned) lbHeap_80015CA8(0, owned);
+        native_character_costumes[kind][costume_id] = scene;
+    }
+    UnkCostumeStruct* costume = &CostumeListsForeachCharacter[kind].costume_list[costume_id];
+    costume->joint = melee_scene_joint_descriptor(scene);
+    costume->x4 = melee_scene_material_descriptor(scene);
+    costume->x14_archive = NULL;
+    return true;
+}
+#endif
+
 void ftData_80085820(FighterKind kind, int costume_id)
 {
+#ifdef MELEE_NATIVE
+    if (ftData_NativeCostume(kind, costume_id)) return;
+#endif
     UnkCostumeStruct* temp_r5 =
         &CostumeListsForeachCharacter[kind].costume_list[costume_id];
     if (temp_r5->joint == NULL) {
@@ -1615,6 +2230,9 @@ void ftData_80085820(FighterKind kind, int costume_id)
 
 void ftData_800858E4(FighterKind kind, int costume_id)
 {
+#ifdef MELEE_NATIVE
+    if (ftData_NativeCostume(kind, costume_id)) return;
+#endif
     UnkCostumeStruct* temp_r5 =
         &CostumeListsForeachCharacter[kind].costume_list[costume_id];
     if (temp_r5->joint == NULL) {
@@ -1654,6 +2272,10 @@ void ftData_800859A8(Fighter* fp)
 
 void ftData_80085A14(FighterKind kind)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERT(0x974, gFtDataList[kind] && gFtDataList[kind]->xC &&
+                      gFtDataList[kind]->xC[0].native_owner);
+#else
     void* sp18;
     void* a_head;
     ftData* temp_r27 = gFtDataList[kind];
@@ -1681,6 +2303,7 @@ void ftData_80085A14(FighterKind kind)
         }
         ftData_Table_Unk0[kind].data = a_head;
     }
+#endif
 }
 
 void ftData_80085B10(Fighter* fp)
@@ -1696,6 +2319,17 @@ void ftData_80085B10(Fighter* fp)
 
 void ftData_80085B98(Fighter* fp, int arg1, int arg2)
 {
+#ifdef MELEE_NATIVE
+    HSD_ASSERTREPORT(__LINE__, fp->ft_data->x14 != NULL, "Native demo motion data is not installed: kind=%d range=%d..%d\n",fp->kind,arg1,arg2);
+    HSD_ASSERT(__LINE__, arg1 >= 0 && arg2 >= arg1 && arg2 < ftData_UnkIntPairs[fp->kind].count);
+    for (int index = arg1; index <= arg2; index++) {
+        HSD_ASSERTREPORT(__LINE__, fp->ft_data->x14[index].native_owner != NULL,"Native demo motion missing: kind=%d index=%d requested=%d..%d\n",fp->kind,index,arg1,arg2);
+    }
+    fp->x59C = HSD_ObjAlloc(&fighter_x59C_alloc_data);
+    fp->x5A0 = HSD_ObjAlloc(&fighter_x59C_alloc_data);
+    fp->x5A4 = fp->x5A8 = NULL;
+    fp->x58C = ftData_UnkIntPairs[fp->kind].count;
+#else
     u32 temp_r30;
     int i;
     u32 temp_r0;
@@ -1725,10 +2359,23 @@ void ftData_80085B98(Fighter* fp, int arg1, int arg2)
         }
         ftData_UnkIntPairs[fp->kind].data = 0;
     }
+#endif
 }
 
 void ftData_80085CD8(Fighter* fp, Fighter* arg1, int msid)
 {
+#ifdef MELEE_NATIVE
+    if (msid >= 0 && msid < arg1->x58C) {
+        struct Fighter_WaitAnimData* record = (struct Fighter_WaitAnimData*) ftData_80085FD4(arg1, msid);
+        /* Retail uses a null animation for empty demo slots (including Sleep
+         * during ending teardown); those slots have no motion owner. */
+        if(!record->x14){HSD_ASSERT(__LINE__,!record->x8);fp->x590=NULL;fp->x5A4=NULL;return;}
+        HSD_ASSERT(0x9FA, record->native_owner);
+        fp->x590 = melee_character_motions_tree(record->native_owner, record->native_index);
+        HSD_ASSERT(0xA0F, !record->x8 || fp->x590);
+        fp->x5A4 = (void*) record->x14;
+    }
+#else
     HSD_Archive sp14;
     Fighter* temp_r3_3;
     s32 temp_ret;
@@ -1778,10 +2425,23 @@ void ftData_80085CD8(Fighter* fp, Fighter* arg1, int msid)
             fp->x5A4 = (void*) temp_r3->x14;
         }
     }
+#endif
 }
 
 FigaTree* ftData_80085E50(Fighter* arg0, int msid)
 {
+#ifdef MELEE_NATIVE
+    if (msid >= 0 && msid < arg0->x58C) {
+        struct ftData_80085FD4_ret* record = ftData_80085FD4(arg0, msid);
+        if(!record->x14){HSD_ASSERT(__LINE__,!record->x8);arg0->x598=NULL;arg0->x5A8=NULL;return NULL;}
+        HSD_ASSERT(0xA30, record->native_owner);
+        arg0->x598 = melee_character_motions_tree(record->native_owner, record->native_index);
+        HSD_ASSERT(0xA45, !record->x8 || arg0->x598);
+        arg0->x5A8 = (void*) record->x14;
+        return arg0->x598;
+    }
+    return NULL;
+#else
     HSD_Archive sp10;
     Fighter* temp_r3_3;
     int temp_ret;
@@ -1833,6 +2493,7 @@ FigaTree* ftData_80085E50(Fighter* arg0, int msid)
         return arg0->x598;
     }
     return NULL;
+#endif
 }
 
 struct ftData_80085FD4_ret* ftData_80085FD4(Fighter* fp, int msid)

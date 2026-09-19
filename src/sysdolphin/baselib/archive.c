@@ -69,6 +69,10 @@ s32 HSD_ArchiveParse(HSD_Archive* archive, u8* src, size_t file_size)
 
 void* HSD_ArchiveGetPublicAddress(HSD_Archive* archive, const char* symbols)
 {
+#ifdef MELEE_NATIVE
+    if (archive && (archive->flags & HSD_ARCHIVE_NATIVE))
+        return archive->native_public_lookup ? archive->native_public_lookup(archive, symbols) : NULL;
+#endif
     u32 i;
 
     for (i = 0; i < archive->header.nb_public; i++) {

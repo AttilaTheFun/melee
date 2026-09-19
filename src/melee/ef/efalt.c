@@ -9,7 +9,12 @@
 #include <sysdolphin/baselib/gobj.h>
 #include <sysdolphin/baselib/jobj.h>
 
+#ifdef MELEE_NATIVE
+#include <melee/ft/types.h>
+#define EFALT_VA_ARG(t) va_arg(vlist_arg, t)
+#else
 #define EFALT_VA_ARG(t) (*((t*) __va_arg(vlist_arg, _var_arg_typeof(t))))
+#endif
 
 extern volatile u32 efLib_LoadKind;
 extern volatile s32 efLib_AnimCount;
@@ -24,9 +29,13 @@ void* efAlt_Spawn(s32 gfx_id, HSD_GObj* gobj, va_list vlist)
     Vec3 scale;
     f32* value_ptr;
     void* ret_obj;
+#ifdef MELEE_NATIVE
+    va_list vlist_arg;
+    va_copy(vlist_arg, vlist);
+#else
     void* vlist_arg;
-
     vlist_arg = vlist;
+#endif
     ret_obj = NULL;
     efLib_LoadKind = EF_LOADKIND_SYNC;
     PAD_STACK(80);
@@ -222,9 +231,16 @@ void* efAlt_Spawn(s32 gfx_id, HSD_GObj* gobj, va_list vlist)
 
         effect_flags = 0x41;
         user_data = gobj->user_data;
+#ifdef MELEE_NATIVE
+        /* Retail FighterBone is 0x10 bytes: pointer indices 0xB0 and 4
+         * identify bones 44 and 1. Neither native offset is byte-stable. */
+        jobj = ((Fighter*) user_data)->parts[44].joint;
+        jobj_2 = ((Fighter*) user_data)->parts[1].joint;
+#else
         jobj_ptr = *(HSD_JObj***) ((u8*) user_data + 0x5E8);
         jobj = jobj_ptr[0xB0];
         jobj_2 = jobj_ptr[4];
+#endif
         ret_obj = efLib_Create_AttachChild(0x1388U, gobj, jobj);
         if (ret_obj != NULL) {
             effect_1 = ret_obj;
@@ -537,9 +553,16 @@ void* efAlt_Spawn(s32 gfx_id, HSD_GObj* gobj, va_list vlist)
         cnt = efLib_AnimCount - 1;
         efLib_AnimCount = cnt;
         // horrible. its actually just efLib_AnimQueue[cnt]
+#ifdef MELEE_NATIVE
+        HSD_JObjAnimAll(efLib_AnimQueue[cnt]);
+#else
         HSD_JObjAnimAll(
             ((EF_ParamEntry*) (((u32*) efLib_AnimQueue) + cnt))->gobj);
+#endif
     }
 
+#ifdef MELEE_NATIVE
+    va_end(vlist_arg);
+#endif
     return ret_obj;
 }

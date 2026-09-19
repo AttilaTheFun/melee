@@ -70,6 +70,9 @@ static int HSD_Synth_804C28E0_1844[HSD_SYNTHSFXGROUP_MAX];
 
 static u8 lbl_804C4524[0x1C];
 
+#ifdef MELEE_NATIVE
+_Alignas(32)
+#endif
 static struct {
     /* 00 */ s32 x0;
     /* 04 */ s32 x4;
