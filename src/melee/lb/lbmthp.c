@@ -14,6 +14,7 @@
 #include <sysdolphin/baselib/tobj.h>
 #include <sysdolphin/baselib/video.h>
 #ifdef MELEE_NATIVE
+#include <dolphin/vi.h>
 #include <melee_mth.h>
 #include <melee_thp.h>
 typedef uintptr_t MTHAddress;
@@ -564,7 +565,14 @@ s32 fn_8001F13C(THPDecComp* streamPlayer)
 #endif
 s32 fn_8001F294(void)
 {
+#ifdef MELEE_NATIVE
+    BOOL intr = OSDisableInterrupts();
+    s32 pending = MoviePlayer.unk_110;
+    OSRestoreInterrupts(intr);
+    return pending;
+#else
     return MoviePlayer.unk_110;
+#endif
 }
 #ifdef __MWERKS__
 #pragma pop
@@ -761,9 +769,21 @@ void lbMthp_8001F67C(HSD_GObj* gobj, int arg1)
 void lbMthp_8001F800(void)
 {
     if (MoviePlayer.power != 0) {
+#ifdef MELEE_NATIVE
+        BOOL intr = OSDisableInterrupts();
+#endif
         MoviePlayer.unk_70 = 0;
+#ifdef MELEE_NATIVE
+        OSRestoreInterrupts(intr);
+#endif
 
         while (fn_8001F294()) {
+#ifdef MELEE_NATIVE
+            /* The DVD completion runs on another host thread under the
+             * interrupt gate. Yield that gate and reload its pending flag;
+             * an empty C loop can compile into an unconditional spin. */
+            VIWaitForRetrace();
+#endif
         }
 
         OSCancelAlarm(&MoviePlayer.alarm);

@@ -231,6 +231,13 @@ test-toy-layout: build/test-toy-layout
 	UBSAN_OPTIONS=halt_on_error=1 ./build/test-toy-layout
 
 .PHONY: test-jpeg-runtime
+build/test-movie-stop: tests/test_movie_stop.c ../src/melee/lb/lbmthp.c src/vi_backend.c src/os_interrupt.c $(NATIVE_HEADERS) | build
+	$(CC) $(CPPFLAGS) -I../src -std=gnu11 -O2 -g -pthread -fsanitize=address,undefined -Wl,-dead_strip tests/test_movie_stop.c src/vi_backend.c src/os_interrupt.c -o $@
+.PHONY: test-movie-stop
+test: test-movie-stop
+test-movie-stop: build/test-movie-stop
+	UBSAN_OPTIONS=halt_on_error=1 ./build/test-movie-stop
+
 test: test-jpeg-runtime
 build/test-jpeg-runtime: tests/test_jpeg_runtime.c ../src/Runtime/Gecko_setjmp.h ../src/sysdolphin/baselib/hsd_3A94.h ../src/sysdolphin/baselib/hsd_3B33.c ../src/sysdolphin/baselib/hsd_4D11.c $(NATIVE_HEADERS) | build
 	$(CC) $(CPPFLAGS) -I../src -std=gnu11 -O2 -g -fsanitize=address,undefined -Wl,-dead_strip tests/test_jpeg_runtime.c ../src/sysdolphin/baselib/hsd_3B33.c ../src/sysdolphin/baselib/hsd_4D11.c -o $@
