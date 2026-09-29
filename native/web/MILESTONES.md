@@ -534,3 +534,27 @@ measures 57.91–57.92 simulation ticks/s and 28.95–28.96 draws/s while the
 sanitized check overlaps (`wasm-upload-turn-loss.log`). Relay/proxy sockets
 closed and temporary credentials were removed. The staged site was refreshed;
 Cloudflare deployment and separate-network verification remain outstanding.
+
+
+Broader stage entry coverage now includes guided Pikachu mirrors on Venom,
+Fountain of Dreams and Great Bay. All three pass each player's attack and jump
+motion checks plus three pause/resume cycles; captures show the expected stages
+(`wasm-stage-{venom,fountain,greatbay}-frame-check.log` and matching PNGs).
+These checks are not full matches, extended soaks or complete visual comparisons.
+
+The first Venom action attempt ran during an entry animation. A later attempt
+held Player 2's jump key while all 12 samples reported the same game frame.
+Worker capture showed the game waiting in `aurora::gx::fifo::wait_draw_done`,
+with the completion worker polling its GPU future. This demonstrates a render
+wait, not a missing keyboard event or proof of the earlier long-soak freeze's
+cause. Action checks now require idle before input and allow simulation to
+advance (up to 36 rendered frames / ten seconds), preserving failures with
+held-key/frame/fighter samples, worker stacks and a screenshot. The subsequent
+Venom check passes; hitching remains a separate performance issue.
+
+Fountain also exposed a false `oioi...` diagnostic on each draw: its original
+GameCube pointer check requires the high address bit, which valid Wasm offsets
+lack. That diagnostic is now restricted to the original GameCube path. The
+actual pointer dereference and rendering logic are unchanged. Native and browser
+builds pass. The final Fountain rerun passes both-player action/lifecycle checks
+with zero occurrences of the false diagnostic (`wasm-stage-fountain-fixed.log`).

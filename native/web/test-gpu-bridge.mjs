@@ -165,9 +165,9 @@ try {
         continue;
       }
       if(action.stageTarget){
-        if(action.stageTarget!=='onett')throw new Error('Unknown stage target');
-        await selectOnett();
-        console.log('PASS guided Onett selection');
+        await selectStage(action.stageTarget);
+        console.log('PASS guided stage selection',action.stageTarget);
+        await page.locator('#canvas').screenshot({path:path.join(root,'browser-stage-'+action.stageTarget+'.png')});
         continue;
       }
       const keys=action.keys||[action.key];
@@ -222,18 +222,33 @@ try {
         ['attack',attack,f=>f[4]>=44 && f[4]<=69],
         ['jump',jump,f=>f[4]>=24 && f[4]<=28],
       ]) {
-        let observed=false;const motions=[];
+        // Entry animations can outlast stage loading, especially on Venom.
+        // Send a fresh press only once this fighter is standing and controllable.
+        await page.waitForFunction(slot=>window.probeAbort ||
+          (Module.meleeState?.fighters?.[slot]?.[0]===1 &&
+           Module.meleeState.fighters[slot][4]===14),slot,{timeout:30000});
+        if(pageErrors.length)throw new Error(pageErrors.join('\n'));
+        let observed=false;const motions=[],samples=[];
         await page.keyboard.down(key);
         try {
-          for(let tick=0;tick<12;tick++) {
+          const actionDeadline=performance.now()+10000;
+          const startFrame=await page.evaluate(()=>Module.meleeState.frame);
+          while(performance.now()<actionDeadline) {
             await page.waitForTimeout(50);
             const state=await page.evaluate(()=>Module.meleeState);
+            samples.push({frame:state?.frame,fighter:state?.fighters?.[slot],keys:await page.evaluate(()=>Array.from(Module.meleeKeys||[]))});
             if(pageErrors.length)throw new Error(pageErrors.join('\n'));
             const fighter=state?.fighters?.[slot];
             if(fighter?.[0]){motions.push(fighter[4]);observed ||= accept(fighter);}
+            if((observed&&samples.length>=12)||state?.frame>=startFrame+36)break;
           }
         } finally { await page.keyboard.up(key); }
-        if(!observed)throw new Error('Player '+(slot+1)+' '+name+' motion was not observed: '+motions);
+        if(!observed){
+          const stacks=await captureWorkerStacks(browser).catch(error=>({error:String(error)}));
+          await fs.writeFile(path.join(root,'browser-action-failure.json'),JSON.stringify({slot,name,samples,stacks},null,2));
+          await page.locator('#canvas').screenshot({path:path.join(root,'browser-action-failure.png')});
+          throw new Error('Player '+(slot+1)+' '+name+' motion was not observed: '+JSON.stringify(samples));
+        }
         console.log('PASS player',slot+1,name,'motions',JSON.stringify(motions));
         await page.waitForTimeout(2000);
       }
@@ -312,9 +327,10 @@ try {
     if(!completed)throw new Error('Match did not reach results before deadline');
     console.log('PASS browser match reached results');
   }
-  async function selectOnett() {
+  async function selectStage(target='onett') {
+    if(!['onett','venom','fountain','greatbay'].includes(target))throw new Error('Unknown stage target: '+target);
     if(!await page.evaluate(()=>Module.meleeState?.mode===2&&Module.meleeState.scene===1))
-      throw new Error('Onett guidance requires stage selection');
+      throw new Error('Cursor guidance requires stage selection');
     await page.evaluate(()=>{
       window.rematchPad={index:0,id:'Test rematch controller',connected:true,mapping:'standard',
         axes:[0,0,0,0],buttons:Array.from({length:16},()=>({pressed:false,value:0}))};
@@ -326,8 +342,8 @@ try {
       while(performance.now()<selectDeadline){
         const state=await page.evaluate(()=>Module.meleeState);
         if(state?.mode===2&&state.scene!==1)break;
-        const guidance=state?.stageGuidance||0;
-        if(!(guidance&16))throw new Error('No Onett cursor guidance');
+        const guidance=state?.stageTargets?.[target]||0;
+        if(!(guidance&16))throw new Error('No cursor guidance for '+target);
         // A full keyboard axis can jump across the 1.2-unit target region.
         // Small real Gamepad API pulses converge without editing game state.
         await page.evaluate(g=>{
@@ -374,7 +390,7 @@ try {
       await press(['KeyJ','Numpad1']);await press(['Enter'],100,3500);
     }
     if(!await page.evaluate(()=>Module.meleeState?.scene===1))throw new Error('Rematch did not reach stage selection');
-    await selectOnett();
+    await selectStage();
     console.log('PASS browser returned from results and started a second match');
   }
   if(game && process.env.MELEE_WAIT_RESULTS && !pageErrors.length)

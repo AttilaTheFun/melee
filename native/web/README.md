@@ -19,7 +19,9 @@ simulation ticks/s and 29 draws/s under partial concurrent load.
 
 The subsequent sanitizer run found an item-table write past a global variable
 during stage loading. The native/Wasm path now addresses the intended table
-explicitly; long-session validation of that fix is in progress.
+explicitly. Subsequent release and sanitizer soaks passed more than ten minutes
+with rematches and no further invalid-access report. This does not establish
+the cause of the earlier freezes.
 
 ## Full-game build
 
@@ -107,6 +109,19 @@ Combine these with the full-game probe variables:
 - `MELEE_TEST_REMATCH=1`: follow results with character/stage selection and a second match.
 - `MELEE_TEST_SAVING=1 MELEE_TEST_PERSISTENCE=1`: test nonempty card persistence,
   import/export, corrupt import preservation and exclusive cross-tab ownership.
+
+The guided Pikachu mirror scenarios select characters and stages with ordinary
+Gamepad API input and read-only cursor guidance. Use
+`MELEE_INPUT_FILE=native/web/scenarios/pikachu-mirror.json` for Onett, or
+`pikachu-venom.json`, `pikachu-fountain.json`, and `pikachu-greatbay.json` in the
+same directory. Add `MELEE_EXPECT_KINDS=12,12`, `MELEE_TEST_MOVES=1`, and
+`MELEE_TEST_LIFECYCLE=1` to check selection, both players' actions and pause/resume.
+Action tests wait for the fighter's idle motion before pressing a button so
+stage entry animations cannot swallow the input. They allow up to ten seconds
+for simulation progress rather than expiring solely after 600 ms of wall time.
+Failures save held keys, frame/fighter samples, worker stacks and a canvas capture.
+These are stage-entry/action
+checks, not full matches or broad compatibility proof.
 
 Recorded rematch and action passes are in `MILESTONES.md`. Physical controllers,
 broader browser/device coverage and long-session performance still need testing.

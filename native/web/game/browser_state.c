@@ -12,9 +12,12 @@
 extern unsigned melee_browser_net_tick_count(void);
 extern bool mnCharSel_NativeTargetDelta(unsigned,unsigned,float*,float*);
 extern unsigned mnStageSel_NativeOnettGuidance(void);
+extern unsigned mnStageSel_NativeVenomGuidance(void);
+extern unsigned mnStageSel_NativeFountainGuidance(void);
+extern unsigned mnStageSel_NativeGreatbayGuidance(void);
 void melee_browser_publish_state(unsigned frame) {
     unsigned mode=gm_GetCurrentGameMode(),scene=gm_GetCurrentSceneIndex();
-    float values[32]={0};
+    float values[35]={0};
     unsigned guidance=0;
     if(mode==GM_VS && scene==gmVsMode_State_Css){
         mnCharSel_NativeTargetDelta(0,CKind_Mario,&values[0],&values[1]);
@@ -22,7 +25,12 @@ void melee_browser_publish_state(unsigned frame) {
         mnCharSel_NativeTargetDelta(0,CKind_Pikachu,&values[28],&values[29]);
         mnCharSel_NativeTargetDelta(1,CKind_Pikachu,&values[30],&values[31]);
     }
-    if(mode==GM_VS && scene==gmVsMode_State_Sss)guidance=mnStageSel_NativeOnettGuidance();
+    if(mode==GM_VS && scene==gmVsMode_State_Sss){
+        guidance=mnStageSel_NativeOnettGuidance();
+        values[32]=mnStageSel_NativeVenomGuidance();
+        values[33]=mnStageSel_NativeFountainGuidance();
+        values[34]=mnStageSel_NativeGreatbayGuidance();
+    }
     if(mode==GM_VS && (scene==gmVsMode_State_Vs||scene==gmVsMode_State_SuddenDeath)){
         for(unsigned slot=0;slot<2;slot++){
             HSD_GObj* object=Player_GetEntity(slot);
@@ -37,9 +45,10 @@ void melee_browser_publish_state(unsigned frame) {
         }
     }
     MAIN_THREAD_EM_ASM({
-        const v=Array.from(HEAPF32.subarray($4>>2,($4>>2)+32));
+        const v=Array.from(HEAPF32.subarray($4>>2,($4>>2)+35));
         Module.meleeState=({frame:$0,mode:$1,scene:$2,stageGuidance:$3,netTick:$5,rng:$6>>>0,
           cursorTargets:[v.slice(0,2),v.slice(2,4)],pikachuCursorTargets:[v.slice(28,30),v.slice(30,32)],
+          stageTargets:{onett:$3,venom:v[32],fountain:v[33],greatbay:v[34]},
           fighters:[v.slice(4,16),v.slice(16,28)]});
         Module.onGameState?.(Module.meleeState);
         Module.netSession?.observeState?.(Module.meleeState);
