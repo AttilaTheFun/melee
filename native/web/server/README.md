@@ -58,7 +58,7 @@ Current evidence: room boundary unit tests, a two-browser launcher test, and
 actual workerd/SQLite Durable Object tests pass. Two Wasm engines completed
 9,600 matching logic-tick snapshots through results over both direct WebRTC and
 a forced local TURN relay. Uneven input delivery also passes. Cloudflare
-deployment/credentials, separate-network routing, packet loss and acceptable
+deployment/credentials, separate-network routing and acceptable
 online performance remain unverified. Online is currently input-delay lockstep, without rollback, and
 rendering stalls slow simulation.
 
@@ -83,11 +83,23 @@ the actual game test; it models latency variation, not packet loss on the wire.
 
 Add `--loss-percent 5` to drop actual UDP datagrams through a loopback proxy in
 both directions. The transport regression has recovered all 1,000 ordered
-packets per peer under this impairment; full-game loss testing remains pending.
+packets per peer under this impairment. A full game also passed 9,600 matching
+logic snapshots through results with six ticks of input delay, a 17-second
+worker-clock offset and 3,996 of 78,358 UDP datagrams dropped. It measured about
+57 simulation ticks/s and 28 rendered frames/s while another offline test ran
+on the same Mac; this is correctness evidence, not a broad performance claim.
 The proxy uses a fixed random seed and prints actual dropped/observed counts.
 It and the relay close their sockets on exit. This can also be combined with
 `--game --ticks 9600` to validate a full match. Record pacing separately:
 SCTP retransmission stalls can slow input-delay lockstep.
+
+The full loss/clock-skew regression is reproducible with:
+
+```sh
+MELEE_DISC=/path/to/melee.ciso PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs \
+  MELEE_NET_DELAY=6 MELEE_NET_CLOCK_OFFSET_MS=17000 \
+  python3 native/web/test-local-turn.py --game --ticks 9600 --loss-percent 5
+```
 
 
 ### Worker toolchain checks

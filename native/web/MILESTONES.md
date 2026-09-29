@@ -27,14 +27,15 @@ The character viewer remains a separate diagnostic; it is not a gameplay milesto
       short-lived TURN credentials; validate the Worker with a mocked credential API.
 - [x] Two independent browser instances complete a synchronized match over a
       forced local TURN relay, including variable input delivery and cleanup.
-- [ ] Verify Cloudflare credentials/deployment, separate networks and packet loss.
-- [ ] Assess rollback against measured delay and deterministic state restoration;
+- [x] Complete a full local TURN match with actual UDP packet loss and clock skew.
+- [ ] Verify Cloudflare credentials/deployment and separate networks.
+- [x] Assess rollback against measured delay and deterministic state restoration;
       document actual input-delay/rollback behavior rather than imply equivalence.
 - [ ] Provide reproducible hosting instructions and local tests. Hosted files
       contain the application only; each player selects their own game disc.
 
-Current work: improve online pacing, validate longer sessions and deploy/test
-Cloudflare rooms across networks.
+Current work: diagnose an intermittent offline freeze, validate longer sessions
+and deploy/test Cloudflare rooms across networks.
 After correcting strict callback signatures, the full game renders a live
 Onett versus match with two fighters and an advancing timer. The stage-entry
 scenario passed with no browser errors. A complete match (including sudden
@@ -383,3 +384,28 @@ close afterward (`wasm-turn-loss-full-fixed.log`). Simulation measures
 soak runs on the same Mac. This is a full-match correctness pass under local
 packet loss, not separate-network or Cloudflare evidence. The offline stall
 still prevents declaring overall stability complete.
+
+Rollback assessment: this milestone uses input-delay lockstep. A six-tick buffer
+adds about 100 ms of scheduled input delay, plus device polling/render latency;
+missing reliable-channel packets can stop simulation until retransmission. The
+relay/loss tests verify recovery and matching logic, not rollback responsiveness.
+Copying the live Wasm heap is not a valid rollback implementation: it also holds
+allocator, mutex, worker and resource-handle state, while GPU objects, audio and
+file operations live outside it. Rollback needs a deterministic gameplay-state
+boundary and restoration tests that reconcile those external systems. The current
+compact checksums neither serialize nor prove equality of the complete game state.
+
+The next diagnostic soak completed two matches but failed its second rematch
+navigation: full-axis keyboard pulses oscillated around the stage target. This
+is a test-driver failure, distinct from the input stall. Selection now uses
+small synthetic standard-Gamepad API pulses, still through the normal input path.
+The subsequent stack-capture soak has passed two rematches with this driver;
+extended stability remains under validation.
+
+The subsequent analog-navigation soak froze before its first rematch, at frame
+2,329, phase 6. The input alarm continued completing callbacks while the game
+frame stayed fixed (`wasm-input-alarm-soak-analog.log`). This rules out treating
+the older phase-2 observation as proof that the input alarm stopped. The watchdog
+now captures worker stacks through the existing headless Chrome CDP pipe before
+closing the failed test; a busy-worker smoke check verified capture and resume.
+The next real-game run is validating that failure diagnostic.

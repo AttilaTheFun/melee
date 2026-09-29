@@ -2,6 +2,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {captureWorkerStacks} from './capture-worker-stacks.mjs';
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const probe = process.env.MELEE_GPU_PROBE || 'melee_gpu_bridge_probe';
 if (!/^melee_[a-z_]+$/.test(probe)) throw new Error('Invalid probe name');
@@ -226,6 +227,9 @@ try {
         alarm:Module.inputAlarmDiagnostics?.(),hidden:document.hidden,heapBytes:HEAPU8.buffer.byteLength,profile:Module.runtimeProfile}));
       if(state?.frame!==lastFrame){lastFrame=state?.frame;lastProgress=performance.now();}
       if(performance.now()-lastProgress>30000){
+        const stacks=await captureWorkerStacks(browser).catch(error=>({error:String(error)}));
+        await fs.writeFile(path.join(root,'browser-stall-stacks.json'),JSON.stringify(stacks,null,2));
+        console.log('STALL STACKS',JSON.stringify(stacks));
         await page.locator('#canvas').screenshot({path:path.join(root,'browser-stall.png')});
         throw new Error('No game-frame progress for 30 seconds: '+JSON.stringify({state,diagnostics}));
       }
@@ -268,17 +272,36 @@ try {
       await press(['KeyJ','Numpad1']);await press(['Enter'],100,3500);
     }
     if(!await page.evaluate(()=>Module.meleeState?.scene===1))throw new Error('Rematch did not reach stage selection');
+    await page.evaluate(()=>{
+      window.rematchPad={index:0,id:'Test rematch controller',connected:true,mapping:'standard',
+        axes:[0,0,0,0],buttons:Array.from({length:16},()=>({pressed:false,value:0}))};
+      window.rematchPadDescriptor=Object.getOwnPropertyDescriptor(navigator,'getGamepads');
+      Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>[rematchPad]});
+    });
     const selectDeadline=performance.now()+30000;
-    while(performance.now()<selectDeadline){
-      const state=await page.evaluate(()=>Module.meleeState);
-      if(state?.mode===2&&state.scene!==1)break;
-      const guidance=state?.stageGuidance||0;
-      if(guidance===16){await press(['KeyJ'],100,500);continue;}
-      const keys=[];
-      if(guidance&1)keys.push('KeyA');else if(guidance&2)keys.push('KeyD');
-      if(guidance&4)keys.push('KeyS');else if(guidance&8)keys.push('KeyW');
-      if(!keys.length)throw new Error('No Onett cursor guidance during rematch');
-      await press(keys,40,120);
+    try {
+      while(performance.now()<selectDeadline){
+        const state=await page.evaluate(()=>Module.meleeState);
+        if(state?.mode===2&&state.scene!==1)break;
+        const guidance=state?.stageGuidance||0;
+        if(!(guidance&16))throw new Error('No Onett cursor guidance during rematch');
+        // A full keyboard axis can jump across the 1.2-unit target region.
+        // Small real Gamepad API pulses converge without editing game state.
+        await page.evaluate(g=>{
+          rematchPad.axes[0]=(g&1)?-0.45:(g&2)?0.45:0;
+          rematchPad.axes[1]=(g&4)?0.45:(g&8)?-0.45:0;
+          rematchPad.buttons[0]={pressed:g===16,value:g===16?1:0};
+        },guidance);
+        await page.waitForTimeout(guidance===16?100:40);
+        await page.evaluate(()=>{rematchPad.axes.fill(0);rematchPad.buttons[0]={pressed:false,value:0};});
+        await page.waitForTimeout(guidance===16?500:120);
+      }
+    } finally {
+      await page.evaluate(()=>{
+        if(rematchPadDescriptor)Object.defineProperty(navigator,'getGamepads',rematchPadDescriptor);
+        else delete navigator.getGamepads;
+        delete window.rematchPad;delete window.rematchPadDescriptor;
+      });
     }
     await page.waitForFunction(()=>window.probeAbort || (Module.meleeState?.mode===2&&
       Module.meleeState.scene===2&&Module.meleeState.fighters.every(f=>f[0]===1)),undefined,{timeout:60000});

@@ -197,6 +197,12 @@ minutes, exercises both keyboard ports, records memory sizes and screenshots,
 and finishes the current match/rematch before stopping. It may therefore run
 longer than ten minutes. The report is `browser-soak-result.json` under the build
 directory. This option's long run is pending; consult the milestone evidence.
+If game frames stop for 30 seconds while awaiting results, the test saves
+`browser-stall-stacks.json` and `browser-stall.png`. Stack capture uses Chrome's
+existing debugging pipe, pauses/resumes worker targets, and opens no listener.
+Parked workers may time out rather than provide a JavaScript/Wasm stack; those
+errors are recorded alongside any captured stacks. This diagnostic runs only
+after the watchdog has already declared a stall.
 Full online tests (`MELEE_NET_TICKS>=9000`) now treat that count as a minimum and
 allow up to 6,000 additional ticks for sudden death/results. They still require
 the actual results scene and compare every recorded logic tick.
