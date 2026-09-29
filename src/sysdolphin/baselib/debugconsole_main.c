@@ -766,10 +766,12 @@ void hsd_80394668(void)
 
 void hsd_80394950(OSContext* ctx)
 {
+#ifndef MELEE_NATIVE
     OSContext tmp;
+    OSContext* saved;
+#endif
     int i;
     int j;
-    OSContext* saved;
     BOOL irq;
     u8* p;
 
@@ -778,9 +780,13 @@ void hsd_80394950(OSContext* ctx)
     }
 
     irq = OSDisableInterrupts();
+#ifndef MELEE_NATIVE
+    /* The SDK switches the lazy PPC floating-point save context while printing.
+     * Host/Wasm floating-point state belongs to the host thread instead. */
     saved = OSGetCurrentContext();
     OSClearContext(&tmp);
     OSSetCurrentContext(&tmp);
+#endif
 
     OSReport("- FPR -----------------------------------------------\n");
 
@@ -803,8 +809,10 @@ void hsd_80394950(OSContext* ctx)
         p += 8;
     } while (j < 32);
 
+#ifndef MELEE_NATIVE
     OSClearContext(&tmp);
     OSSetCurrentContext(saved);
+#endif
     OSRestoreInterrupts(irq);
 }
 

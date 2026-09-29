@@ -475,3 +475,30 @@ input and room-boundary tests and the real-WebRTC launcher handshake pass; a
 two-engine integration check of the new rolling protocol also passed 2,200
 matching ticks through live versus gameplay at about 57.7 ticks/s, with skewed
 peer clocks (`wasm-rolling-state-net-test.log`).
+
+AddressSanitizer follow-up: `--game --asan` now builds independently with separate
+DWARF. Its first successful boot found a global-buffer-overflow in stage setup
+(`wasm-asan-split-soak.log`): `it_8026CD50` addressed `it_804A0E50` as one object
+past `it_804A0E30`, relying on original BSS adjacency. The native/Wasm path now
+uses the actual table symbol; the GameCube path is preserved. A regression using
+the real builder, independent globals (`-fno-common`) and native ASan/UBSan fails
+before the fix and passes afterward, validating selected item kinds, cumulative
+weights and preservation of unrelated globals. It also passes compiled to Wasm.
+The full sanitized browser has passed the previously failing stage load and is
+running the Pikachu mirror soak. Do not yet equate this defect with the earlier
+intermittent freezes; its longer validation is still pending.
+
+The diagnostic build also retains PPC debug-console code optimized away in the
+release build. Native printing now omits the SDK's lazy PPC floating-point context
+switch while preserving the reports and interrupt gate. It does not fabricate
+host CPU contexts. Native startup and browser release builds pass this change.
+
+Post-fix native runtime verification completed 1,200 GPU submissions and a
+non-black framebuffer capture (`wasm-item-fix-native-runtime.log`). The fixed
+release also completed the full TURN/loss test with protocol-2 rolling checksums:
+9,600 matching snapshots, 3,992/78,315 datagrams dropped, about 56.6 ticks/s and
+28.3 draws/s under overlapping diagnostic load (`wasm-item-fix-turn-loss.log`).
+The ASan run reached match results without another invalid-access report but
+exhausted its 2 GiB limit allocating a 64 MiB WebGPU mapped range. The diagnostic
+now keeps a 64 MiB quarantine instead of the default 256 MiB; release allocation
+is unchanged. Its rerun and a fresh release soak remain in progress.

@@ -835,3 +835,11 @@ build/test-animation-flags: tests/test_animation_flags.c ../src/melee/ft/types.h
 test-match-runtime: test-animation-flags
 test-animation-flags: build/test-animation-flags
 	UBSAN_OPTIONS=halt_on_error=1 ./build/test-animation-flags
+
+# Keep globals separate so the item-table regression cannot pass by BSS adjacency.
+build/test-item-spawn-tables: tests/test_item_spawn_tables.c ../src/melee/it/itspawn.c ../src/melee/it/types.h $(NATIVE_HEADERS) | build
+	$(CC) $(CPPFLAGS) -I../src -std=gnu11 -O2 -g -fno-common -fsanitize=address,undefined -Wl,-dead_strip tests/test_item_spawn_tables.c -o $@
+.PHONY: test-item-spawn-tables
+test: test-item-spawn-tables
+test-item-spawn-tables: build/test-item-spawn-tables
+	UBSAN_OPTIONS=halt_on_error=1 ./build/test-item-spawn-tables

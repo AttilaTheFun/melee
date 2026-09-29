@@ -8,7 +8,8 @@ const probe = process.env.MELEE_GPU_PROBE || 'melee_gpu_bridge_probe';
 if (!/^melee_[a-z_]+$/.test(probe)) throw new Error('Invalid probe name');
 const game = probe === 'melee_browser';
 if (game && !process.env.MELEE_DISC) throw new Error('Set MELEE_DISC to a local ISO/CISO');
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../build/wasm-renderer');
+const root = process.env.MELEE_WASM_BUILD ? path.resolve(process.env.MELEE_WASM_BUILD) :
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../build/wasm-renderer');
 const browser = await chromium.launch({
   executablePath: process.env.CHROME_BINARY || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   headless: true,
@@ -34,13 +35,19 @@ try {
           Module.audioContext=new AudioContext({sampleRate:32000});const worklet=URL.createObjectURL(new Blob([await (await fetch('/audio-worklet.js')).text()],{type:'text/javascript'}));await Module.audioContext.audioWorklet.addModule(worklet);URL.revokeObjectURL(worklet);await Module.audioContext.resume();
           const script=document.createElement('script');script.src='/${probe}.js';document.body.append(script);};
       </script>` : `<script src="/${probe}.js"></script>`}` });
-    if (![`${probe}.js`,`${probe}.wasm`,'audio-worklet.js'].includes(name)) return route.abort();
-    await route.fulfill({ headers, contentType:name.endsWith('.wasm')?'application/wasm':'text/javascript',
+    if (![`${probe}.js`,`${probe}.wasm`,`${probe}.wasm.map`,'audio-worklet.js'].includes(name)) return route.abort();
+    await route.fulfill({ headers, contentType:name.endsWith('.wasm')?'application/wasm':name.endsWith('.map')?'application/json':'text/javascript',
       body:await fs.readFile(path.join(root,name)) });
   });
   const page = await context.newPage();
-  page.on('console', message => console.log(message.type(),message.text()));
   const pageErrors=[];
+  page.on('console', message => {
+    const value=message.text();console.log(message.type(),value);
+    if(value.includes('ERROR: AddressSanitizer:')){
+      pageErrors.push(value);
+      page.evaluate(message=>{window.probeAbort=message;},value).catch(()=>{});
+    }
+  });
   page.on('pageerror', error => {pageErrors.push(String(error));console.error('PAGE ERROR',error);page.evaluate(message=>{window.probeAbort=message;},String(error)).catch(()=>{});});
   await page.goto('https://melee.test/');
   console.log('Browser',await browser.version(),await page.evaluate(()=>({

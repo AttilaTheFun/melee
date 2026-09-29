@@ -9,15 +9,19 @@ EM = ROOT / 'native/build/deps/emsdk/upstream/emscripten'
 p = argparse.ArgumentParser(description=__doc__)
 p.add_argument('--renderer', action='store_true')
 p.add_argument('--game', action='store_true', help='Build full browser runtime (development checkpoint)')
+p.add_argument('--asan', action='store_true', help='Build a separate AddressSanitizer browser diagnostic')
 args = p.parse_args()
+if args.asan and not args.game: p.error('--asan requires --game')
 if args.game: args.renderer = True
 version = subprocess.check_output([str(EM/'emcc'), '--version'], text=True).splitlines()[0]
 if '6.0.9' not in version:
     raise SystemExit(f'Expected pinned Emscripten 6.0.9, got {version}')
-build = ROOT / ('native/build/wasm-renderer' if args.renderer else 'native/build/wasm-game')
+build = ROOT / ('native/build/wasm-asan' if args.asan else
+                'native/build/wasm-renderer' if args.renderer else 'native/build/wasm-game')
 subprocess.run([str(EM/'emcmake'), 'cmake', '-S', str(ROOT/'native/web/game'), '-B', str(build),
                 '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release',
-                f'-DMELEE_WEB_RENDERER={"ON" if args.renderer else "OFF"}'], check=True)
+                f'-DMELEE_WEB_RENDERER={"ON" if args.renderer else "OFF"}',
+                f'-DMELEE_WEB_ASAN={"ON" if args.asan else "OFF"}'], check=True)
 subprocess.run(['cmake', '--build', str(build), '--target',
                 'melee_browser' if args.game else ('aurora_gx' if args.renderer else 'melee_web_game_objects'), '-j8'], check=True)
 

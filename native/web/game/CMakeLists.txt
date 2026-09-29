@@ -5,6 +5,13 @@ if(NOT EMSCRIPTEN)
 endif()
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
+option(MELEE_WEB_ASAN "Instrument the diagnostic browser build with AddressSanitizer" OFF)
+if(MELEE_WEB_ASAN)
+  # Keep separate DWARF for diagnosis. Runtime source maps are expanded into
+  # large JS object graphs and copied to every pthread during startup.
+  add_compile_options(-O1 -g -fsanitize=address)
+  add_link_options(-gseparate-dwarf -fsanitize=address)
+endif()
 get_filename_component(MELEE_ROOT "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
 include("${MELEE_ROOT}/native/cmake/game_sources.cmake")
 add_library(melee_web_game_objects OBJECT ${full_game_sources} ${native_backend_sources} ${full_game_sdk_sources})
@@ -93,9 +100,15 @@ if(MELEE_WEB_RENDERER)
     "--js-library=${CMAKE_CURRENT_SOURCE_DIR}/net.js"
     "--js-library=${CMAKE_CURRENT_SOURCE_DIR}/webgpu_proxy.js"
     -sPROXY_TO_PTHREAD=1 -sPTHREAD_POOL_SIZE=16 -sEXIT_RUNTIME=1 -sASSERTIONS=2
-    # Reserve low addresses for game ARAM offsets, never host objects.
-    -sGLOBAL_BASE=16777216 -sSTACK_SIZE=4194304 -sDEFAULT_PTHREAD_STACK_SIZE=2097152
+    -sSTACK_SIZE=4194304 -sDEFAULT_PTHREAD_STACK_SIZE=2097152
     -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=268435456 -sMAXIMUM_MEMORY=2147483648)
+  if(NOT MELEE_WEB_ASAN)
+    # Reserve low addresses for game ARAM offsets, never host objects.
+    # ASan forbids a custom base and reserves a larger shadow region itself.
+    target_link_options(melee_browser PRIVATE -sGLOBAL_BASE=16777216)
+  else()
+    target_sources(melee_browser PRIVATE browser_asan.c)
+  endif()
   set_target_properties(melee_browser PROPERTIES SUFFIX ".js" LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/webgpu_proxy.js;${CMAKE_CURRENT_SOURCE_DIR}/presentation.js;${CMAKE_CURRENT_SOURCE_DIR}/input.js;${CMAKE_CURRENT_SOURCE_DIR}/audio.js;${CMAKE_CURRENT_SOURCE_DIR}/persistence.js;${CMAKE_CURRENT_SOURCE_DIR}/lifecycle.js;${CMAKE_CURRENT_SOURCE_DIR}/net.js")
 endif()
 

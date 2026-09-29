@@ -17,6 +17,10 @@ earlier intermittent freezes remain unresolved. The fixed online cadence passed
 a full local TURN match with 5% UDP loss and skewed peer clocks at about 57
 simulation ticks/s and 29 draws/s under partial concurrent load.
 
+The subsequent sanitizer run found an item-table write past a global variable
+during stage loading. The native/Wasm path now addresses the intended table
+explicitly; long-session validation of that fix is in progress.
+
 ## Full-game build
 
 From the repository root, install and activate the pinned Emscripten 6.0.9 SDK at
@@ -203,6 +207,20 @@ The GPU bridge probe verifies queued draw ordering using scissored pixel
 readback, in addition to concurrent handle-lifetime stress.
 
 ### Extended tests
+
+For memory diagnostics, `python3 native/web/build_game.py --game --asan` builds
+separately in `native/build/wasm-asan`. Use that path as `MELEE_WASM_BUILD` with
+the normal full-game browser test commands. The build reserves ASan's shadow
+memory and keeps symbols in `melee_browser.wasm.debug.wasm`; it does not replace
+the release artifact. Resolve a reported Wasm program offset with the pinned
+SDK's `upstream/bin/llvm-symbolizer --obj=native/build/wasm-asan/melee_browser.wasm.debug.wasm 0xOFFSET`.
+Debug info stays separate because runtime source-map object graphs exhaust the
+browser worker heap, while an embedded DWARF binary exceeds the intercepted
+DevTools response-size limit. Sanitized performance is not a release benchmark.
+The diagnostic keeps a 64 MiB freed-memory quarantine so its shadow memory and
+large WebGPU staging allocations fit within the 2 GiB limit. This shortens the
+use-after-free detection window relative to ASan's default 256 MiB quarantine;
+it does not disable quarantine or change the release allocator.
 
 Full-game long-session check: combine the full-game stage-entry variables above
 with `MELEE_SOAK_MS=600000`. The harness completes and rematches for at least ten
