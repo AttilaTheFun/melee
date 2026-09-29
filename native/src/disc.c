@@ -10,6 +10,8 @@
 
 struct MeleeDisc {
     int fd;
+    MeleeDiscReader reader;
+    void* reader_context;
     uint64_t size;
     uint8_t id[32];
     uint8_t* fst;
@@ -20,8 +22,10 @@ struct MeleeDisc {
 };
 static uint32_t be32(const uint8_t* p)
 { return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) | ((uint32_t)p[2] << 8) | p[3]; }
-static MeleeHostBool read_at(int fd, void* out, size_t length, uint64_t offset)
+static MeleeHostBool read_at(const MeleeDisc* disc, void* out, size_t length, uint64_t offset)
 {
+    if (disc->reader) return disc->reader(disc->reader_context, out, length, offset);
+    int fd = disc->fd;
     uint8_t* p = out;
     while (length) {
         size_t chunk = length > INT_MAX ? INT_MAX : length;
@@ -35,7 +39,7 @@ static MeleeHostBool read_at(int fd, void* out, size_t length, uint64_t offset)
 MeleeHostBool melee_disc_read_at(const MeleeDisc* d, void* output, size_t length, uint64_t offset)
 {
     if (!d || (!output && length) || offset > d->size || length > d->size - offset) return false;
-    if (!d->block_size) return read_at(d->fd, output, length, offset);
+    if (!d->block_size) return read_at(d, output, length, offset);
     uint8_t* out = output;
     while (length) {
         uint32_t block = (uint32_t)(offset / d->block_size);
@@ -44,7 +48,7 @@ MeleeHostBool melee_disc_read_at(const MeleeDisc* d, void* output, size_t length
         if (amount > length) amount = length;
         uint32_t stored = d->block_map[block];
         if (stored == UINT32_MAX) memset(out, 0, amount);
-        else if (!read_at(d->fd, out, amount, 32768 + (uint64_t)stored * d->block_size + within)) return false;
+        else if (!read_at(d, out, amount, 32768 + (uint64_t)stored * d->block_size + within)) return false;
         out += amount; offset += amount; length -= amount;
     }
     return true;
@@ -52,26 +56,18 @@ MeleeHostBool melee_disc_read_at(const MeleeDisc* d, void* output, size_t length
 void melee_disc_close(MeleeDisc* disc)
 {
     if (!disc) return;
-    close(disc->fd); free(disc->block_map); free(disc->fst); free(disc->entries); free(disc);
+    if (disc->fd >= 0) close(disc->fd); free(disc->block_map); free(disc->fst); free(disc->entries); free(disc);
 }
-MeleeDisc* melee_disc_open(const char* path)
+static MeleeDisc* parse_disc(MeleeDisc* d, uint64_t physical_size)
 {
-    if (!path) return NULL;
-    int fd = open(path, O_RDONLY | O_CLOEXEC);
-    if (fd < 0) return NULL;
-    MeleeDisc* d = calloc(1, sizeof(*d));
-    if (!d) { close(fd); return NULL; }
-    d->fd = fd;
-    struct stat st;
     uint8_t boot[0x440];
-    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < (off_t)sizeof(boot) ||
-        !read_at(fd, boot, 8, 0)) goto fail;
-    d->size = st.st_size;
+    d->size = physical_size;
+    if (physical_size < sizeof(boot) || !read_at(d, boot, 8, 0)) goto fail;
     if (!memcmp(boot, "CISO", 4)) {
         /* GameCube CISO: little-endian block size, 32760 presence bytes,
          * then contiguous stored blocks. Absent logical blocks read as zero. */
         uint8_t header[32768];
-        if (!read_at(fd, header, sizeof(header), 0)) goto fail;
+        if (!read_at(d, header, sizeof(header), 0)) goto fail;
         d->block_size = header[4] | ((uint32_t)header[5] << 8) |
                         ((uint32_t)header[6] << 16) | ((uint32_t)header[7] << 24);
         if (!d->block_size) goto fail;
@@ -82,7 +78,7 @@ MeleeDisc* melee_disc_open(const char* path)
             if (header[8 + i] > 1) goto fail;
             d->block_map[i] = header[8 + i] ? stored++ : UINT32_MAX;
         }
-        if (32768 + (uint64_t)stored * d->block_size > (uint64_t)st.st_size) goto fail;
+        if (32768 + (uint64_t)stored * d->block_size > physical_size) goto fail;
         d->size = (uint64_t)32760 * d->block_size;
     }
     if (!melee_disc_read_at(d, boot, sizeof(boot), 0) || be32(boot + 0x1c) != 0xc2339f3d) goto fail;
@@ -121,6 +117,26 @@ MeleeDisc* melee_disc_open(const char* path)
 fail:
     melee_disc_close(d);
     return NULL;
+}
+MeleeDisc* melee_disc_open(const char* path)
+{
+    if (!path) return NULL;
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return NULL;
+    struct stat st;
+    if (fstat(fd, &st) || !S_ISREG(st.st_mode) || st.st_size < 0) { close(fd); return NULL; }
+    MeleeDisc* d = calloc(1, sizeof(*d));
+    if (!d) { close(fd); return NULL; }
+    d->fd = fd;
+    return parse_disc(d, (uint64_t)st.st_size);
+}
+MeleeDisc* melee_disc_open_reader(uint64_t size, MeleeDiscReader reader, void* context)
+{
+    if (!reader) return NULL;
+    MeleeDisc* d = calloc(1, sizeof(*d));
+    if (!d) return NULL;
+    d->fd = -1; d->reader = reader; d->reader_context = context;
+    return parse_disc(d, size);
 }
 uint32_t melee_disc_entry_count(const MeleeDisc* d) { return d ? d->count : 0; }
 const MeleeDiscEntry* melee_disc_entry(const MeleeDisc* d, uint32_t n)

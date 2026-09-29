@@ -4,11 +4,20 @@
 #include <dolphin/vi.h>
 #include <dolphin/os.h>
 #include <pthread.h>
+#include "melee_cond.h"
 #include <time.h>
 #include <stdlib.h>
 
 static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+#ifdef __APPLE__
 static pthread_cond_t wake = PTHREAD_COND_INITIALIZER;
+#else
+static pthread_cond_t wake;
+__attribute__((constructor)) static void init_condition(void)
+{
+    melee_cond_init_monotonic(&wake);
+}
+#endif
 static pthread_t worker;
 static bool running, stopping;
 static bool display_clock, display_pending;
@@ -90,7 +99,7 @@ static void* clock_main(void* unused)
             uint64_t remaining = deadline - now;
             struct timespec relative = {(time_t)(remaining / 1000000000),
                                         (long)(remaining % 1000000000)};
-            pthread_cond_timedwait_relative_np(&wake, &lock, &relative);
+            melee_cond_wait_relative(&wake, &lock, &relative);
         }
         bool stop = stopping;
         pthread_mutex_unlock(&lock);

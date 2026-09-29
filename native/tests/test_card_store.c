@@ -72,6 +72,10 @@ int main(void){
     int fd=open(path,O_RDWR);assert(fd>=0);unsigned char corrupt=0x11;assert(pwrite(fd,&corrupt,1,9000)==1);assert(!close(fd));
     assert(!melee_card_store_open(path,true,&result)&&result==CARD_RESULT_BROKEN);
     fd=open(path,O_RDONLY);assert(fd>=0);unsigned char check=0;assert(pread(fd,&check,1,9000)==1&&check==corrupt);close(fd);
-    assert(!unlink(path));assert(!unlink(lock_path));assert(!rmdir(directory));
+    assert(!unlink(path));
+#ifndef __EMSCRIPTEN__
+    assert(!unlink(lock_path));
+#endif
+    assert(!rmdir(directory));
     puts("Native card storage: persistence, capacity, metadata, rollback, corruption and concurrent access passed");
 }

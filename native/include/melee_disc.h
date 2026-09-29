@@ -12,6 +12,10 @@ typedef struct {
 /* Owns a read-only file descriptor and a validated, host-endian filesystem.
  * Entry numbers stay identical to the disc. Returned names live until close. */
 MeleeDisc* melee_disc_open(const char* image_path);
+/* Reader supplies exact physical image ranges. Context is borrowed through close;
+ * caller serializes access if its reader requires it. Parsing is shared with files. */
+typedef MeleeHostBool (*MeleeDiscReader)(void* context, void* output, size_t length, uint64_t offset);
+MeleeDisc* melee_disc_open_reader(uint64_t size, MeleeDiscReader reader, void* context);
 void melee_disc_close(MeleeDisc* disc);
 uint32_t melee_disc_entry_count(const MeleeDisc* disc);
 const MeleeDiscEntry* melee_disc_entry(const MeleeDisc* disc, uint32_t number);

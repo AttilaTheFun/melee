@@ -94,3 +94,15 @@ size_t melee_audio_ring_read(MeleeAudioRing* ring, int16_t* samples, size_t fram
     atomic_store_explicit(&ring->consumed, consumed + (uint32_t) count, memory_order_release);
     return count;
 }
+
+#ifdef __EMSCRIPTEN__
+/* Browser AudioWorklet is the sole consumer. Publish addresses rather than
+ * duplicate C struct layout/alignment assumptions in JavaScript. */
+void melee_audio_ring_browser_layout(MeleeAudioRing* ring, uint32_t out[7])
+{
+    out[0]=(uintptr_t)&ring->produced; out[1]=(uintptr_t)&ring->consumed;
+    out[2]=(uintptr_t)ring->samples; out[3]=(uintptr_t)&ring->requested_frames;
+    out[4]=(uintptr_t)&ring->missing_frames; out[5]=(uintptr_t)&ring->underruns;
+    out[6]=(uintptr_t)&ring->largest_request;
+}
+#endif

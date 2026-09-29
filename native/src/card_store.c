@@ -15,7 +15,32 @@
 #define HEADER 20u
 #define DIRECTORY (127u*64u)
 typedef struct Entry { CARDStat stat; unsigned char* data; } Entry;
-struct MeleeCardStore { pthread_mutex_t lock; int lock_fd; char* path; Entry entries[127]; };
+struct MeleeCardStore { pthread_mutex_t lock; int lock_fd; char* path; Entry entries[127];
+#ifdef __EMSCRIPTEN__
+    struct MeleeCardStore* browser_next;
+    bool browser_reserved;
+#endif
+};
+#ifdef __EMSCRIPTEN__
+/* MEMFS has no flock. In-process ownership plus the page's lifetime Web Lock
+ * protects the single IDBFS card; game operations retain their normal mutex. */
+static pthread_mutex_t browser_paths_lock=PTHREAD_MUTEX_INITIALIZER;
+static MeleeCardStore* browser_paths;
+static bool browser_reserve(MeleeCardStore* store) {
+    pthread_mutex_lock(&browser_paths_lock);
+    for(MeleeCardStore* p=browser_paths;p;p=p->browser_next)
+        if(!strcmp(p->path,store->path)){pthread_mutex_unlock(&browser_paths_lock);return false;}
+    store->browser_next=browser_paths;browser_paths=store;store->browser_reserved=true;
+    pthread_mutex_unlock(&browser_paths_lock);return true;
+}
+static void browser_release(MeleeCardStore* store) {
+    if(!store->browser_reserved)return;
+    pthread_mutex_lock(&browser_paths_lock);
+    MeleeCardStore** p=&browser_paths;while(*p&&*p!=store)p=&(*p)->browser_next;
+    if(*p)*p=store->browser_next;
+    pthread_mutex_unlock(&browser_paths_lock);
+}
+#endif
 static const unsigned char magic[8]={'M','L','C','A','R','D',0,1};
 static u32 be32(const unsigned char* p){return (u32)p[0]<<24|(u32)p[1]<<16|(u32)p[2]<<8|p[3];}
 static u16 be16(const unsigned char* p){return (u16)((u16)p[0]<<8|p[1]);}
@@ -66,7 +91,14 @@ static bool persist(MeleeCardStore* store,Entry entries[127],bool create){
     if(ok){snprintf(temporary,path_size,"%s.XXXXXX",store->path);fd=mkstemp(temporary);ok=fd>=0;}
     if(ok)ok=transfer(fd,blob,size,true)&&fsync(fd)==0;
     if(fd>=0&&close(fd)!=0)ok=false;
+#ifdef __EMSCRIPTEN__
+    // No hard links in MEMFS/IDBFS. The browser owner holds the exclusive path
+    // reservation and cross-tab Web Lock before checking and renaming.
+    if(ok&&create){struct stat info;ok=lstat(store->path,&info)!=0&&errno==ENOENT;}
+    if(ok)ok=rename(temporary,store->path)==0;
+#else
     if(ok)ok=(create?link(temporary,store->path):rename(temporary,store->path))==0;
+#endif
     if(fd>=0)unlink(temporary);
     free(temporary);free(blob);return ok;
 }
@@ -101,12 +133,16 @@ MeleeCardStore* melee_card_store_open(const char* path,bool create,s32* error){
     store->lock_fd=-1;
     store->path=strdup(path);
     if(!store->path||pthread_mutex_init(&store->lock,NULL)){free(store->path);free(store);return NULL;}
+#ifdef __EMSCRIPTEN__
+    if(!browser_reserve(store)){if(error)*error=CARD_RESULT_BUSY;melee_card_store_close(store);return NULL;}
+#else
     size_t lock_size=strlen(path)+sizeof(".lock");char* lock_path=malloc(lock_size);
     if(lock_path){snprintf(lock_path,lock_size,"%s.lock",path);store->lock_fd=open(lock_path,O_RDWR|O_CREAT|O_NOFOLLOW,0600);free(lock_path);}
     if(store->lock_fd<0||flock(store->lock_fd,LOCK_EX|LOCK_NB)!=0){
         if(error)*error=store->lock_fd>=0&&(errno==EWOULDBLOCK||errno==EAGAIN)?CARD_RESULT_BUSY:CARD_RESULT_IOERROR;
         melee_card_store_close(store);return NULL;
     }
+#endif
     int fd=open(path,O_RDONLY|O_NOFOLLOW);s32 result=CARD_RESULT_IOERROR;
     if(fd<0){
         if(errno==ENOENT)result=create?(persist(store,store->entries,true)?CARD_RESULT_READY:CARD_RESULT_IOERROR):CARD_RESULT_NOCARD;
@@ -122,7 +158,11 @@ MeleeCardStore* melee_card_store_open(const char* path,bool create,s32* error){
     if(result!=CARD_RESULT_READY){melee_card_store_close(store);return NULL;}
     return store;
 }
-void melee_card_store_close(MeleeCardStore* store){if(store){clear_entries(store->entries);pthread_mutex_destroy(&store->lock);if(store->lock_fd>=0)close(store->lock_fd);free(store->path);free(store);}}
+void melee_card_store_close(MeleeCardStore* store){if(store){
+#ifdef __EMSCRIPTEN__
+    browser_release(store);
+#endif
+    clear_entries(store->entries);pthread_mutex_destroy(&store->lock);if(store->lock_fd>=0)close(store->lock_fd);free(store->path);free(store);}}
 s32 melee_card_store_find(MeleeCardStore* store,const char* name){
     char key[32];s32 result=name_key(name,key);if(!store)return CARD_RESULT_FATAL_ERROR;if(result<0)return result;
     pthread_mutex_lock(&store->lock);result=find(store->entries,key);pthread_mutex_unlock(&store->lock);return result;

@@ -9,7 +9,8 @@
 #include <stdlib.h>
 
 typedef struct NativeBlock {
-    size_t bytes; /* Includes the block header. */
+    /* Keep the header/payload boundary aligned on both wasm32 and ARM64. */
+    _Alignas(32) size_t bytes; /* Includes the block header. */
     struct NativeBlock* prev;
     struct NativeBlock* next;
     unsigned allocated;

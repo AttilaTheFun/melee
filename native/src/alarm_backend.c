@@ -4,11 +4,20 @@
 #include <dolphin/os.h>
 #include "melee_alarm_backend.h"
 #include <pthread.h>
+#include "melee_cond.h"
 #include <stdint.h>
 #include <time.h>
 
 static pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER;
+#ifdef __APPLE__
 static pthread_cond_t changed = PTHREAD_COND_INITIALIZER;
+#else
+static pthread_cond_t changed;
+__attribute__((constructor)) static void init_condition(void)
+{
+    melee_cond_init_monotonic(&changed);
+}
+#endif
 static pthread_t worker;
 static OSAlarm* head;
 static OSAlarm* tail;
@@ -72,7 +81,7 @@ static void* run_alarms(void* unused)
             if (ns > 1000000000) ns = 1000000000;
             struct timespec wait = {.tv_sec=(time_t)(ns / 1000000000),
                                     .tv_nsec=(long)(ns % 1000000000)};
-            pthread_cond_timedwait_relative_np(&changed, &queue_mutex, &wait);
+            melee_cond_wait_relative(&changed, &queue_mutex, &wait);
         }
         int stop = stopping;
         pthread_mutex_unlock(&queue_mutex);

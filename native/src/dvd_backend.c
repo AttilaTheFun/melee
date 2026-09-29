@@ -96,9 +96,8 @@ static void start_worker(void)
     }
 }
 void DVDInit(void) { pthread_once(&once, start_worker); }
-MeleeHostBool melee_dvd_mount(const char* path)
+static MeleeHostBool mount_disc(MeleeDisc* fresh)
 {
-    MeleeDisc* fresh = melee_disc_open(path);
     if (!fresh) return false;
     DVDInit();
     int interrupts = OSDisableInterrupts();
@@ -111,6 +110,9 @@ MeleeHostBool melee_dvd_mount(const char* path)
     pthread_mutex_unlock(&lock); OSRestoreInterrupts(interrupts);
     return ok;
 }
+MeleeHostBool melee_dvd_mount(const char* path) { return mount_disc(melee_disc_open(path)); }
+MeleeHostBool melee_dvd_mount_reader(uint64_t size, MeleeDiscReader reader, void* context)
+{ return mount_disc(melee_disc_open_reader(size, reader, context)); }
 MeleeHostBool melee_dvd_unmount(void)
 {
     int interrupts = OSDisableInterrupts(); pthread_mutex_lock(&lock);

@@ -8,6 +8,11 @@
 static void put32(uint8_t* p, uint32_t v)
 { p[0] = v >> 24; p[1] = v >> 16; p[2] = v >> 8; p[3] = v; }
 static uint8_t image[16384], header[32768];
+static MeleeHostBool memory_read(void* context, void* output, size_t size, uint64_t offset)
+{
+    if (offset > sizeof(image) || size > sizeof(image) - offset) return false;
+    memcpy(output, (const uint8_t*)context + offset, size); return true;
+}
 static void check(MeleeDisc* d)
 {
     assert(d && melee_disc_entry_count(d) == 4);
@@ -44,6 +49,7 @@ int main(void)
     char path[] = "/tmp/melee-disc-XXXXXX";
     int fd = mkstemp(path); assert(fd >= 0);
     assert(write(fd, image, sizeof(image)) == sizeof(image));
+    check(melee_disc_open_reader(sizeof(image), memory_read, image));
     check(melee_disc_open(path));
     memcpy(header, "CISO", 4); header[5] = 16; /* 4096, little-endian */
     header[8] = header[10] = header[11] = 1;
