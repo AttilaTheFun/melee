@@ -223,7 +223,7 @@ try {
     while(performance.now()<deadline) {
       const state=await page.evaluate(()=>Module.meleeState);
       const diagnostics=await page.evaluate(()=>({phase:Module.netNativePhase?.(),paused:Module.gamePaused,
-        hidden:document.hidden,heapBytes:HEAPU8.buffer.byteLength,profile:Module.runtimeProfile}));
+        alarm:Module.inputAlarmDiagnostics?.(),hidden:document.hidden,heapBytes:HEAPU8.buffer.byteLength,profile:Module.runtimeProfile}));
       if(state?.frame!==lastFrame){lastFrame=state?.frame;lastProgress=performance.now();}
       if(performance.now()-lastProgress>30000){
         await page.locator('#canvas').screenshot({path:path.join(root,'browser-stall.png')});
@@ -268,7 +268,21 @@ try {
       await press(['KeyJ','Numpad1']);await press(['Enter'],100,3500);
     }
     if(!await page.evaluate(()=>Module.meleeState?.scene===1))throw new Error('Rematch did not reach stage selection');
-    await press(['KeyW'],450,500);await press(['KeyS'],180,300);await press(['KeyJ'],100,10000);
+    const selectDeadline=performance.now()+30000;
+    while(performance.now()<selectDeadline){
+      const state=await page.evaluate(()=>Module.meleeState);
+      if(state?.mode===2&&state.scene!==1)break;
+      const guidance=state?.stageGuidance||0;
+      if(guidance===16){await press(['KeyJ'],100,500);continue;}
+      const keys=[];
+      if(guidance&1)keys.push('KeyA');else if(guidance&2)keys.push('KeyD');
+      if(guidance&4)keys.push('KeyS');else if(guidance&8)keys.push('KeyW');
+      if(!keys.length)throw new Error('No Onett cursor guidance during rematch');
+      await press(keys,40,120);
+    }
+    await page.waitForFunction(()=>window.probeAbort || (Module.meleeState?.mode===2&&
+      Module.meleeState.scene===2&&Module.meleeState.fighters.every(f=>f[0]===1)),undefined,{timeout:60000});
+    await page.waitForTimeout(1000);
     const state=await page.evaluate(()=>Module.meleeState);
     if(state?.mode!==2 || state.scene!==2 || !state.fighters.every(f=>f[0]===1))
       throw new Error('Rematch did not create two live fighters: '+JSON.stringify(state));

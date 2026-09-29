@@ -60,6 +60,14 @@ Install Playwright separately, or set `PLAYWRIGHT_MODULE` to its `index.mjs`.
 run headless, use intercepted HTTPS routes, and open no listening server or host
 window:
 
+The recorded runs use Playwright 1.62.1, Node 26.5.0 and installed macOS Chrome
+154.0.8037.58. Install the test library into the ignored build directory:
+
+```sh
+npm install --prefix native/build/browser-tools --no-save playwright@1.62.1
+export PLAYWRIGHT_MODULE="$PWD/native/build/browser-tools/node_modules/playwright/index.mjs"
+```
+
 ```sh
 node native/web/test-gpu-bridge.mjs
 MELEE_GPU_PROBE=melee_aurora_probe node native/web/test-gpu-bridge.mjs

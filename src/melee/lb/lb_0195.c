@@ -2,6 +2,8 @@
 extern int melee_browser_net_enabled(void);
 extern unsigned melee_browser_net_pending_ticks(void);
 extern void melee_browser_net_tick(void);
+extern void melee_browser_net_phase(unsigned);
+extern void melee_browser_input_alarm_phase(unsigned);
 #endif
 #include "lb_0195.h"
 
@@ -57,9 +59,21 @@ void lb_800195D0(void)
 
 void fn_800195FC(void)
 {
+#ifdef __EMSCRIPTEN__
+    melee_browser_input_alarm_phase(80);
+#endif
     HSD_PadRenewRawStatus(0);
+#ifdef __EMSCRIPTEN__
+    melee_browser_input_alarm_phase(81);
+#endif
     lb_8001C600();
+#ifdef __EMSCRIPTEN__
+    melee_browser_input_alarm_phase(82);
+#endif
     lbSnap_8001D2BC();
+#ifdef __EMSCRIPTEN__
+    melee_browser_input_alarm_phase(83);
+#endif
 }
 
 #ifdef MELEE_NATIVE
@@ -138,14 +152,24 @@ void lb_80019880(u64 arg0)
 u8 lb_80019894(void)
 {
     u8 count;
+#ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(30);
+#endif
     int enabled = OSDisableInterrupts();
 #ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(31);
     count = melee_browser_net_enabled() ? melee_browser_net_pending_ticks() : HSD_PadGetRawQueueCount();
 #else
     count = HSD_PadGetRawQueueCount();
 #endif
     lb_80019628();
+#ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(32);
+#endif
     OSRestoreInterrupts(enabled);
+#ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(33);
+#endif
     return count;
 }
 

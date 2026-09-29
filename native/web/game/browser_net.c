@@ -17,7 +17,17 @@ static uint32_t session_seed;
 static double next_tick;
 static unsigned net_ticks;
 static _Atomic unsigned debug_phase;
-void melee_browser_net_phase(unsigned phase){atomic_store(&debug_phase,phase);}
+static _Atomic unsigned alarm_phase, alarm_calls;
+static _Atomic unsigned phase_interrupts;
+extern int melee_native_interrupts_enabled(void);
+void melee_browser_net_phase(unsigned phase){
+    atomic_store(&phase_interrupts,melee_native_interrupts_enabled());
+    atomic_store(&debug_phase,phase);
+}
+void melee_browser_input_alarm_phase(unsigned phase){
+    atomic_store(&alarm_phase,phase);
+    if(phase==80)atomic_fetch_add(&alarm_calls,1);
+}
 static unsigned catchup_limit=3;
 static const double tick_period=1001.0/60.0;
 unsigned melee_browser_net_tick_count(void){return net_ticks;}
@@ -25,7 +35,9 @@ void melee_browser_net_init(void) {
     MAIN_THREAD_EM_ASM({
         const address=$0;
         Module.netNativePhase=()=>Atomics.load(HEAPU32,address>>2);
-    },&debug_phase);
+        const alarm=$1; const calls=$2; const interrupts=$3;
+        Module.inputAlarmDiagnostics=()=>({phase:Atomics.load(HEAPU32,alarm>>2),calls:Atomics.load(HEAPU32,calls>>2),gameInterruptsEnabled:!!Atomics.load(HEAPU32,interrupts>>2)});
+    },&debug_phase,&alarm_phase,&alarm_calls,&phase_interrupts);
     enabled=MAIN_THREAD_EM_ASM_INT({return Module.netSession?1:0;});
     if(enabled)catchup_limit=(unsigned)MAIN_THREAD_EM_ASM_INT({return Module.netCatchupLimit||3;});
     if(catchup_limit<1||catchup_limit>4)catchup_limit=3;

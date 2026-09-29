@@ -293,7 +293,13 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
         melee_browser_net_phase(2); /* Input availability. */
 #endif
         while ((pad_queue_count = lb_80019894()) == 0) {
+#ifdef __EMSCRIPTEN__
+            melee_browser_net_phase(35);
+#endif
             lb_800195D0();
+#ifdef __EMSCRIPTEN__
+            melee_browser_net_phase(36);
+#endif
         }
         lb_800195D0();
 

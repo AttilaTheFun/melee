@@ -374,3 +374,12 @@ window was 55.42/57.29 ticks/s; this is not full-match or wide-area performance
 evidence. Another offline diagnostic attempt failed its timed rematch navigation
 before reproducing the stall. Rematch now follows live Onett cursor guidance;
 the input-alarm investigation continues with that corrected test navigation.
+
+Full post-fix relay/loss/skew validation: both game instances reach results with
+9,600 matching snapshots, with a 17-second worker-clock offset and 5% configured
+UDP loss. The proxy drops 3,996 of 78,358 datagrams; the relay and proxy sockets
+close afterward (`wasm-turn-loss-full-fixed.log`). Simulation measures
+57.21–57.23 ticks/s and rendering 27.60–27.77 FPS while an independent offline
+soak runs on the same Mac. This is a full-match correctness pass under local
+packet loss, not separate-network or Cloudflare evidence. The offline stall
+still prevents declaring overall stability complete.

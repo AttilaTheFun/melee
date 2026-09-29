@@ -10,6 +10,9 @@
 static pthread_mutex_t interrupt_gate = PTHREAD_MUTEX_INITIALIZER;
 static _Thread_local MeleeHostBool enabled = true;
 static atomic_bool reset_pressed;
+#ifdef __EMSCRIPTEN__
+int melee_native_interrupts_enabled(void) { return enabled; }
+#endif
 
 BOOL OSDisableInterrupts(void)
 {
