@@ -81,6 +81,14 @@ actual TURN packet relay but not Cloudflare's credential endpoint or separate
 networks/NATs. `MELEE_NET_JITTER=1` adds asymmetric ordered delivery delays to
 the actual game test; it models latency variation, not packet loss on the wire.
 
+Add `--loss-percent 5` to drop actual UDP datagrams through a loopback proxy in
+both directions. The transport regression has recovered all 1,000 ordered
+packets per peer under this impairment; full-game loss testing remains pending.
+The proxy uses a fixed random seed and prints actual dropped/observed counts.
+It and the relay close their sockets on exit. This can also be combined with
+`--game --ticks 9600` to validate a full match. Record pacing separately:
+SCTP retransmission stalls can slow input-delay lockstep.
+
 
 ### Worker toolchain checks
 

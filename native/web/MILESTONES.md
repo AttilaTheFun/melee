@@ -331,3 +331,29 @@ artifact. The debug atlas was already eliminated from the old linked artifact,
 but its browser definition is also runtime-loaded. Browser compilation no longer
 includes the generated-font directory. Full-game validation of this new startup
 path is in progress; no Cloudflare deployment has occurred.
+
+Clean-checkout verification: detached commit `42b57b3db` builds the full browser
+target from a clean worktree with no generated fonts. It reuses only the pinned
+Emscripten/Aurora dependencies, not the working tree's uncommitted Apple changes.
+The font-loading build also reaches a live match and passes both players'
+attack/jump controls after three pause/resume cycles.
+
+The instrumented offline soak completed two matches/rematches, with stable
+996,343,808-byte Wasm memory after the first rematch and zero reported audio
+underruns. It then stalled at frame 15,026 during the third match and failed the
+30-second progress watchdog (`wasm-offline-soak-diagnostic.log`). Native phase 2
+places the stall in the input-availability path; the tab was visible and unpaused.
+Finer input-alarm and interrupt-state diagnostics are now under test. This is
+still an unresolved stability issue, not a ten-minute pass.
+
+Actual packet-loss transport test: `test-local-turn.py --loss-percent 5` forwards
+TURN UDP through a loopback impairment proxy, dropping datagrams in both
+directions before SCTP recovery. Both peers receive all 1,000 ordered packets
+with relay candidates asserted; disconnect cleanup passes. The run dropped
+193 of 3,781 datagrams (`wasm-turn-loss-test.log`). All sockets and the relay were
+closed afterward. Full-game behavior under packet loss still needs validation.
+
+Native preservation check: the macOS startup target completes 1,200 original-game
+GPU submissions in its windowless versus probe and captures a nonblack framebuffer
+(`wasm-native-checkpoint.log`, `wasm-native-checkpoint.png`). Native disc/card
+regressions also pass. This does not revalidate all Apple device UI features.

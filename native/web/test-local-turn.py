@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise real loopback TURN, close all listeners and remove credentials on exit."""
 import argparse
+from contextlib import ExitStack
 import json
 import os
 from pathlib import Path
@@ -17,14 +18,18 @@ web = Path(__file__).resolve().parent
 parser = argparse.ArgumentParser()
 parser.add_argument('--game', action='store_true')
 parser.add_argument('--ticks', type=int, default=2200)
+parser.add_argument('--loss-percent', type=float, default=0,
+                    help='Drop this percentage of actual TURN UDP datagrams in both directions')
 args = parser.parse_args()
+if not 0 <= args.loss_percent <= 30:
+    parser.error('--loss-percent must be between 0 and 30')
 def terminate(signum, frame):
     raise SystemExit(128 + signum)
 signal.signal(signal.SIGTERM, terminate)
 server = shutil.which('turnserver')
 if not server:
     raise SystemExit('Install coturn to run this test (macOS: brew install coturn).')
-with tempfile.TemporaryDirectory(prefix='melee-turn-') as directory:
+with tempfile.TemporaryDirectory(prefix='melee-turn-') as directory, ExitStack() as resources:
     root = Path(directory)
     password = secrets.token_hex(32)
     # Ask the OS for an available UDP port. Coturn startup is checked below.
@@ -67,10 +72,20 @@ with tempfile.TemporaryDirectory(prefix='melee-turn-') as directory:
                 time.sleep(0.1)
             if not ready:
                 raise RuntimeError('Loopback TURN did not answer STUN readiness check')
+            proxy = None
+            if args.loss_percent:
+                from udp_impairment import LossyTurnProxy
+                proxy = LossyTurnProxy(port, args.loss_percent)
+                resources.callback(proxy.close)
+                settings = json.loads(ice.read_text())
+                settings[0]['urls'] = [f'turn:127.0.0.1:{proxy.port}?transport=udp']
+                ice.write_text(json.dumps(settings))
             env = dict(os.environ, MELEE_ICE_CONFIG=str(ice), MELEE_RELAY_ONLY='1',
                        MELEE_NET_TICKS=str(args.ticks))
             test = 'test-net-game.mjs' if args.game else 'test-net-transport.mjs'
             subprocess.run(['node', str(web / test)], env=env, check=True)
+            if proxy and not proxy.dropped:
+                raise RuntimeError('Loss test did not actually drop any UDP datagrams')
         finally:
             process.terminate()
             try:
