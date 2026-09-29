@@ -117,6 +117,46 @@ try {
     const steps=process.env.MELEE_INPUT_FILE?JSON.parse(await fs.readFile(process.env.MELEE_INPUT_FILE,'utf8')):process.env.MELEE_INPUT_STEPS?JSON.parse(process.env.MELEE_INPUT_STEPS):['KeyJ','KeyJ','Enter','Enter','KeyS','KeyJ','KeyJ'];
     for(let step=0;step<steps.length;step++){
       const action=typeof steps[step]==='string'?{key:steps[step]}:steps[step];
+      if(action.cursorTarget){
+        if(action.cursorTarget!=='pikachu')throw new Error('Unknown character target');
+        // Icon positions change with unlocked characters; use live read-only deltas.
+        // Drive the normal Gamepad API, never write character-selection state.
+        await page.evaluate(()=>{
+          window.selectionPadDescriptor=Object.getOwnPropertyDescriptor(navigator,'getGamepads');
+          window.selectionPads=[0,1].map(index=>({index,id:'Test selection controller',connected:true,mapping:'standard',
+            axes:[0,0,0,0],buttons:Array.from({length:16},()=>({pressed:false,value:0}))}));
+          Object.defineProperty(navigator,'getGamepads',{configurable:true,value:()=>selectionPads});
+        });
+        try {
+          const selected=[false,false],deadline=performance.now()+45000;
+          while(!selected.every(Boolean)&&performance.now()<deadline){
+            const state=await page.evaluate(()=>Module.meleeState);
+            if(state?.mode!==2||state.scene!==0)throw new Error('Character guidance requires versus selection');
+            const samples=state.pikachuCursorTargets.map(([dx,dy],slot)=>{
+              if(selected[slot])return [0,0,false];
+              if(Math.abs(dx)<0.6&&Math.abs(dy)<0.6){selected[slot]=true;return [0,0,true];}
+              return [Math.abs(dx)>0.6?Math.sign(dx)*0.4:0,Math.abs(dy)>0.6?-Math.sign(dy)*0.4:0,false];
+            });
+            await page.evaluate(samples=>samples.forEach(([x,y,a],slot)=>{
+              selectionPads[slot].axes[0]=x;selectionPads[slot].axes[1]=y;
+              selectionPads[slot].buttons[0]={pressed:a,value:a?1:0};
+            }),samples);
+            await page.waitForTimeout(samples.some(sample=>sample[2])?100:40);
+            await page.evaluate(()=>selectionPads.forEach(pad=>{pad.axes.fill(0);pad.buttons[0]={pressed:false,value:0};}));
+            await page.waitForTimeout(120);
+          }
+          if(!selected.every(Boolean))throw new Error('Character cursor guidance timed out');
+          await page.waitForTimeout(1000);
+        } finally {
+          await page.evaluate(()=>{
+            if(selectionPadDescriptor)Object.defineProperty(navigator,'getGamepads',selectionPadDescriptor);
+            else delete navigator.getGamepads;
+            delete window.selectionPads;delete window.selectionPadDescriptor;
+          });
+        }
+        console.log('PASS guided character selection',action.cursorTarget);
+        continue;
+      }
       const keys=action.keys||[action.key];
       const reached=()=>page.evaluate(target=>{
         const state=Module.meleeState;return state && Object.entries(target).every(([key,value])=>state[key]===value);
@@ -138,6 +178,14 @@ try {
       if(pageErrors.length || await page.evaluate(()=>!!window.probeAbort)) break;
       await page.locator('#canvas').screenshot({path:path.join(root,`browser-step-${step}.png`)});
     }
+  }
+  if(game && process.env.MELEE_EXPECT_KINDS) {
+    const expected=process.env.MELEE_EXPECT_KINDS.split(',').map(Number);
+    const state=await page.evaluate(()=>Module.meleeState);
+    if(expected.length!==2||state?.mode!==2||state.scene!==2||
+       !state.fighters.every((fighter,slot)=>fighter[0]===1&&fighter[1]===expected[slot]))
+      throw new Error('Unexpected selected fighters: '+JSON.stringify({expected,state}));
+    console.log('PASS requested fighter kinds',JSON.stringify(expected));
   }
   if(game && process.env.MELEE_TEST_LIFECYCLE && !pageErrors.length) {
     for(let cycle=0;cycle<3;cycle++){

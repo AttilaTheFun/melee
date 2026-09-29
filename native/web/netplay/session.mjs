@@ -6,7 +6,8 @@ export class GameSession {
     if(!Number.isInteger(seed)||seed<0||seed>0xffffffff||!/^[a-f0-9]{64}$/.test(build)||!/^[a-f0-9]{64}$/.test(disc))
       throw new TypeError('Invalid game session identity');
     this.transport=transport;this.seed=seed;this.timeline=new InputTimeline({localSlot,delay});
-    this.identity={protocol:1,seed,delay,build,disc};this.closed=false;this.started=false;this.localChecks=new Map();this.remoteChecks=new Map();this.lastVerified=0;
+    this.identity={protocol:2,seed,delay,build,disc};this.closed=false;this.started=false;this.localChecks=new Map();this.remoteChecks=new Map();this.lastVerified=0;
+    this.lastObservedTick=0;this.stateHash=2166136261;
     this.hello=new Promise((resolve,reject)=>{this.resolveHello=resolve;this.rejectHello=reject;});this.hello.catch(()=>{});
     transport.onPacket=packet=>this.receive(packet);
     const previousClose=transport.onClose;
@@ -62,12 +63,17 @@ export class GameSession {
   }
   observeState(state) {
     const tick=state.netTick;
-    if(this.closed||!tick||tick%60||tick<=this.lastVerified||this.localChecks.has(tick))return;
+    if(this.closed||!tick)return;
+    if(tick!==this.lastObservedTick+1){this.close('Missing or repeated simulation state tick');return;}
     // A compact simulation signature, not a serialization for rollback. No
     // pointers, wall-clock values or renderer-specific state enter the hash.
-    const values=[state.mode,state.scene,state.rng,state.stageGuidance,...state.cursorTargets.flat(),...state.fighters.flat()];
-    let hash=2166136261;
+    // Fold every tick into the rolling digest. Sampling only the send boundary
+    // missed transient divergences that reconverged before the next check.
+    const values=[tick,state.mode,state.scene,state.rng,state.stageGuidance,...state.cursorTargets.flat(),...state.fighters.flat()];
+    let hash=this.stateHash;
     for(const byte of encoder.encode(JSON.stringify(values)))hash=Math.imul(hash^byte,16777619)>>>0;
+    this.stateHash=hash;this.lastObservedTick=tick;
+    if(tick%60)return;
     this.localChecks.set(tick,hash);
     const packet=new Uint8Array(12),view=new DataView(packet.buffer);
     packet.set([77,72,67,49]);view.setUint32(4,tick,true);view.setUint32(8,hash,true);

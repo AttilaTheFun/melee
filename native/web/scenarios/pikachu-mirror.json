@@ -1,0 +1,53 @@
+[
+  "KeyJ",
+  "KeyJ",
+  {
+    "key": "Enter",
+    "until": {
+      "mode": 0
+    },
+    "wait": 1000
+  },
+  {
+    "key": "Enter",
+    "until": {
+      "mode": 1
+    },
+    "wait": 2000
+  },
+  "KeyS",
+  "KeyJ",
+  {
+    "key": "KeyJ",
+    "until": {
+      "mode": 2,
+      "scene": 0
+    },
+    "wait": 3500
+  },
+  {
+    "cursorTarget": "pikachu"
+  },
+  {
+    "key": "Enter",
+    "wait": 3000,
+    "until": {
+      "mode": 2,
+      "scene": 1
+    }
+  },
+  {
+    "key": "KeyW",
+    "hold": 450,
+    "wait": 500
+  },
+  {
+    "key": "KeyS",
+    "hold": 180,
+    "wait": 300
+  },
+  {
+    "key": "KeyJ",
+    "wait": 10000
+  }
+]

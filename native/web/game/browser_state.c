@@ -14,11 +14,13 @@ extern bool mnCharSel_NativeTargetDelta(unsigned,unsigned,float*,float*);
 extern unsigned mnStageSel_NativeOnettGuidance(void);
 void melee_browser_publish_state(unsigned frame) {
     unsigned mode=gm_GetCurrentGameMode(),scene=gm_GetCurrentSceneIndex();
-    float values[28]={0};
+    float values[32]={0};
     unsigned guidance=0;
     if(mode==GM_VS && scene==gmVsMode_State_Css){
         mnCharSel_NativeTargetDelta(0,CKind_Mario,&values[0],&values[1]);
         mnCharSel_NativeTargetDelta(1,CKind_Fox,&values[2],&values[3]);
+        mnCharSel_NativeTargetDelta(0,CKind_Pikachu,&values[28],&values[29]);
+        mnCharSel_NativeTargetDelta(1,CKind_Pikachu,&values[30],&values[31]);
     }
     if(mode==GM_VS && scene==gmVsMode_State_Sss)guidance=mnStageSel_NativeOnettGuidance();
     if(mode==GM_VS && (scene==gmVsMode_State_Vs||scene==gmVsMode_State_SuddenDeath)){
@@ -35,9 +37,10 @@ void melee_browser_publish_state(unsigned frame) {
         }
     }
     MAIN_THREAD_EM_ASM({
-        const v=Array.from(HEAPF32.subarray($4>>2,($4>>2)+28));
+        const v=Array.from(HEAPF32.subarray($4>>2,($4>>2)+32));
         Module.meleeState=({frame:$0,mode:$1,scene:$2,stageGuidance:$3,netTick:$5,rng:$6>>>0,
-          cursorTargets:[v.slice(0,2),v.slice(2,4)],fighters:[v.slice(4,16),v.slice(16,28)]});
+          cursorTargets:[v.slice(0,2),v.slice(2,4)],pikachuCursorTargets:[v.slice(28,30),v.slice(30,32)],
+          fighters:[v.slice(4,16),v.slice(16,28)]});
         Module.onGameState?.(Module.meleeState);
         Module.netSession?.observeState?.(Module.meleeState);
     },frame,mode,scene,guidance,values,melee_browser_net_tick_count(),*seed_ptr);

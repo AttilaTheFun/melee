@@ -18,11 +18,18 @@ for(let frame=0;frame<1000;frame++){
  await Promise.resolve();
 }
 assert.equal(good[0].lastVerified,960);
-const mismatchState={netTick:1020,mode:2,scene:2,rng:123,stageGuidance:0,cursorTargets:[[0,0],[0,0]],fighters:[[1,0,1,0,14,0,0],[1,1,0,0,14,0,1]]};
-good[0].observeState(mismatchState);good[1].observeState({...mismatchState,rng:124});await Promise.resolve();
+for(let tick=1001;tick<=1020;tick++){
+ const state={netTick:tick,mode:2,scene:2,rng:123,stageGuidance:0,cursorTargets:[[0,0],[0,0]],fighters:[[1,0,1,0,14,0,0],[1,1,0,0,14,0,1]]};
+ good[0].observeState(state);good[1].observeState({...state,rng:tick===1001?124:123});
+ await Promise.resolve();
+ if(tick<1020)assert.ok(good.every(peer=>!peer.closed));
+}
 assert.ok(good.every(peer=>peer.closed));
 assert.match(good[0].reason,/desynchronized/);
 good.forEach(peer=>peer.close());await assert.rejects(good[0].nextInput(NEUTRAL));
+const gap=pair();await Promise.all(gap.map(peer=>peer.start()));
+gap[0].observeState({netTick:2});assert.match(gap[0].reason,/Missing or repeated/);
+gap.forEach(peer=>peer.close());
 for(const mismatch of [{seed:124},{delay:3},{build:'c'.repeat(64)},{disc:'d'.repeat(64)},{localSlot:0}]){
  const peers=pair(mismatch);
  const outcomes=await Promise.allSettled(peers.map(peer=>peer.start()));
@@ -31,4 +38,4 @@ for(const mismatch of [{seed:124},{delay:3},{build:'c'.repeat(64)},{disc:'d'.rep
 const empty=await fingerprintFile(new Blob([]));
 const small=await fingerprintFile(new Blob(['melee-test']));
 assert.notEqual(empty,small);assert.equal(small,await fingerprintFile(new Blob(['melee-','test'])));
-console.log('PASS session handshake mismatches, player-slot validation, 1000 paired ticks, cleanup and file fingerprints');
+console.log('PASS session handshake mismatches, player-slot validation, 1000 paired ticks, transient desync, missing state tick, cleanup and file fingerprints');

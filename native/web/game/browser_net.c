@@ -28,7 +28,14 @@ void melee_browser_input_alarm_phase(unsigned phase){
     atomic_store(&alarm_phase,phase);
     if(phase==80)atomic_fetch_add(&alarm_calls,1);
 }
-static unsigned catchup_limit=3;
+/* Original draw callbacks update gameplay state (including offscreen damage).
+ * Peer-dependent skipped draws therefore cannot be a production pacing policy.
+ * Keep the override only for explicit regression/diagnostic comparisons. */
+static unsigned catchup_limit=1;
+/* Both peers use the same cadence, independent of lateness. Two ticks per draw
+ * retain a 60 Hz simulation target on the current roughly 30 Hz renderer.
+ * The shared build identity covers this policy; overrides are test-only. */
+static unsigned fixed_draw_ticks=2;
 static const double tick_period=1001.0/60.0;
 unsigned melee_browser_net_tick_count(void){return net_ticks;}
 void melee_browser_net_init(void) {
@@ -39,13 +46,16 @@ void melee_browser_net_init(void) {
         Module.inputAlarmDiagnostics=()=>({phase:Atomics.load(HEAPU32,alarm>>2),calls:Atomics.load(HEAPU32,calls>>2),gameInterruptsEnabled:!!Atomics.load(HEAPU32,interrupts>>2)});
     },&debug_phase,&alarm_phase,&alarm_calls,&phase_interrupts);
     enabled=MAIN_THREAD_EM_ASM_INT({return Module.netSession?1:0;});
-    if(enabled)catchup_limit=(unsigned)MAIN_THREAD_EM_ASM_INT({return Module.netCatchupLimit||3;});
-    if(catchup_limit<1||catchup_limit>4)catchup_limit=3;
+    if(enabled)catchup_limit=(unsigned)MAIN_THREAD_EM_ASM_INT({return Module.netCatchupLimit||1;});
+    if(catchup_limit<1||catchup_limit>4)catchup_limit=1;
+    if(enabled)fixed_draw_ticks=(unsigned)MAIN_THREAD_EM_ASM_INT({return Module.netDrawTicks||2;});
+    if(fixed_draw_ticks<1||fixed_draw_ticks>2)fixed_draw_ticks=2;
     if(enabled)session_seed=(uint32_t)MAIN_THREAD_EM_ASM_INT({return Module.netSession.seed>>>0;});
 }
 int melee_browser_net_enabled(void){return enabled;}
 uint32_t melee_browser_net_seed(uint32_t fallback){return enabled?session_seed:fallback;}
 unsigned melee_browser_net_pending_ticks(void) {
+    if(catchup_limit==1)return fixed_draw_ticks;
     if(!next_tick)return 1;
     double late=emscripten_get_now()-next_tick;
     if(late<tick_period)return 1;

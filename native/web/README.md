@@ -7,10 +7,15 @@ card persistence and explicit pause/resume. Online tests cover actual game
 instances over WebRTC, shared inputs, checksums, full direct matches, variable
 input-delivery timing, and a local forced-TURN relay.
 
-This is still a development build. Smooth 60 Hz online performance, ten-minute
-stability, broader stage/character/browser coverage, Cloudflare deployment and
+This is still a development build. Smooth 60 Hz online performance, the earlier
+intermittent freezes, broader stage/character/browser coverage, Cloudflare deployment and
 separate-network testing remain unfinished. See [MILESTONES.md](MILESTONES.md)
 for precise evidence and [room setup](server/README.md) for deployment.
+
+Two recent offline soaks each passed over eleven minutes and four rematches;
+earlier intermittent freezes remain unresolved. The fixed online cadence passed
+a full local TURN match with 5% UDP loss and skewed peer clocks at about 57
+simulation ticks/s and 29 draws/s under partial concurrent load.
 
 ## Full-game build
 
@@ -124,6 +129,11 @@ The implementation follows the [WebRTC specification](https://www.w3.org/TR/webr
 Cloudflare’s [credential API](https://developers.cloudflare.com/realtime/turn/generate-credentials/)
 is called server-side by the Worker once its secrets are configured.
 
+Session protocol 2 hashes every compact tick snapshot into a rolling checksum,
+then exchanges it once per 60 ticks. It detects transient differences even if
+the sampled state later matches again. This is a desync diagnostic, not rollback
+state storage or a comparison of every byte of game state.
+
 `MELEE_TEST_LIFECYCLE=1` checks three pause/resume cycles during gameplay. The
 launcher automatically requests pause on tab hiding and requires Resume to
 continue. `node native/web/test-net-inputs.mjs` exercises the standalone input
@@ -140,13 +150,16 @@ representations currently have different fingerprints.
 
 ### Online pacing checks
 
-Online uses input-delay lockstep, without rollback. A stable NTSC simulation
-clock permits up to three logic updates before a draw when rendering is late.
-Each update waits for both players' inputs and publishes a post-update snapshot;
-state checks do not skip undrawn updates. Long loading stalls or waiting more
-than one tick for input rebase the local clock. The latest two-instance test
-measures roughly 59 simulation ticks/s and 28 draws/s per peer, so gameplay speed
-and rendering smoothness are separate remaining concerns.
+Online uses input-delay lockstep, without rollback. Each logic update waits for
+both players' inputs and publishes a post-update snapshot. Both peers run a fixed
+two logic ticks per draw, targeting 60 simulation ticks and 30 draws per second.
+The NTSC clock caps speed; loading stalls and remote-input waits rebase it.
+Independent adaptive frame skipping is disabled: original draw callbacks update
+gameplay state, including offscreen damage, and a stress test exposed a transient desync.
+`MELEE_NET_CATCHUP` values above one are diagnostic-only and are not safe for
+normal online play. Earlier roughly 59-tick/s, 28-draw/s measurements used that
+unsafe catch-up policy; they do not describe the corrected default. Full-rate
+simulation and rendering performance remain unfinished.
 
 `MELEE_NET_CATCHUP=1,3` deliberately gives the two test peers different catch-up
 limits. `MELEE_NET_MIN_TPS=55` enables a measured gameplay-speed assertion after
@@ -196,13 +209,26 @@ with `MELEE_SOAK_MS=600000`. The harness completes and rematches for at least te
 minutes, exercises both keyboard ports, records memory sizes and screenshots,
 and finishes the current match/rematch before stopping. It may therefore run
 longer than ten minutes. The report is `browser-soak-result.json` under the build
-directory. This option's long run is pending; consult the milestone evidence.
+directory. Two long runs have passed; consult the milestone evidence for both
+those passes and the earlier intermittent failures.
 If game frames stop for 30 seconds while awaiting results, the test saves
 `browser-stall-stacks.json` and `browser-stall.png`. Stack capture uses Chrome's
 existing debugging pipe, pauses/resumes worker targets, and opens no listener.
 Parked workers may time out rather than provide a JavaScript/Wasm stack; those
 errors are recorded alongside any captured stacks. This diagnostic runs only
 after the watchdog has already declared a stall.
+
+Use `MELEE_INPUT_FILE=native/web/scenarios/pikachu-mirror.json` with
+`MELEE_EXPECT_KINDS=12,12` to select and verify a Pikachu mirror match. This
+scenario guides both controllers from live icon positions, including layouts
+with locked characters; it does not modify selection/gameplay memory. The
+ordinary stage-entry scenario remains timing-based and may select other fighters.
+
+`MELEE_NET_DRAW_TICKS=1` tests one draw per logic tick instead of the shared
+two-tick default. Both peers must use the same cadence. Fixed scheduling avoids
+choosing different draw schedules based on each machine's timing. The full
+two-tick regression passed 9,600 matching snapshots under concurrent load;
+it does not establish determinism across all characters and stages.
 Full online tests (`MELEE_NET_TICKS>=9000`) now treat that count as a minimum and
 allow up to 6,000 additional ticks for sudden death/results. They still require
 the actual results scene and compare every recorded logic tick.

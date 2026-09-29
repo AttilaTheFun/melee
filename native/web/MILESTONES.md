@@ -34,8 +34,10 @@ The character viewer remains a separate diagnostic; it is not a gameplay milesto
 - [ ] Provide reproducible hosting instructions and local tests. Hosted files
       contain the application only; each player selects their own game disc.
 
-Current work: diagnose an intermittent offline freeze, validate longer sessions
-and deploy/test Cloudflare rooms across networks.
+Current work: the latest Mario/Pikachu and Pikachu-mirror soaks each passed more
+than eleven minutes and four matches/rematches. Earlier intermittent offline
+freezes remain unexplained. Fixed online draw cadence passes a full local TURN
+match with packet loss; Cloudflare deployment and separate-network tests remain.
 After correcting strict callback signatures, the full game renders a live
 Onett versus match with two fighters and an advancing timer. The stage-entry
 scenario passed with no browser errors. A complete match (including sudden
@@ -409,3 +411,67 @@ the older phase-2 observation as proof that the input alarm stopped. The watchdo
 now captures worker stacks through the existing headless Chrome CDP pipe before
 closing the failed test; a busy-worker smoke check verified capture and resume.
 The next real-game run is validating that failure diagnostic.
+
+Restart follow-up: `wasm-stack-soak.log` passed 690,635 ms of gameplay, completing
+four matches and four rematches with Mario/Pikachu on Onett. Both attack/jump
+checks and three pause/resume cycles passed. Wasm memory held at 1,066,139,648
+bytes after the first rematch, and audio reported zero underruns. The archived
+report is `wasm-stack-soak-result.json`. The earlier intermittent freezes are
+still unresolved; this pass does not establish their cause. A targeted Pikachu
+mirror test now uses live icon-center deltas because locked-character layouts
+reorder icons. Its first attempt used incorrect static offsets and was a driver
+failure, not a gameplay failure.
+
+The concurrent direct-WebRTC stress test completed results but failed exact
+snapshot comparison for ticks 4,490–4,499 (`wasm-stack-concurrent-online.log`).
+One peer's offscreen Mario took an extra damage point and advanced RNG earlier.
+`ifMagnify_802FBBDC`, a draw callback, updates `is_offscreen`; fighter logic reads
+that flag for offscreen damage. Adaptive catch-up therefore cannot safely omit
+draws independently on each peer. Default catch-up is now limited to one logic
+tick per draw; larger `MELEE_NET_CATCHUP` values remain diagnostic-only. A full
+one-tick comparison passed all 9,600 snapshots through results with the 17-second
+clock offset (`wasm-single-tick-render-test.log`), at 30.52 simulation ticks and
+draws/s under concurrent offline load. This replaces the earlier pacing claim as the
+production policy; performance and broader determinism remain open.
+
+An explicit `MELEE_ASYNC_DRAW=1` diagnostic now tests overlapping game CPU work
+with GPU completion instead of unconditionally waiting inside every frame
+submission. Original HSD draw-done fences and XFB ownership remain in use; pause
+drains outstanding work. The option is disabled by default while validation is
+pending. Asynchronous profile output reports render-queue/completion timing as
+null rather than attributing a previous frame's timestamp to the current one.
+
+The asynchronous experiment passed 9,600 matching snapshots but only reached
+24.8 ticks/draws per second under stress (`wasm-async-draw-net-test.log`); its
+code was removed. A fixed two-tick cadence also passed all 9,600 snapshots,
+reaching 53.7 simulation ticks and 26.9 draws/s while the asynchronous pair and
+offline soak ran concurrently (`wasm-fixed-cadence-net-test.log`). The production
+default now uses this fixed cadence, with synchronous GPU submission retained.
+It targets 60 simulation ticks/30 draws per second; it does not adapt the draw
+schedule independently per peer. `MELEE_NET_DRAW_TICKS=1` retains the slower
+one-tick comparison. A new full TURN/loss test of the final default follows.
+
+Final-default relay evidence: `wasm-fixed-cadence-turn-loss.log` passed all 9,600
+snapshots through results with a 17-second peer-clock offset and 4,003/78,447
+actual UDP datagrams dropped. Simulation measured 57.19–57.22 ticks/s and
+rendering 28.59–28.61 draws/s; the offline mirror soak overlapped part of this
+test. Relay and impairment sockets closed. The archived full histories are in
+`wasm-fixed-cadence-turn-loss-result.json` (ignored build output).
+
+The targeted Pikachu mirror soak passed 691,517 ms, four matches/rematches and
+both action/lifecycle checks (`wasm-pikachu-guided-soak.log`). Wasm memory stayed
+at 995,753,984 bytes after its first rematch. Audio recorded five underruns while
+multiple game tests ran concurrently; it was not a zero-underrun pass. No offline
+freeze reproduced in either completed soak. Keep the watchdog capture and the
+earlier failures visible rather than declare their cause fixed.
+
+Session protocol 2 folds every observed logic-tick signature into a rolling
+checksum, sending it every 60 ticks. The old endpoint-only checksum missed the
+ten-tick divergence because states reconverged before the next checkpoint.
+Tests now prove detection of a one-tick mismatch followed by matching states,
+and reject missing/repeated observations. This remains a compact diagnostic,
+not full state serialization or proof of complete game-state equality. Session,
+input and room-boundary tests and the real-WebRTC launcher handshake pass; a
+two-engine integration check of the new rolling protocol also passed 2,200
+matching ticks through live versus gameplay at about 57.7 ticks/s, with skewed
+peer clocks (`wasm-rolling-state-net-test.log`).

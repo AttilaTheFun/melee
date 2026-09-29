@@ -14,7 +14,7 @@ const bootDelay=Number(process.env.MELEE_NET_BOOT_DELAY||0);
 const clockOffset=Number(process.env.MELEE_NET_CLOCK_OFFSET_MS||0);
 if(!Number.isFinite(clockOffset))throw new Error('Invalid test clock offset');
 const inputDelay=Number(process.env.MELEE_NET_DELAY||2);
-const catchupLimits=(process.env.MELEE_NET_CATCHUP||'3,3').split(',').map(Number);
+const catchupLimits=(process.env.MELEE_NET_CATCHUP||'1,1').split(',').map(Number);
 const iceServers=process.env.MELEE_ICE_CONFIG?JSON.parse(await fs.readFile(process.env.MELEE_ICE_CONFIG,'utf8')):[];
 const relayOnly=!!process.env.MELEE_RELAY_ONLY;
 const build=createHash('sha256').update(await fs.readFile(path.join(root,'melee_browser.wasm'))).digest('hex');
@@ -47,10 +47,10 @@ try{
    page.on('console',message=>{if(shuttingDown)return;if(message.text().includes('Online input')||message.text().includes('signature mismatch'))console.log('PEER',slot,message.text());});
    await page.exposeFunction('signal',message=>pages[1-slot].evaluate(message=>peer.acceptSignal(message),message));
    await page.goto('https://melee.test/');
-   await page.evaluate(async({slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit,inputDelay,bootDelay})=>{
+   await page.evaluate(async({slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit,inputDelay,bootDelay,drawTicks})=>{
      const {PeerTransport}=await import('/transport.mjs'),{GameSession}=await import('/session.mjs');
      window.historyByTick={};window.failure=null;window.reachedLimit=false;window.matchTiming=null;window.matchEntered=null;window.resultTick=null;
-     window.Module={disableSaving:true,netCatchupLimit:catchupLimit,print:()=>{},printErr:message=>console.log(message),onAbort:message=>{window.failure=String(message);},
+     window.Module={disableSaving:true,netDrawTicks:drawTicks,netCatchupLimit:catchupLimit,print:()=>{},printErr:message=>console.log(message),onAbort:message=>{window.failure=String(message);},
        onGameState:state=>{
          if(state.netTick)historyByTick[state.netTick]={mode:state.mode,scene:state.scene,rng:state.rng,cursorTargets:state.cursorTargets,stageGuidance:state.stageGuidance,fighters:state.fighters};
          if(state.mode===2&&state.scene===4&&resultTick===null)resultTick=state.netTick;
@@ -129,7 +129,7 @@ try{
        await Module.audioContext.audioWorklet.addModule(url);URL.revokeObjectURL(url);
        const script=document.createElement('script');script.src='/melee_browser.js';document.body.append(script);
      };
-   },{slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit:catchupLimits[slot],inputDelay,bootDelay});
+   },{slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit:catchupLimits[slot],inputDelay,bootDelay,drawTicks:Number(process.env.MELEE_NET_DRAW_TICKS||2)});
    await page.locator('#disc').setInputFiles(process.env.MELEE_DISC);
  }
  await pages[0].evaluate(()=>peer.offer());

@@ -125,10 +125,15 @@ intentionally checking toolchain compatibility.
 
 The host selects input delay before creating the room (2, 3, 4 or 6 ticks; default
 3). The server records it and both peers must use it. Larger buffers tolerate
-more delivery variation at the cost of input response. In the current local
+more delivery variation at the cost of input response. In the earlier local
 relay test with 10–65 ms artificial delivery delay, a six-tick buffer passed a
 short roughly 60-tick/s gameplay check; four ticks slowed a full match to about
 49 ticks/s. This is a measured test scenario, not a universal network guarantee.
 For pacing checks, set `MELEE_NET_DELAY=6 MELEE_NET_JITTER=1 MELEE_NET_MIN_TPS=55`.
+Those faster measurements used adaptive catch-up, which is now disabled by
+default after a stress test exposed draw-dependent gameplay divergence. The
+corrected default uses a fixed two-tick draw cadence shared by both peers and may
+still fail that performance target under load;
+do not re-enable catch-up to claim a pacing pass. See the browser milestone log.
 On macOS, prefix long commands with `caffeinate -i` to inhibit idle sleep only
 while the test runs; it does not keep the display awake.
