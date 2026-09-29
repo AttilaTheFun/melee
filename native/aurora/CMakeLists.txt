@@ -194,27 +194,7 @@ target_link_libraries(hsd_scene_probe PRIVATE melee_headless_gpu)
 # Full original-game link audit against the actual GX/VI backend. This target
 # is excluded from normal probe builds and is never registered as a test:
 # even a successful link would not make its unadapted entry point safe to run.
-file(GLOB_RECURSE full_game_sources CONFIGURE_DEPENDS
-  "${MELEE_ROOT}/src/melee/*.c" "${MELEE_ROOT}/src/sysdolphin/*.c")
-file(GLOB native_backend_sources CONFIGURE_DEPENDS "${MELEE_ROOT}/native/src/*.c")
-list(APPEND native_backend_sources "${MELEE_ROOT}/native/src/thp_decode.cpp")
-# gx_pixel.c is an isolated CPU register-capture test backend. Aurora owns
-# these GX symbols in the real graphics build.
-list(REMOVE_ITEM native_backend_sources "${MELEE_ROOT}/native/src/gx_pixel.c")
-set(full_game_sdk_sources
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/ax/AXAlloc.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/ax/AXAux.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/ax/AXVPB.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/axfx/axfx.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/axfx/delay.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/axfx/chorus.c"
-  "${MELEE_ROOT}/src/MSL/float.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/ar/arq.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/os/OSArena.c"
-  "${MELEE_ROOT}/extern/dolphin/src/dolphin/os/OSTime.c")
-foreach(module mtx vec mtxvec mtx44)
-  list(APPEND full_game_sdk_sources "${MELEE_ROOT}/extern/dolphin/src/dolphin/mtx/${module}.c")
-endforeach()
+include("${MELEE_ROOT}/native/cmake/game_sources.cmake")
 add_library(melee_full_game_objects OBJECT EXCLUDE_FROM_ALL
   ${full_game_sources} ${native_backend_sources} ${full_game_sdk_sources})
 target_compile_definitions(melee_full_game_objects PRIVATE MELEE_NATIVE MELEE_AURORA)

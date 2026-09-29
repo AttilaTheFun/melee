@@ -1,0 +1,75 @@
+[
+  "KeyJ",
+  "KeyJ",
+  {
+    "key": "Enter",
+    "until": {
+      "mode": 0
+    },
+    "wait": 1000
+  },
+  {
+    "key": "Enter",
+    "until": {
+      "mode": 1
+    },
+    "wait": 2000
+  },
+  "KeyS",
+  "KeyJ",
+  {
+    "key": "KeyJ",
+    "until": {
+      "mode": 2,
+      "scene": 0
+    },
+    "wait": 3500
+  },
+  {
+    "keys": [
+      "KeyW",
+      "ArrowUp"
+    ],
+    "hold": 900,
+    "wait": 300
+  },
+  {
+    "keys": [
+      "KeyS",
+      "ArrowDown"
+    ],
+    "hold": 110,
+    "wait": 300
+  },
+  {
+    "key": "KeyD",
+    "hold": 150,
+    "wait": 300
+  },
+  {
+    "keys": [
+      "KeyJ",
+      "Numpad1"
+    ],
+    "hold": 100,
+    "wait": 1500
+  },
+  {
+    "key": "Enter",
+    "wait": 3000
+  },
+  {
+    "key": "KeyW",
+    "hold": 450,
+    "wait": 500
+  },
+  {
+    "key": "KeyS",
+    "hold": 180,
+    "wait": 300
+  },
+  {
+    "key": "KeyJ",
+    "wait": 10000
+  }
+]

@@ -1,3 +1,59 @@
+diff --git a/cmake/AuroraDawnProvider.cmake b/cmake/AuroraDawnProvider.cmake
+index 184d0ee..9b69e03 100644
+--- a/cmake/AuroraDawnProvider.cmake
++++ b/cmake/AuroraDawnProvider.cmake
+@@ -1,4 +1,15 @@
+ include_guard(GLOBAL)
++
++# Browser WebGPU is supplied by Emscripten's pinned Emdawn port, not native Dawn.
++if(EMSCRIPTEN)
++  add_library(aurora_emdawn INTERFACE)
++  target_compile_options(aurora_emdawn INTERFACE --use-port=emdawnwebgpu)
++  target_link_options(aurora_emdawn INTERFACE --use-port=emdawnwebgpu)
++  add_library(dawn::webgpu_dawn ALIAS aurora_emdawn)
++  add_library(dawn::dawncpp_headers ALIAS aurora_emdawn)
++  set(AURORA_DAWN_IS_SHARED FALSE)
++  return()
++endif()
+ include("${CMAKE_CURRENT_LIST_DIR}/AuroraTargetPlatform.cmake")
+ 
+ # Resolve Dawn/WebGPU dependency based on AURORA_DAWN_PROVIDER and AURORA_DAWN_LINKAGE.
+diff --git a/cmake/aurora_core.cmake b/cmake/aurora_core.cmake
+index 5ef636d..e6aa15a 100644
+--- a/cmake/aurora_core.cmake
++++ b/cmake/aurora_core.cmake
+@@ -1,3 +1,16 @@
++# Browser embedding owns the canvas, event loop, input, audio and GPU provider.
++# Keep only the shared utilities; native window/ImGui/Dawn code stays native.
++if(EMSCRIPTEN)
++  add_library(aurora_core STATIC lib/logging.cpp lib/thread.cpp lib/time.cpp
++    lib/io.cpp lib/webgpu/gpu_prof.cpp)
++  add_library(aurora::core ALIAS aurora_core)
++  target_compile_definitions(aurora_core PUBLIC AURORA TARGET_PC AURORA_ENABLE_GX)
++  target_include_directories(aurora_core PUBLIC include)
++  target_link_libraries(aurora_core PUBLIC fmt::fmt ${AURORA_SDL3_TARGET} xxhash dawn::webgpu_dawn)
++  target_link_libraries(aurora_core PRIVATE absl::btree absl::flat_hash_map sqlite3 TracyClient)
++  return()
++endif()
++
+ add_library(aurora_core STATIC
+         lib/aurora.cpp
+         lib/device.cpp
+diff --git a/extern/CMakeLists.txt b/extern/CMakeLists.txt
+index e1feaca..3d1270f 100644
+--- a/extern/CMakeLists.txt
++++ b/extern/CMakeLists.txt
+@@ -218,7 +218,9 @@ if (AURORA_ENABLE_GX)
+       ${imgui_SOURCE_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+       ${imgui_SOURCE_DIR}/backends/imgui_impl_wgpu.cpp
+     )
+-    target_compile_definitions(imgui_backends PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
++    if(NOT EMSCRIPTEN)
++      target_compile_definitions(imgui_backends PRIVATE IMGUI_IMPL_WEBGPU_BACKEND_DAWN)
++    endif()
+     target_link_libraries(imgui_backends PRIVATE imgui ${AURORA_SDL3_TARGET} dawn::webgpu_dawn)
+     target_link_libraries(imgui PUBLIC imgui_backends)
+ 
 diff --git a/lib/dolphin/gx/GXFrameBuffer.cpp b/lib/dolphin/gx/GXFrameBuffer.cpp
 index 470f038..2f1cbe3 100644
 --- a/lib/dolphin/gx/GXFrameBuffer.cpp
@@ -171,7 +227,7 @@ index 4c8dddc..4a59675 100644
  void VISetWindowTitle(const char* title) { aurora::window::set_title(title); }
  void VISetWindowFullscreen(bool fullscreen) { aurora::window::set_fullscreen(fullscreen); }
 diff --git a/lib/gfx/frame.cpp b/lib/gfx/frame.cpp
-index 9fd83ef..4ebb125 100644
+index 9fd83ef..97644eb 100644
 --- a/lib/gfx/frame.cpp
 +++ b/lib/gfx/frame.cpp
 @@ -1,3 +1,4 @@
@@ -179,7 +235,35 @@ index 9fd83ef..4ebb125 100644
  #include "frame.hpp"
  
  #include "depth_peek.hpp"
-@@ -519,6 +520,7 @@ void initialize() {
+@@ -488,6 +489,14 @@ void initialize() {
+                     .hasDynamicOffset = true,
+                 },
+         },
++#ifdef __EMSCRIPTEN__
++        wgpu::BindGroupLayoutEntry{
++            .binding = 1,
++            .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
++            .buffer = {.type = wgpu::BufferBindingType::Uniform, .hasDynamicOffset = true,
++                       .minBindingSize = sizeof(gx::DrawImmediateData)},
++        },
++#endif
+     };
+     const wgpu::BindGroupLayoutDescriptor layoutDesc{
+         .label = "Uniform bind group layout",
+@@ -501,6 +510,12 @@ void initialize() {
+             .buffer = g_resources.uniformBuffer,
+             .size = gx::MaxUniformSize,
+         },
++#ifdef __EMSCRIPTEN__
++        wgpu::BindGroupEntry{
++            .binding = 1, .buffer = g_resources.uniformBuffer,
++            .size = sizeof(gx::DrawImmediateData),
++        },
++#endif
+     };
+     const wgpu::BindGroupDescriptor bindGroupDescriptor{
+         .label = "Uniform bind group",
+@@ -519,6 +534,7 @@ void initialize() {
  }
  
  void shutdown() {
@@ -188,18 +272,173 @@ index 9fd83ef..4ebb125 100644
    render_worker::shutdown();
    g_processEventsQueued.store(false, std::memory_order_release);
 diff --git a/lib/gfx/pipeline_cache.cpp b/lib/gfx/pipeline_cache.cpp
-index bff9b47..51d8144 100644
+index bff9b47..75b56cc 100644
 --- a/lib/gfx/pipeline_cache.cpp
 +++ b/lib/gfx/pipeline_cache.cpp
-@@ -436,7 +436,7 @@ static PipelineRef find_pipeline_impl(ShaderType type, const PipelineConfig& con
+@@ -14,6 +14,8 @@
+ #include <algorithm>
+ #include <atomic>
+ #include <condition_variable>
++#include <chrono>
++#include <cstdlib>
+ #include <deque>
+ #include <filesystem>
+ #include <limits>
+@@ -29,6 +31,15 @@
+ 
+ namespace aurora::gfx {
+ static Module Log("aurora::gfx::pipeline_cache");
++static std::atomic<uint64_t> profileWaits{0}, profileWaitNs{0}, profileBuilds{0}, profileBuildNs{0};
++static uint64_t profile_ns() {
++  return std::chrono::duration_cast<std::chrono::nanoseconds>(
++      std::chrono::steady_clock::now().time_since_epoch()).count();
++}
++PipelineTiming take_pipeline_timing() {
++  return {profileWaits.exchange(0), profileWaitNs.exchange(0),
++          profileBuilds.exchange(0), profileBuildNs.exchange(0)};
++}
+ 
+ constexpr int PipelineCacheSchema = 1;
+ constexpr const char* InitialPipelineCacheName = "initial_pipeline_cache.db";
+@@ -67,7 +78,8 @@ constexpr size_t BuildPipelinesPerFrame = 5;
+ #else
+ constexpr size_t BuildPipelinesPerFrame = 1;
+ #endif
+-static std::thread g_pipelineThread;
++static std::vector<std::thread> g_pipelineThreads;
++static bool g_deferPipelineWaits = false;
+ static std::atomic_bool g_pipelineThreadEnd = false;
+ static std::condition_variable g_pipelineQueueCv;
+ static std::condition_variable g_pipelineReadyCv;
+@@ -436,7 +448,11 @@ static PipelineRef find_pipeline_impl(ShaderType type, const PipelineConfig& con
    ZoneScoped;
  
    const PipelineRef hash = xxh3_hash(config, static_cast<HashType>(type));
 -  const bool blocking = priority == PipelinePriority::Blocking;
-+  const bool blocking = priority == PipelinePriority::Blocking || webgpu::g_graphicsConfig.synchronousPipelines;
++  // Native draws must wait for their shaders, but may defer that wait until
++  // encoding, allowing the recorder to queue the rest of the frame's work.
++  // Persistent-cache warmup must never block the first frame.
++  const bool blocking = priority == PipelinePriority::Blocking ||
++                        (priority == PipelinePriority::Normal && webgpu::g_graphicsConfig.synchronousPipelines && !g_deferPipelineWaits);
    if (!blocking && hash == g_lastPipelineRef) {
      return g_lastPipelineRef;
    }
+@@ -540,7 +556,10 @@ static PipelineRef find_pipeline_impl(ShaderType type, const PipelineConfig& con
+ 
+   if (blocking && !pipelineReady) {
+     std::unique_lock lock{g_pipelineMutex};
++    const auto waitStarted = profile_ns();
+     g_pipelineReadyCv.wait(lock, [=] { return g_pipelines.contains(hash) || g_pipelineThreadEnd; });
++    profileWaitNs.fetch_add(profile_ns() - waitStarted);
++    profileWaits.fetch_add(1);
+     auto pipelineIt = g_pipelines.find(hash);
+     if (pipelineIt != g_pipelines.end() && persist && firstFrameUsed < pipelineIt->second.firstFrameUsed) {
+       pipelineIt->second.firstFrameUsed = firstFrameUsed;
+@@ -968,17 +987,15 @@ static void pipeline_worker() {
+   tracy::SetThreadName("Pipeline compilation thread");
+ #endif
+ 
+-  bool hasMore = false;
+   while (g_hasPipelineThread || g_pipelinesPerFrame < BuildPipelinesPerFrame) {
+     PendingPipeline pending;
+     {
+       std::unique_lock lock{g_pipelineMutex};
+       if (g_hasPipelineThread) {
+-        if (!hasMore) {
+-          g_pipelineQueueCv.wait(lock, [] {
+-            return !g_pipelineQueue.empty() || !g_backgroundPipelineQueue.empty() || g_pipelineThreadEnd;
+-          });
+-        }
++        // Recheck under the lock: another compiler may consume the last job.
++        g_pipelineQueueCv.wait(lock, [] {
++          return !g_pipelineQueue.empty() || !g_backgroundPipelineQueue.empty() || g_pipelineThreadEnd;
++        });
+       } else if (g_pipelineQueue.empty() && g_backgroundPipelineQueue.empty()) {
+         return;
+       }
+@@ -989,7 +1006,10 @@ static void pipeline_worker() {
+       pending = std::move(source.front());
+       source.pop_front();
+     }
++    const auto buildStarted = profile_ns();
+     auto result = pending.create();
++    profileBuildNs.fetch_add(profile_ns() - buildStarted);
++    profileBuilds.fetch_add(1);
+     {
+       std::lock_guard lock{g_pipelineMutex};
+       g_pipelines.try_emplace(pending.hash, CachedPipeline{
+@@ -997,7 +1017,6 @@ static void pipeline_worker() {
+                                                 .firstFrameUsed = pending.firstFrameUsed,
+                                             });
+       g_pendingPipelines.erase(pending.hash);
+-      hasMore = !g_pipelineQueue.empty() || !g_backgroundPipelineQueue.empty();
+     }
+     if (!g_hasPipelineThread) {
+       ++g_pipelinesPerFrame;
+@@ -1117,6 +1136,8 @@ PipelineRef find_pipeline(ShaderType type, const rmlui::PipelineConfig& config,
+ #endif
+ 
+ void initialize_pipeline_cache() {
++  g_deferPipelineWaits = false;
++  g_lastPipelineRef = std::numeric_limits<PipelineRef>::max();
+   g_pipelineCacheBroken = false;
+   g_pipelineCacheWriterStop = false;
+   g_pipelineThreadEnd = false;
+@@ -1126,7 +1147,12 @@ void initialize_pipeline_cache() {
+     g_hasPipelineThread = false;
+   } else {
+     g_hasPipelineThread = true;
+-    g_pipelineThread = std::thread(pipeline_worker);
++    // Queue all of a frame's shader work before waiting at encode time. Two
++    // compilers overlap independent jobs without dropping uncompiled draws.
++    g_deferPipelineWaits = webgpu::g_backendType == wgpu::BackendType::Metal &&
++                          !std::getenv("AURORA_SERIAL_PIPELINES");
++    const unsigned workers = g_deferPipelineWaits ? 2 : 1;
++    for (unsigned i = 0; i < workers; ++i) g_pipelineThreads.emplace_back(pipeline_worker);
+   }
+ 
+   const size_t loadedCount = load_pipeline_cache();
+@@ -1144,7 +1170,8 @@ void shutdown_pipeline_cache() {
+     g_pipelineThreadEnd = true;
+     g_pipelineQueueCv.notify_all();
+     g_pipelineReadyCv.notify_all();
+-    g_pipelineThread.join();
++    for (auto& thread : g_pipelineThreads) thread.join();
++    g_pipelineThreads.clear();
+   }
+   g_hasPipelineThread = false;
+ 
+@@ -1175,7 +1202,16 @@ void end_pipeline_frame() {
+ }
+ 
+ bool get_pipeline(PipelineRef ref, wgpu::RenderPipeline& pipeline) {
+-  std::lock_guard guard{g_pipelineMutex};
++  std::unique_lock guard{g_pipelineMutex};
++  if (g_deferPipelineWaits && webgpu::g_graphicsConfig.synchronousPipelines &&
++      !g_pipelines.contains(ref) && g_pendingPipelines.contains(ref)) {
++    touch_pending_pipeline(ref, PipelinePriority::Blocking);
++    g_pipelineQueueCv.notify_one();
++    const auto waitStarted = profile_ns();
++    g_pipelineReadyCv.wait(guard, [=] { return g_pipelines.contains(ref) || g_pipelineThreadEnd; });
++    profileWaitNs.fetch_add(profile_ns() - waitStarted);
++    profileWaits.fetch_add(1);
++  }
+   const auto it = g_pipelines.find(ref);
+   if (it == g_pipelines.end()) {
+     return false;
+diff --git a/lib/gfx/pipeline_cache.hpp b/lib/gfx/pipeline_cache.hpp
+index 7eb4723..98e6357 100644
+--- a/lib/gfx/pipeline_cache.hpp
++++ b/lib/gfx/pipeline_cache.hpp
+@@ -26,6 +26,8 @@ enum class ShaderType : uint8_t {
+ 
+ using NewPipelineCallback = std::function<wgpu::RenderPipeline()>;
+ 
++struct PipelineTiming { uint64_t waits, waitNs, builds, buildNs; };
++PipelineTiming take_pipeline_timing();
+ void initialize_pipeline_cache();
+ void shutdown_pipeline_cache();
+ void begin_pipeline_frame();
 diff --git a/lib/gfx/recording.cpp b/lib/gfx/recording.cpp
 index d04db0f..cd05f53 100644
 --- a/lib/gfx/recording.cpp
@@ -276,8 +515,57 @@ index 0a5ca83..db2722a 100644
      };
      return kHwToGxFilter[get_bits(mode0, 3, 5)];
    }
+diff --git a/lib/gfx/texture_replacement.cpp b/lib/gfx/texture_replacement.cpp
+index 03dda46..484b04a 100644
+--- a/lib/gfx/texture_replacement.cpp
++++ b/lib/gfx/texture_replacement.cpp
+@@ -462,7 +462,7 @@ bool remove_mipmaps(gfx::ConvertedTexture& texture) noexcept {
+     return false;
+   }
+ 
+-  ByteBuffer data{size};
++  ByteBuffer data{static_cast<size_t>(size)};
+   std::memcpy(data.data(), texture.data.data(), size);
+   texture.mips = 1;
+   texture.data = std::move(data);
+@@ -681,11 +681,11 @@ std::optional<gfx::ConvertedTexture> load_encoded_replacement(Source&& src) noex
+ 
+   const uint32_t mips = 1u + static_cast<uint32_t>(more.size());
+   const uint64_t n = gfx::calc_texture_size(base->format, base->width, base->height, mips);
+-  if (n == 0) {
++  if (n == 0 || n > SIZE_MAX) {
+     return std::nullopt;
+   }
+ 
+-  ByteBuffer blob{n};
++  ByteBuffer blob{static_cast<size_t>(n)};
+   uint8_t* const dst = blob.data();
+   uint64_t o = 0;
+   const auto append = [&](const ByteBuffer& d) noexcept -> bool {
+diff --git a/lib/gx/command_processor.cpp b/lib/gx/command_processor.cpp
+index b0dce17..35a9045 100644
+--- a/lib/gx/command_processor.cpp
++++ b/lib/gx/command_processor.cpp
+@@ -426,6 +426,7 @@ static void push_gx_draw(GXPrimitive prim, GXVtxFmt fmt, u16 vtxCount, gfx::Rang
+     }
+   }
+ 
++  update_display_projection();
+   const bool uniformValid = (state.dirty & DirtyUniform) == 0 && cache.uniformRange.size != 0;
+   if (!uniformValid) {
+     cache.uniformRange = build_uniform(cache.shaderInfo);
+@@ -458,6 +459,9 @@ static void push_gx_draw(GXPrimitive prim, GXVtxFmt fmt, u16 vtxCount, gfx::Rang
+       .idxRange = idxRange,
+       .uniformRange = cache.uniformRange,
+       .immediateData = immediates,
++#ifdef __EMSCRIPTEN__
++      .immediateRange = gfx::push_uniform(immediates),
++#endif
+       .vtxCount = vtxCount,
+       .indexCount = numIndices,
+       .instanceCount = instanceCount,
 diff --git a/lib/gx/fifo.cpp b/lib/gx/fifo.cpp
-index bcaba60..4a363bd 100644
+index bcaba60..76ac5c6 100644
 --- a/lib/gx/fifo.cpp
 +++ b/lib/gx/fifo.cpp
 @@ -2,6 +2,17 @@
@@ -298,7 +586,7 @@ index bcaba60..4a363bd 100644
  
  #include <algorithm>
  #include <atomic>
-@@ -36,11 +47,67 @@ std::mutex sBufferMutex;
+@@ -36,11 +47,79 @@ std::mutex sBufferMutex;
  std::atomic<uint32_t> sWorkerWake{0};
  thread::Thread sWorkerThread;
  std::atomic<DrawDoneCallback> sDrawDoneCallback{nullptr};
@@ -338,7 +626,19 @@ index bcaba60..4a363bd 100644
 +      completion = std::move(sCompletions.front());
 +      sCompletions.pop_front();
 +    }
++#ifdef __EMSCRIPTEN__
++    // JS promises resolve on the browser thread; never block that event loop
++    // or require Asyncify for every game/render worker. Poll the C++ future.
++    auto result = wgpu::WaitStatus::TimedOut;
++    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
++    do {
++      result = webgpu::g_instance.WaitAny(completion.future, 0);
++      if (result != wgpu::WaitStatus::TimedOut) break;
++      std::this_thread::sleep_for(std::chrono::milliseconds(1));
++    } while (std::chrono::steady_clock::now() < deadline);
++#else
 +    const auto result = webgpu::g_instance.WaitAny(completion.future, 10000000000ULL);
++#endif
 +    AURORA_ASSERT(result == wgpu::WaitStatus::Success &&
 +                  completion.success->load(std::memory_order_acquire),
 +                  "GX draw-done GPU completion failed");
@@ -366,7 +666,7 @@ index bcaba60..4a363bd 100644
  }
  
  void wake_worker() noexcept {
-@@ -65,7 +132,11 @@ void process_to(uint64_t target, std::memory_order order) noexcept {
+@@ -65,7 +144,11 @@ void process_to(uint64_t target, std::memory_order order) noexcept {
                    "FIFO processor made invalid progress: processed {} of {} remaining bytes", result.bytesProcessed,
                    target - processed);
      if (result.drawDone) {
@@ -379,7 +679,7 @@ index bcaba60..4a363bd 100644
      }
      processed += result.bytesProcessed;
      sProcessed.store(processed, order);
-@@ -114,6 +185,7 @@ void stop_worker() {
+@@ -114,6 +197,7 @@ void stop_worker() {
  ProcessingMode processing_mode() noexcept { return kProcessingMode; }
  
  void init() {
@@ -387,7 +687,7 @@ index bcaba60..4a363bd 100644
    stop_worker();
  
    constexpr uint32_t initialCapacity = 64 * 1024;
-@@ -134,10 +206,36 @@ void init() {
+@@ -134,10 +218,36 @@ void init() {
    sProcessed.store(0, std::memory_order_relaxed);
    sWorkerWake.store(0, std::memory_order_relaxed);
  
@@ -425,7 +725,7 @@ index bcaba60..4a363bd 100644
  
  void begin_frame() noexcept { sFrameActive = true; }
  
-@@ -190,6 +288,33 @@ DrawDoneCallback set_draw_done_callback(DrawDoneCallback callback) noexcept {
+@@ -190,6 +300,33 @@ DrawDoneCallback set_draw_done_callback(DrawDoneCallback callback) noexcept {
    return sDrawDoneCallback.exchange(callback, std::memory_order_acq_rel);
  }
  
@@ -476,6 +776,144 @@ index 0d6a5d8..2c90972 100644
  
  // Display list recording
  void begin_display_list(uint8_t* buf, uint32_t size);
+diff --git a/lib/gx/gx.cpp b/lib/gx/gx.cpp
+index b12b327..cdb273b 100644
+--- a/lib/gx/gx.cpp
++++ b/lib/gx/gx.cpp
+@@ -572,7 +572,9 @@ void initialize() noexcept {
+         .label = "GX Pipeline Layout",
+         .bindGroupLayoutCount = layouts.size(),
+         .bindGroupLayouts = layouts.data(),
++#ifndef __EMSCRIPTEN__
+         .immediateSize = sizeof(DrawImmediateData),
++#endif
+     };
+     sPipelineLayout = g_device.CreatePipelineLayout(&desc);
+   }
+diff --git a/lib/gx/pipeline.cpp b/lib/gx/pipeline.cpp
+index 0c3631c..228e45c 100644
+--- a/lib/gx/pipeline.cpp
++++ b/lib/gx/pipeline.cpp
+@@ -27,8 +27,12 @@ void render(const DrawData& data, const wgpu::RenderPassEncoder& pass) {
+   }
+ 
+   const auto& resources = gfx::detail::resources();
++#ifdef __EMSCRIPTEN__
++  const std::array offsets{data.uniformRange.offset, data.immediateRange.offset};
++#else
+   pass.SetImmediates(0, &data.immediateData, sizeof(data.immediateData));
+   const std::array offsets{data.uniformRange.offset};
++#endif
+   pass.SetBindGroup(1, resources.uniformBindGroup, offsets.size(), offsets.data());
+   if (data.bindGroups.textureBindGroup) {
+     pass.SetBindGroup(2, gfx::find_bind_group(data.bindGroups.textureBindGroup));
+diff --git a/lib/gx/pipeline.hpp b/lib/gx/pipeline.hpp
+index 1abcbd5..1daa0ab 100644
+--- a/lib/gx/pipeline.hpp
++++ b/lib/gx/pipeline.hpp
+@@ -10,6 +10,9 @@ struct DrawData {
+   gfx::Range idxRange;
+   gfx::Range uniformRange;
+   DrawImmediateData immediateData;
++#ifdef __EMSCRIPTEN__
++  gfx::Range immediateRange;
++#endif
+   uint32_t vtxCount;
+   uint32_t indexCount;
+   uint32_t instanceCount;
+diff --git a/lib/gx/shader.cpp b/lib/gx/shader.cpp
+index 92f358b..d74712f 100644
+--- a/lib/gx/shader.cpp
++++ b/lib/gx/shader.cpp
+@@ -1628,7 +1628,7 @@ std::string build_shader_source(const ShaderConfig& config) noexcept {
+     fragmentFn += "\n    prev = vec4f(in.nrm, prev.a);";
+   }
+ 
+-  const auto shaderSource = fmt::format(R"""(
++  auto shaderSource = fmt::format(R"""(
+ fn bswap32(v: u32, le: bool) -> u32 {{
+   if (le) {{
+     return v;
+@@ -1998,6 +1998,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {{{6}{5}
+ )""",
+                                         uniBufAttrs, texBindings, vtxOutAttrs, vtxInAttrs, vtxXfrAttrs, fragmentFn,
+                                         fragmentFnPre, vtxXfrAttrsPre, uniformPre);
++#ifdef __EMSCRIPTEN__
++  // Browser WebGPU has no native Dawn push constants. The same 64 bytes live
++  // in a dynamic uniform binding, allocated per draw from the frame arena.
++  const std::string immediateDeclaration = "var<immediate> imm: Immediate;";
++  const auto immediateAt = shaderSource.find(immediateDeclaration);
++  if (immediateAt != std::string::npos) {
++    shaderSource.replace(immediateAt, immediateDeclaration.size(),
++        "@group(1) @binding(1) var<uniform> imm: Immediate;");
++  }
++#endif
+   if (EnableDebugPrints) {
+     Log.info("Generated shader (hash {:x}): {}", hash, shaderSource);
+   }
+diff --git a/lib/gx/shader_info.cpp b/lib/gx/shader_info.cpp
+index c74bd6d..eaca82c 100644
+--- a/lib/gx/shader_info.cpp
++++ b/lib/gx/shader_info.cpp
+@@ -9,6 +9,8 @@
+ namespace aurora::gx {
+ namespace {
+ constexpr Module Log{"aurora::gx"};
++bool displayWidescreen = false;
++bool applyWidescreen = false;
+ 
+ bool is_alpha_bump_channel(GXChannelID id) { return id == GX_ALPHA_BUMP || id == GX_ALPHA_BUMPN; }
+ 
+@@ -369,6 +371,21 @@ ShaderInfo build_shader_info(const ShaderConfig& config) noexcept {
+   return info;
+ }
+ 
++void set_display_widescreen(bool enabled) noexcept {
++  if (displayWidescreen != enabled) {
++    displayWidescreen = enabled;
++    g_gxState.dirty |= DirtyUniform;
++  }
++}
++
++void update_display_projection() noexcept {
++  const bool enabled = displayWidescreen && !gfx::is_offscreen();
++  if (applyWidescreen != enabled) {
++    applyWidescreen = enabled;
++    g_gxState.dirty |= DirtyUniform;
++  }
++}
++
+ static void fill_uniform(ByteBuffer& buf, const ShaderInfo& info) noexcept {
+   buf.reserve_extra(info.uniformSize);
+ 
+@@ -390,6 +407,13 @@ static void fill_uniform(ByteBuffer& buf, const ShaderInfo& info) noexcept {
+     }
+   }
+   auto proj = g_gxState.proj;
++  // Anamorphic 16:9: retain the 640x480 EFB and expand horizontal view.
++  // Scale the complete row (including translation) so orthographic HUD and
++  // movies stay centered at their original proportions after presentation.
++  // Offscreen shadow/texture cameras must retain their original projection.
++  if (applyWidescreen) {
++    proj.m0 = proj.m0 * Vec4{0.75f, 0.75f, 0.75f, 0.75f};
++  }
+   if constexpr (UseReversedZ) {
+     proj.m2 = proj.m2 * Vec4{-1.f, -1.f, -1.f, -1.f};
+   } else {
+diff --git a/lib/gx/shader_info.hpp b/lib/gx/shader_info.hpp
+index 24d431b..878d28f 100644
+--- a/lib/gx/shader_info.hpp
++++ b/lib/gx/shader_info.hpp
+@@ -3,6 +3,9 @@
+ #include "gx.hpp"
+ 
+ namespace aurora::gx {
++// Game-thread-only presentation aspect correction. GX register values remain unchanged.
++void set_display_widescreen(bool enabled) noexcept;
++void update_display_projection() noexcept;
+ ShaderInfo build_shader_info(const ShaderConfig& config) noexcept;
+ gfx::Range build_uniform(const ShaderInfo& info) noexcept;
+ u8 color_channel(GXChannelID id) noexcept;
 diff --git a/lib/internal.hpp b/lib/internal.hpp
 index d1adb6c..7112ab2 100644
 --- a/lib/internal.hpp

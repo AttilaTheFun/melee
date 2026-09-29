@@ -165,7 +165,14 @@ int main(void)
     HSD_GXSetFifoObj(GXInit(HSD_AllocateFifo(0x40000), 0x40000));
     HSD_InitComponent();
     GXSetMisc(1, 8);
+#ifdef __EMSCRIPTEN__
+    {
+        extern u32 melee_browser_net_seed(u32);
+        *seed_ptr = melee_browser_net_seed(OSGetTick());
+    }
+#else
     *seed_ptr = OSGetTick();
+#endif
     lbAudioAx_8002838C();
     lb_80019AAC(&gmMain_8015FD24);
     HSD_VISetUserPostRetraceCallback(&gmMain_8015FDA0);

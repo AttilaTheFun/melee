@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Melee · Wasm / WebGPU prototype</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui,sans-serif;background:#080d18;color:#e8edf6}*{box-sizing:border-box}body{margin:0}main{max-width:1440px;margin:auto;padding:28px}header{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:24px}h1{font-size:26px;letter-spacing:-.7px;margin:0 0 7px}p{line-height:1.55;color:#a4b2ca;margin:0}.tag{font:12px ui-monospace,monospace;color:#6fe4c7;border:1px solid #254f4b;padding:8px 12px;border-radius:99px;white-space:nowrap}.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px}.viewport{position:relative;border:1px solid #243149;border-radius:14px;overflow:hidden;background:#060910}canvas{display:block;width:100%;height:min(70vh,750px);min-height:380px;touch-action:none}.hint{position:absolute;bottom:15px;left:18px;font-size:12px;color:#8da0ba;pointer-events:none}aside{border:1px solid #243149;border-radius:14px;padding:22px;background:#101827;display:flex;flex-direction:column;gap:22px}label{display:block;font-weight:600;margin-bottom:9px}input[type=file]{width:100%;font-size:12px}input::file-selector-button,button,select{font:inherit;border:1px solid #354562;border-radius:7px;color:inherit;background:#1b2941;padding:9px 12px}select{width:100%}button{cursor:pointer}button:hover{background:#293e5e}button:disabled,select:disabled{opacity:.45;cursor:default}input[type=range]{width:100%;accent-color:#6fe4c7}.row{display:flex;gap:8px;align-items:center}.row button{flex:1}small{font-size:12px;color:#95a6bf;line-height:1.6;display:block;margin-top:8px}#status{font-size:14px;color:#a7ead9;overflow-wrap:anywhere}#status.error{color:#ffaaa4}#metrics{font:12px/1.7 ui-monospace,monospace;white-space:pre-line;color:#9fb1cc}footer{padding-top:18px;font-size:12px;max-width:950px;line-height:1.65;color:#889ab5}@media(max-width:800px){main{padding:16px}.layout{grid-template-columns:1fr}header{align-items:flex-start}.tag{display:none}canvas{height:55vh}aside{gap:16px}}
+</style>
+<main>
+<header><div><h1>Melee, in the browser</h1><p>Native asset decoding and animation in WebAssembly. Rendering with WebGPU.</p></div><span class="tag">EXPERIMENTAL · SAFARI</span></header>
+<div class="layout"><section class="viewport" aria-label="Animated fighter preview"><canvas id="canvas" aria-label="3D fighter model"></canvas><span class="hint">Drag to orbit · Scroll to zoom</span></section>
+<aside>
+<div><label for="disc">1. Choose your disc</label><input id="disc" type="file" accept=".iso,.ciso"><small>USA Melee (GALE01), ISO or CISO. Read locally in a worker; no upload or bundled game assets.</small></div>
+<div><label for="fighter">2. Select a fighter</label><select id="fighter" disabled><option value="0">Mario</option><option value="1">Fox</option><option value="2">Peach</option></select></div>
+<div><label for="frame">Animation <span id="frameLabel">0.0</span></label><input id="frame" type="range" min="0" max="60" step="0.1" value="0" disabled><div class="row"><button id="play" disabled>Pause</button><button id="reset">Reset view</button></div></div>
+<p id="status" role="status" aria-live="polite">Starting WebGPU…</p><div id="metrics"></div>
+</aside></div>
+<footer>This is a character animation prototype, not a playable game. It reuses the native port’s disc, DAT, texture, skeletal animation, skinning, and visibility code. Rendering approximates a single texture layer and lighting; complete GX/TEV, material animation, gameplay, input, audio, and saves are not ported yet.</footer>
+</main><script type="module" src="app.js"></script>
+</html>

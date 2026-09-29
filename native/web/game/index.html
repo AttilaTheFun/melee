@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Melee Browser</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui;background:#101219;color:#edf0fa}
+body{max-width:1100px;margin:24px auto;padding:0 20px}h1{font-size:24px}
+canvas{display:block;width:min(100%,960px);aspect-ratio:4/3;background:#000;margin:20px auto}
+button,input{font:inherit;padding:10px}pre{white-space:pre-wrap;max-height:180px;overflow:auto;color:#bbc5d9}
+.controls{display:flex;gap:32px;flex-wrap:wrap}p{line-height:1.5}.status{color:#a4cbff}
+</style>
+<h1>Melee Browser <small>— development build</small></h1>
+<p>Select your own Melee USA revision 2 ISO or CISO. The game reads this file locally; it is not uploaded.</p>
+<label>Game disc <input id="disc" type="file" accept=".iso,.ciso,.gcm"></label>
+<p><label><input type="checkbox" id="nosave"> Play without saving</label>
+<label>Import native memory card (optional) <input id="save" type="file" accept=".card"></label></p>
+<button id="export" disabled>Export memory card</button>
+<p><label>Play mode <select id="mode"><option value="offline">Offline · two local players</option><option value="host">Online · create room</option><option value="join">Online · join room</option></select></label></p>
+<div id="online" hidden><p>Both players need the same disc file and browser build. Online play uses a fresh memory card and the Player 1 keys or first gamepad on each device.</p>
+<label id="delay-label">Input delay <select id="input-delay"><option value="2">2 ticks · about 33 ms</option><option value="3" selected>3 ticks · about 50 ms</option><option value="4">4 ticks · about 67 ms</option><option value="6">6 ticks · about 100 ms</option></select><small>Larger delays tolerate more network variation at the cost of slower input response. The host chooses this for both players.</small></label>
+<label id="join-label" hidden>Invitation <input id="invitation" type="text" autocomplete="off"></label>
+<label><input id="relay" type="checkbox"> Force TURN relay (connection testing)</label>
+<p id="share" hidden><label>Send this invitation to your opponent <input id="invite-link" readonly></label></p>
+<p>Keep this tab visible while playing. Leaving the tab ends the online session.</p></div>
+<button id="launch">Start game</button>
+<button id="pause" disabled>Pause</button>
+<p class="status" id="status">Offline browser port in development. Saves use this browser’s local storage. Export a backup to keep them elsewhere.</p>
+<canvas id="canvas" width="640" height="480" aria-label="Melee game display"></canvas>
+<div class="controls">
+<p><b>Player 1</b><br>Move: WASD · A/B: J/K · Jump: U/I<br>Grab: O · Shields: Q/E · Start: Enter</p>
+<p><b>Player 2</b><br>Move: arrows · A/B: numpad 1/2 · Jump: numpad 4/5<br>Grab: numpad 6 · Shields: numpad 7/9 · Start: numpad Enter</p>
+</div>
+<p>Standard gamepads use the first two connected controller slots. Press a controller button to make it visible to the browser. Reload the page to restart or change discs.</p>
+<details><summary>Diagnostics</summary><pre id="log"></pre></details>
+<script>
+const status=document.querySelector('#status');const log=document.querySelector('#log');
+function report(value){log.textContent=(log.textContent+'\n'+value).slice(-20000);log.scrollTop=log.scrollHeight;}
+var Module={onLifecycleReady:()=>{document.querySelector('#pause').disabled=!!Module.netSession;},
+  onPauseChanged:paused=>{if(Module.netSession?.closed)return;document.querySelector('#pause').textContent=paused?'Resume':'Pause';status.textContent=paused?'Paused. Press Resume to continue.':Module.netSession?Module.netLabel:'Game running.';},print:report,printErr:report,onAbort:message=>{status.textContent='The game stopped: '+(Module.netSession?.reason||message);},
+  onExit:code=>{status.textContent='The game exited ('+code+'). Reload to restart.';}};
+const mode=document.querySelector('#mode');
+mode.onchange=()=>{document.querySelector('#online').hidden=mode.value==='offline';document.querySelector('#join-label').hidden=mode.value!=='join';document.querySelector('#delay-label').hidden=mode.value==='join';};
+if(location.hash){mode.value='join';document.querySelector('#invitation').value=location.href;mode.onchange();history.replaceState(null,'',location.pathname+location.search);}
+let activeRoom;
+document.querySelector('#launch').onclick=async()=>{
+  if(!crossOriginIsolated){status.textContent='This page needs HTTPS and cross-origin isolation headers to run Wasm threads.';return;}
+  if(!navigator.gpu){status.textContent='This browser does not expose WebGPU. Try a current browser with WebGPU enabled.';return;}
+  const file=document.querySelector('#disc').files[0];
+  if(!file){status.textContent='Choose your ISO or CISO first.';return;}
+  for(const id of ['launch','disc','mode','nosave','save','input-delay','relay','invitation'])document.getElementById(id).disabled=true;
+  const online=mode.value!=='offline';
+  Module.disableSaving=online||document.querySelector('#nosave').checked;
+  const imported=document.querySelector('#save').files[0];
+  if(imported&&!online){try{Module.saveImportBytes=new Uint8Array(await imported.arrayBuffer());}catch(error){status.textContent='Could not read the card: '+error.message+'. Reload to retry.';return;}}
+  try {
+    Module.audioContext=new AudioContext({sampleRate:32000,latencyHint:'interactive'});
+    await Module.audioContext.resume();
+    await Module.audioContext.audioWorklet.addModule('audio-worklet.js');
+  } catch(error){report('Audio unavailable: '+error);Module.audioContext=null;}
+  Module.discFile=file;document.querySelector('#launch').disabled=true;document.querySelector('#disc').disabled=true;
+  mode.disabled=true;
+  if(online){
+    try{
+      const {createRoom,parseInvitation,invitationURL,RoomConnection,connectGameSession}=await import('./netplay/rooms.mjs');
+      const {fingerprintFile}=await import('./netplay/session.mjs');
+      status.textContent='Checking your local disc…';
+      const disc=await fingerprintFile(file,fraction=>{status.textContent='Checking your local disc: '+Math.round(fraction*100)+'%';});
+      const response=await fetch('build.json',{cache:'no-store'});if(!response.ok)throw new Error('Build identity missing. Stage the browser site first.');
+      const {build}=await response.json();
+      let identity;
+      if(mode.value==='host'){
+        const room=await createRoom(Number(document.querySelector('#input-delay').value));identity={id:room.id,token:room.hostToken};
+        document.querySelector('#invite-link').value=invitationURL(room);document.querySelector('#share').hidden=false;
+      }else identity=parseInvitation(document.querySelector('#invitation').value);
+      activeRoom=new RoomConnection({...identity,onClose:reason=>{status.textContent='Online session ended: '+reason+'. Reload to play again.';}});
+      Module.netSession=await connectGameSession(activeRoom,{build,disc,relayOnly:document.querySelector('#relay').checked,onStatus:message=>{Module.netLabel=message;status.textContent=message;}});
+      document.addEventListener('visibilitychange',()=>{if(document.hidden)activeRoom.close('A player left the game tab');});
+      addEventListener('pagehide',()=>activeRoom.close('A player left the game'));
+    }catch(error){activeRoom?.close(error.message);status.textContent='Could not start online: '+error.message+'. Reload to retry.';await Module.audioContext?.close();return;}
+  }
+  status.textContent='Loading the game…';
+  const script=document.createElement('script');script.src='melee_browser.js';
+  script.onerror=()=>{status.textContent='Could not load the browser build. Check hosting and build output.';};
+  document.body.append(script);
+  document.querySelector('#export').disabled=Module.disableSaving;
+};
+document.querySelector('#pause').onclick=()=>Module.setPaused(!Module.gamePaused).catch(error=>{status.textContent='Could not change pause state: '+error;});
+document.querySelector('#export').onclick=async()=>{
+  try{const blob=await Module.exportMemoryCard();const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');link.href=url;link.download='melee.card';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }catch(error){status.textContent='Could not export the card: '+error;}
+};
+</script>
+</html>

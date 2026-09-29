@@ -1,4 +1,8 @@
 #include "gm_1A45.h"
+#ifdef __EMSCRIPTEN__
+extern void melee_browser_net_after_tick(void);
+extern void melee_browser_net_phase(unsigned);
+#endif
 
 #include "gm_1A36.h"
 #include "gm_1A45.static.h"
@@ -279,9 +283,15 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
     lb_8001CF18();
 
     while (temp_r25->unk_C == 0) {
+#ifdef __EMSCRIPTEN__
+        melee_browser_net_phase(1); /* Frame start. */
+#endif
         hsd_80392E80();
         gmMainLib_8046B0F0.xC = false;
 
+#ifdef __EMSCRIPTEN__
+        melee_browser_net_phase(2); /* Input availability. */
+#endif
         while ((pad_queue_count = lb_80019894()) == 0) {
             lb_800195D0();
         }
@@ -346,6 +356,9 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
                     temp_r25->unk_8++;
                 }
             }
+#ifdef __EMSCRIPTEN__
+            melee_browser_net_after_tick();
+#endif
             HSD_PerfSetCPUTime();
 #ifndef MELEE_NATIVE
             /* This inspects the SDK scheduler's private queues and stack fill
@@ -366,11 +379,17 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
         lb_800195D0();
         GXInvalidateVtxCache();
         GXInvalidateTexAll();
+#ifdef __EMSCRIPTEN__
+        melee_browser_net_phase(7); /* Rendering. */
+#endif
         HSD_StartRender(HSD_RP_SCREEN);
         HSD_GObj_80390FC0();
         HSD_Init_803755A8();
         HSD_PerfSetDrawTime();
         HSD_VICopyXFBAsync(HSD_RP_SCREEN);
+#ifdef __EMSCRIPTEN__
+        melee_browser_net_phase(8); /* Render submitted. */
+#endif
         if (temp_r25->unk_4 != -2U) {
             temp_r25->unk_4++;
         }
@@ -378,5 +397,11 @@ void gm_801A4D34(void (*on_frame)(void), UNUSED GameSceneInfo* info)
         HSD_PerfSetTotalTime();
         HSD_PerfInitStat();
     }
+#ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(9); /* Scene-exit flush. */
+#endif
     HSD_VIWaitXFBFlush();
+#ifdef __EMSCRIPTEN__
+    melee_browser_net_phase(10); /* Scene loop returned. */
+#endif
 }

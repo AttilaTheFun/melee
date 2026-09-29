@@ -1,3 +1,8 @@
+#ifdef __EMSCRIPTEN__
+extern int melee_browser_net_enabled(void);
+extern unsigned melee_browser_net_pending_ticks(void);
+extern void melee_browser_net_tick(void);
+#endif
 #include "lb_0195.h"
 
 #include "lb_0192.h"
@@ -134,7 +139,11 @@ u8 lb_80019894(void)
 {
     u8 count;
     int enabled = OSDisableInterrupts();
+#ifdef __EMSCRIPTEN__
+    count = melee_browser_net_enabled() ? melee_browser_net_pending_ticks() : HSD_PadGetRawQueueCount();
+#else
     count = HSD_PadGetRawQueueCount();
+#endif
     lb_80019628();
     OSRestoreInterrupts(enabled);
     return count;
@@ -142,6 +151,12 @@ u8 lb_80019894(void)
 
 void lb_800198E0(void)
 {
+#ifdef __EMSCRIPTEN__
+    if(melee_browser_net_enabled()){
+        melee_browser_net_tick();
+        return;
+    }
+#endif
     HSD_PadRenewMasterStatus();
 }
 
