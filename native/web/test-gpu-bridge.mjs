@@ -164,6 +164,12 @@ try {
         console.log('PASS guided character selection',action.cursorTarget);
         continue;
       }
+      if(action.stageTarget){
+        if(action.stageTarget!=='onett')throw new Error('Unknown stage target');
+        await selectOnett();
+        console.log('PASS guided Onett selection');
+        continue;
+      }
       const keys=action.keys||[action.key];
       const reached=()=>page.evaluate(target=>{
         const state=Module.meleeState;return state && Object.entries(target).every(([key,value])=>state[key]===value);
@@ -306,27 +312,9 @@ try {
     if(!completed)throw new Error('Match did not reach results before deadline');
     console.log('PASS browser match reached results');
   }
-  async function rematch() {
-    const press=async(keys,hold=100,wait=1800)=>{
-      for(const key of keys)await page.keyboard.down(key);
-      await page.waitForTimeout(hold);
-      for(const key of keys)await page.keyboard.up(key);
-      await page.waitForTimeout(wait);
-      console.log('REMATCH',JSON.stringify(await page.evaluate(()=>Module.meleeState)));
-      if(pageErrors.length)throw new Error(pageErrors.join('\n'));
-    };
-    await page.waitForTimeout(5000);
-    for(let attempt=0;attempt<10;attempt++) {
-      if(await page.evaluate(()=>Module.meleeState?.scene===0))break;
-      await press(['Enter','NumpadEnter']);
-    }
-    if(!await page.evaluate(()=>Module.meleeState?.mode===2 && Module.meleeState.scene===0))
-      throw new Error('Results did not return to character select');
-    await press(['Enter'],100,3500);
-    if(await page.evaluate(()=>Module.meleeState?.scene===0)){
-      await press(['KeyJ','Numpad1']);await press(['Enter'],100,3500);
-    }
-    if(!await page.evaluate(()=>Module.meleeState?.scene===1))throw new Error('Rematch did not reach stage selection');
+  async function selectOnett() {
+    if(!await page.evaluate(()=>Module.meleeState?.mode===2&&Module.meleeState.scene===1))
+      throw new Error('Onett guidance requires stage selection');
     await page.evaluate(()=>{
       window.rematchPad={index:0,id:'Test rematch controller',connected:true,mapping:'standard',
         axes:[0,0,0,0],buttons:Array.from({length:16},()=>({pressed:false,value:0}))};
@@ -339,7 +327,7 @@ try {
         const state=await page.evaluate(()=>Module.meleeState);
         if(state?.mode===2&&state.scene!==1)break;
         const guidance=state?.stageGuidance||0;
-        if(!(guidance&16))throw new Error('No Onett cursor guidance during rematch');
+        if(!(guidance&16))throw new Error('No Onett cursor guidance');
         // A full keyboard axis can jump across the 1.2-unit target region.
         // Small real Gamepad API pulses converge without editing game state.
         await page.evaluate(g=>{
@@ -363,7 +351,30 @@ try {
     await page.waitForTimeout(1000);
     const state=await page.evaluate(()=>Module.meleeState);
     if(state?.mode!==2 || state.scene!==2 || !state.fighters.every(f=>f[0]===1))
-      throw new Error('Rematch did not create two live fighters: '+JSON.stringify(state));
+      throw new Error('Stage selection did not create two live fighters: '+JSON.stringify(state));
+  }
+  async function rematch() {
+    const press=async(keys,hold=100,wait=1800)=>{
+      for(const key of keys)await page.keyboard.down(key);
+      await page.waitForTimeout(hold);
+      for(const key of keys)await page.keyboard.up(key);
+      await page.waitForTimeout(wait);
+      console.log('REMATCH',JSON.stringify(await page.evaluate(()=>Module.meleeState)));
+      if(pageErrors.length)throw new Error(pageErrors.join('\n'));
+    };
+    await page.waitForTimeout(5000);
+    for(let attempt=0;attempt<10;attempt++) {
+      if(await page.evaluate(()=>Module.meleeState?.scene===0))break;
+      await press(['Enter','NumpadEnter']);
+    }
+    if(!await page.evaluate(()=>Module.meleeState?.mode===2 && Module.meleeState.scene===0))
+      throw new Error('Results did not return to character select');
+    await press(['Enter'],100,3500);
+    if(await page.evaluate(()=>Module.meleeState?.scene===0)){
+      await press(['KeyJ','Numpad1']);await press(['Enter'],100,3500);
+    }
+    if(!await page.evaluate(()=>Module.meleeState?.scene===1))throw new Error('Rematch did not reach stage selection');
+    await selectOnett();
     console.log('PASS browser returned from results and started a second match');
   }
   if(game && process.env.MELEE_WAIT_RESULTS && !pageErrors.length)

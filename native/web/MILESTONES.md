@@ -31,7 +31,7 @@ The character viewer remains a separate diagnostic; it is not a gameplay milesto
 - [ ] Verify Cloudflare credentials/deployment and separate networks.
 - [x] Assess rollback against measured delay and deterministic state restoration;
       document actual input-delay/rollback behavior rather than imply equivalence.
-- [ ] Provide reproducible hosting instructions and local tests. Hosted files
+- [x] Provide reproducible hosting instructions and local tests. Hosted files
       contain the application only; each player selects their own game disc.
 
 Current work: the latest Mario/Pikachu and Pikachu-mirror soaks each passed more
@@ -42,8 +42,9 @@ After correcting strict callback signatures, the full game renders a live
 Onett versus match with two fighters and an advancing timer. The stage-entry
 scenario passed with no browser errors. A complete match (including sudden
 death) reached results. Keyboard attacks/jumps, synthetic Gamepad API movement and rematch also pass.
-Broader stage/character coverage, lifecycle and extended stability remain.
-The full offline milestone remains open for lifecycle/performance verification;
+Broader stage/character coverage and unexplained earlier freezes remain.
+Both-player actions, pause/resume and multiple ten-minute soaks now pass.
+The full offline milestone remains open for performance/stability verification;
 the online milestone is not complete.
 
 Foundation evidence: all 1,151 shared game/backend compilation units build with
@@ -502,3 +503,34 @@ The ASan run reached match results without another invalid-access report but
 exhausted its 2 GiB limit allocating a 64 MiB WebGPU mapped range. The diagnostic
 now keeps a 64 MiB quarantine instead of the default 256 MiB; release allocation
 is unchanged. Its rerun and a fresh release soak remain in progress.
+
+
+The bounded-quarantine ASan rerun passed 610,633 ms and three matches/rematches
+with zero reported audio underruns (`wasm-asan-bounded-soak.log`). Its heap
+reached 1,828,913,152 bytes by the final sample. The release run passed 680,733 ms
+and four matches/rematches, stable at 993,394,688 bytes after the first rematch,
+with zero reported underruns (`wasm-item-fix-release-soak.log`). Both precede
+the following upload optimization; neither establishes the cause of earlier
+intermittent freezes.
+
+The browser upload path now uses stable CPU storage per frame slot and queue
+writes of used ranges, preserving original GPU capacities. Emdawn previously
+copied all 119 MiB of mapped capacity each draw; the tested fight uses roughly
+16–17 MiB. The native mapped path is unchanged. Twelve changing-color pixel
+readbacks across reused slots and the 6,000-handle/ordered-draw probe pass.
+A full offline Pikachu mirror passes both players' attacks/jumps and lifecycle
+checks, with a visually inspected game capture (`wasm-upload-offline-check.log`).
+A one-draw-per-tick comparison passes 9,600 matching snapshots with 17-second
+clock skew, measuring 35.80 ticks/draws per second (`wasm-upload-single-draw-net.log`).
+This remains below 60; the production two-tick cadence is retained.
+
+Final upload-path checks pass: the sanitized browser boots into the guided
+Pikachu mirror and completes both players' attacks/jumps and pause/resume
+(`wasm-upload-asan-check.log`). Native startup completes 1,200 submissions with
+a valid framebuffer (`wasm-upload-native-runtime.log`). The production fixed
+two-tick cadence passes 9,600 matching snapshots through results over forced
+TURN, with 17-second peer-clock skew and 3,992/78,321 datagrams dropped. It
+measures 57.91–57.92 simulation ticks/s and 28.95–28.96 draws/s while the
+sanitized check overlaps (`wasm-upload-turn-loss.log`). Relay/proxy sockets
+closed and temporary credentials were removed. The staged site was refreshed;
+Cloudflare deployment and separate-network verification remain outstanding.

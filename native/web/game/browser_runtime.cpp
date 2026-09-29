@@ -41,7 +41,7 @@ static void submit_frame(){
     using namespace aurora;
     melee_browser_net_phase(20);
     const double started=emscripten_get_now();
-    static double last_end=0, logic_ms=0, gpu_ms=0, draw_wait_ms=0, present_ms=0, render_wait_ms=0, completion_ms=0;
+    static double last_end=0, logic_ms=0, gpu_ms=0, draw_wait_ms=0, present_ms=0, render_wait_ms=0, completion_ms=0, staging_bytes=0;
     if(last_end)logic_ms+=started-last_end;
     gx::fifo::drain();gx::fifo::end_frame();gx::texture::end_frame();gfx::finish();
     gfx::end_frame([](wgpu::CommandEncoder& encoder,std::vector<gfx::AfterSubmitCallback> callbacks){
@@ -54,6 +54,9 @@ static void submit_frame(){
     GXWaitDrawDone();
     melee_browser_net_phase(22);
     const double drawn=emscripten_get_now();
+    const auto& stats=gfx::detail::resources().stats;
+    staging_bytes+=double(stats.lastVertSize)+stats.lastUniformSize+stats.lastIndexSize+
+                   stats.lastStorageSize+stats.lastTextureUploadSize;
     const double queued=queue_submitted_at.load(std::memory_order_acquire);
     render_wait_ms+=queued>submitted?queued-submitted:0;
     completion_ms+=drawn-(queued>submitted?queued:submitted);
@@ -75,9 +78,10 @@ static void submit_frame(){
     if(frames==1)melee_browser_lifecycle_changed(0);
     if(frames%60==0){
         MAIN_THREAD_EM_ASM({
-            Module.runtimeProfile=({frame:$0,logicMs:$1/60,gpuSubmitMs:$2/60,drawWaitMs:$3/60,presentMs:$4/60,renderQueueMs:$5/60,completionMs:$6/60});
-        },frames,logic_ms,gpu_ms,draw_wait_ms,present_ms,render_wait_ms,completion_ms);
-        logic_ms=gpu_ms=draw_wait_ms=present_ms=render_wait_ms=completion_ms=0;
+            Module.runtimeProfile=({frame:$0,logicMs:$1/60,gpuSubmitMs:$2/60,drawWaitMs:$3/60,presentMs:$4/60,
+              renderQueueMs:$5/60,completionMs:$6/60,stagingUsedBytes:$7/60});
+        },frames,logic_ms,gpu_ms,draw_wait_ms,present_ms,render_wait_ms,completion_ms,staging_bytes);
+        logic_ms=gpu_ms=draw_wait_ms=present_ms=render_wait_ms=completion_ms=staging_bytes=0;
         std::printf("Browser game frame %u\n",frames);
     }
     if(pause_requested.load()){

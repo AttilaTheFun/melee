@@ -37,17 +37,6 @@
     }
   },
   {
-    "key": "KeyW",
-    "hold": 450,
-    "wait": 500
-  },
-  {
-    "key": "KeyS",
-    "hold": 180,
-    "wait": 300
-  },
-  {
-    "key": "KeyJ",
-    "wait": 10000
+    "stageTarget": "onett"
   }
 ]

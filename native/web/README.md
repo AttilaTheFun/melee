@@ -192,7 +192,14 @@ draw waiting includes browser scheduling and callback delivery. They do not by
 themselves identify shader execution cost. `renderQueueMs` measures the portion
 of draw waiting before the render worker actually submits to WebGPU;
 `completionMs` measures the remaining wait for GPU completion and callback
-handling. The two-engine test logs these values.
+handling. `stagingUsedBytes` reports the average logical upload bytes per draw.
+The two-engine test logs these values.
+
+The browser renderer retains CPU staging memory per frame slot and writes only
+used ranges to WebGPU before submitting the frame. This avoids Emdawn copying
+all 119 MiB of mapped staging capacity each draw. GPU capacities are unchanged;
+the native renderer retains its mapped-buffer path. The Aurora probe checks 12
+alternating-color frames across reused slots.
 
 Draw, indexed-draw, viewport, scissor, pipeline, index-buffer and vertex-buffer
 operations use Emscripten's asynchronous
