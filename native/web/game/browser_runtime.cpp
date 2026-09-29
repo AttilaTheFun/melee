@@ -76,6 +76,18 @@ static void submit_frame(){
     ++frames;
     if(!melee_browser_net_enabled())melee_browser_publish_state(frames);
     if(frames==1)melee_browser_lifecycle_changed(0);
+    if(last_end && presented-last_end>=100){
+        MAIN_THREAD_EM_ASM({
+            const samples=Module.runtimeHitches??=[];
+            if(samples.length===256)samples.shift();
+            samples.push({frame:$0,frameMs:$1,logicMs:$2,gpuSubmitMs:$3,renderQueueMs:$4,
+              completionMs:$5,presentMs:$6,drawCalls:$7,stagingUsedBytes:$8,
+              mode:Module.meleeState?.mode,scene:Module.meleeState?.scene});
+        },frames,presented-last_end,started-last_end,submitted-started,
+          queued>submitted?queued-submitted:0,drawn-(queued>submitted?queued:submitted),
+          presented-drawn,stats.drawCallCount,double(stats.lastVertSize)+stats.lastUniformSize+
+          stats.lastIndexSize+stats.lastStorageSize+stats.lastTextureUploadSize);
+    }
     if(frames%60==0){
         MAIN_THREAD_EM_ASM({
             Module.runtimeProfile=({frame:$0,logicMs:$1/60,gpuSubmitMs:$2/60,drawWaitMs:$3/60,presentMs:$4/60,

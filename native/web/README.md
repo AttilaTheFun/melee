@@ -208,7 +208,12 @@ themselves identify shader execution cost. `renderQueueMs` measures the portion
 of draw waiting before the render worker actually submits to WebGPU;
 `completionMs` measures the remaining wait for GPU completion and callback
 handling. `stagingUsedBytes` reports the average logical upload bytes per draw.
-The two-engine test logs these values.
+The two-engine test logs these values. `Module.runtimeHitches` retains the latest
+256 completed frames taking at least 100 ms, with the same phase breakdown,
+scene, draw count and used upload bytes. These are wall-clock diagnostics,
+including scheduling/loading waits; they do not identify GPU shader duration.
+Explicit pause time is excluded. The full-game test saves this bounded history
+and the last average profile in `melee_browser-result.json`.
 
 The browser renderer retains CPU staging memory per frame slot and writes only
 used ranges to WebGPU before submitting the frame. This avoids Emdawn copying
@@ -221,8 +226,11 @@ operations use Emscripten's asynchronous
 main-thread proxy queue. These void operations copy scalar arguments and owned resource handles only.
 End-of-pass remains a synchronous barrier on the same queue, before the pass
 handle can be released. Resource-handle deletion is also synchronous on that
-queue, draining prior commands before registry removal. Descriptor and buffer-offset-array calls remain
-synchronous because their Wasm memory may be temporary. This relies on the
+queue, draining prior commands before registry removal. Descriptor and general buffer-offset-array calls remain
+synchronous because their Wasm memory may be temporary. GX's two uniform offsets
+use a dedicated asynchronous import that copies both values as scalar arguments;
+it constructs the offset array on the browser thread. The Aurora probe checks
+different left/right draw data across twelve reused frame slots. This relies on the
 pinned Emscripten 6.0.9 proxy queue's argument-copying and FIFO behavior (see
 [the proxying API](https://emscripten.org/docs/api_reference/proxying.h.html)).
 The GPU bridge probe verifies queued draw ordering using scissored pixel

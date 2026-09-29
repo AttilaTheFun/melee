@@ -895,22 +895,36 @@ index b12b327..cdb273b 100644
      sPipelineLayout = g_device.CreatePipelineLayout(&desc);
    }
 diff --git a/lib/gx/pipeline.cpp b/lib/gx/pipeline.cpp
-index 0c3631c..228e45c 100644
+index 0c3631c..013620b 100644
 --- a/lib/gx/pipeline.cpp
 +++ b/lib/gx/pipeline.cpp
-@@ -27,8 +27,12 @@ void render(const DrawData& data, const wgpu::RenderPassEncoder& pass) {
+@@ -10,6 +10,10 @@
+ 
+ #include <tracy/Tracy.hpp>
+ 
++#ifdef __EMSCRIPTEN__
++extern "C" void melee_browser_bind_uniforms(WGPURenderPassEncoder, WGPUBindGroup, uint32_t, uint32_t);
++#endif
++
+ namespace aurora::gx {
+ 
+ wgpu::RenderPipeline create_pipeline(const PipelineConfig& config) {
+@@ -27,9 +31,15 @@ void render(const DrawData& data, const wgpu::RenderPassEncoder& pass) {
    }
  
    const auto& resources = gfx::detail::resources();
 +#ifdef __EMSCRIPTEN__
-+  const std::array offsets{data.uniformRange.offset, data.immediateRange.offset};
++  // Copy both offsets into the proxy queue; no temporary array survives this call.
++  melee_browser_bind_uniforms(pass.Get(), resources.uniformBindGroup.Get(),
++                             data.uniformRange.offset, data.immediateRange.offset);
 +#else
    pass.SetImmediates(0, &data.immediateData, sizeof(data.immediateData));
    const std::array offsets{data.uniformRange.offset};
-+#endif
    pass.SetBindGroup(1, resources.uniformBindGroup, offsets.size(), offsets.data());
++#endif
    if (data.bindGroups.textureBindGroup) {
      pass.SetBindGroup(2, gfx::find_bind_group(data.bindGroups.textureBindGroup));
+   }
 diff --git a/lib/gx/pipeline.hpp b/lib/gx/pipeline.hpp
 index 1abcbd5..1daa0ab 100644
 --- a/lib/gx/pipeline.hpp

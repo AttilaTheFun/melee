@@ -558,3 +558,43 @@ lack. That diagnostic is now restricted to the original GameCube path. The
 actual pointer dereference and rendering logic are unchanged. Native and browser
 builds pass. The final Fountain rerun passes both-player action/lifecycle checks
 with zero occurrences of the false diagnostic (`wasm-stage-fountain-fixed.log`).
+
+
+Slow-frame diagnostics now retain up to 256 frames lasting at least 100 ms,
+with logic, enqueue, render-queue, completion and presentation wall time, draw
+count, upload bytes and scene. The headless game report persists this history.
+A standalone Venom baseline (`wasm-venom-hitch-profile-result.json`) measured
+878 ms at stage entry (553 ms logic/loading, 314 ms completion), plus a later
+170 ms frame with 138 ms completion wait. These phases include browser/GPU
+scheduling and are not GPU timestamp queries or a shader-cost attribution.
+
+GX's two dynamic uniform offsets now pass through a dedicated asynchronous
+scalar import. The browser thread constructs its own offset array; no pointer
+to a temporary Wasm array is retained. Other descriptor/array calls remain
+synchronous, as do the pass-end and handle-deletion ordering barriers. The
+expanded Aurora probe checks two differently colored draws within each of
+twelve frames, across reused storage, and passes alongside handle-lifetime
+and ordered-draw checks. Native builds pass with their existing path unchanged.
+
+The uniform-queue full-engine comparison passes 9,600 matching snapshots
+through results with 17-second clock skew (`wasm-bind-queue-single-draw.log`).
+One draw per tick measures 50.92–50.93 ticks/draws per second, versus 35.80 in
+the earlier upload-only run. Concurrent workloads differed; this is not a
+controlled speedup benchmark. The production fixed two-tick cadence remains.
+Venom action/lifecycle checks also pass, but its overlapping three-engine run
+recorded a 2.98 s stage-entry frame and later 827 ms frame dominated by GPU
+completion (`wasm-bind-queue-venom-result.json`). Do not call hitching fixed.
+
+The standalone queued-uniform Venom rerun passes both-player actions and
+lifecycle checks (`wasm-bind-queue-venom-alone-result.json`). Its largest
+recorded frame is 655 ms at stage entry, including 561 ms logic/loading and
+86 ms completion. Its final 60-frame average is 13.75 ms logic, 1.32 ms enqueue,
+5.85 ms render queue and 5.94 ms completion. The multi-second completion waits
+from the overlapping run did not recur in this short check; that is not a
+long-session or comprehensive performance guarantee.
+
+The final production-cadence smoke test passes 2,200 matching snapshots over
+forced TURN with clock skew and 897/18,022 UDP datagrams dropped, reaching
+57.54–57.56 simulation ticks/s and 28.77–28.78 draws/s during the measured
+gameplay interval (`wasm-bind-queue-turn.log`). This is a stage-entry test,
+not another full relay match. The relay/proxy closed and credentials were removed.

@@ -48,11 +48,14 @@ int main() {
         GXSetZMode(GX_FALSE,GX_ALWAYS,GX_FALSE);GXSetColorUpdate(GX_TRUE);GXSetAlphaUpdate(GX_TRUE);
         GXSetAlphaCompare(GX_ALWAYS,0,GX_AOP_AND,GX_ALWAYS,0);
         GXSetBlendMode(GX_BM_NONE,GX_BL_ONE,GX_BL_ZERO,GX_LO_COPY);
-        const unsigned char r=frame%3==0?255:0,g=frame%3==1?255:0,b=frame%3==2?255:0;
-        GXBegin(GX_TRIANGLES,GX_VTXFMT0,3);
-        GXPosition3f32(-0.8f,-0.8f,0);GXColor4u8(r,g,b,255);
-        GXPosition3f32(0.8f,-0.8f,0);GXColor4u8(r,g,b,255);
-        GXPosition3f32(0,0.8f,0);GXColor4u8(r,g,b,255);GXEnd();
+        for(unsigned half=0;half<2;half++){
+            GXSetScissor(half*320,0,320,480);
+            const unsigned color=(frame+half)%3;
+            GXBegin(GX_TRIANGLES,GX_VTXFMT0,3);
+            GXPosition3f32(-0.8f,-0.8f,0);GXColor4u8(color==0?255:0,color==1?255:0,color==2?255:0,255);
+            GXPosition3f32(0.8f,-0.8f,0);GXColor4u8(color==0?255:0,color==1?255:0,color==2?255:0,255);
+            GXPosition3f32(0,0.8f,0);GXColor4u8(color==0?255:0,color==1?255:0,color==2?255:0,255);GXEnd();
+        }
         gx::fifo::drain();gx::fifo::end_frame();gx::texture::end_frame();gfx::finish();
         gfx::end_frame([](wgpu::CommandEncoder& encoder,std::vector<gfx::AfterSubmitCallback> callbacks){
             auto command=encoder.Finish();webgpu::g_queue.Submit(1,&command);
@@ -72,9 +75,13 @@ int main() {
         auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(20);
         while(!ready){require(std::chrono::steady_clock::now()<deadline,"readback timeout");std::this_thread::sleep_for(std::chrono::milliseconds(1));}
         auto pixels=static_cast<const unsigned char*>(readback.GetConstMappedRange());
-        const auto center=(240*640+320)*4;
-        std::printf("GX center pixel: %u,%u,%u,%u\n",pixels[center],pixels[center+1],pixels[center+2],pixels[center+3]);
-        require(pixels[center]==r&&pixels[center+1]==g&&pixels[center+2]==b&&pixels[center+3]==255,"GX triangle changes across reused frame/staging slots");
+        for(unsigned half=0;half<2;half++){
+            const auto sample=(240*640+(half?400:240))*4;
+            const unsigned color=(frame+half)%3;
+            require(pixels[sample]==(color==0?255:0)&&pixels[sample+1]==(color==1?255:0)&&
+                    pixels[sample+2]==(color==2?255:0)&&pixels[sample+3]==255,
+                    "GX per-draw offset values and changing reused staging slots");
+        }
         readback.Unmap();
     }
     gx::fifo::shutdown();gfx::shutdown();webgpu::shutdown();

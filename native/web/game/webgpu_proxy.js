@@ -172,3 +172,15 @@ addToLibrary({
     };
   },
 });
+
+// GX's two dynamic uniform offsets are values, not a Wasm pointer. End-of-pass
+// and resource deletion retain their synchronous barriers on the same queue.
+addToLibrary({
+  melee_browser_bind_uniforms__proxy:'async',
+  melee_browser_bind_uniforms__sig:'viiii',
+  melee_browser_bind_uniforms__deps:['$WebGPU'],
+  melee_browser_bind_uniforms: (pass, group, uniformOffset, immediateOffset) => {
+    WebGPU.getJsObject(pass).setBindGroup(1,WebGPU.getJsObject(group),
+      [uniformOffset>>>0,immediateOffset>>>0]);
+  },
+});

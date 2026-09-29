@@ -422,7 +422,7 @@ try {
     console.log('PASS browser gameplay soak',JSON.stringify({elapsedMs:report.elapsedMs,completed}));
   }
   if(game) await page.locator("#canvas").screenshot({path:path.join(root,"browser-boot.png")});
-  const result = await page.evaluate(()=>({exit:probeExit,abort:window.probeAbort,messages:probeMessages,audio:Module.audioStats,state:Module.meleeState}));
+  const result = await page.evaluate(()=>({exit:probeExit,abort:window.probeAbort,messages:probeMessages,audio:Module.audioStats,state:Module.meleeState,profile:Module.runtimeProfile,hitches:Module.runtimeHitches||[]}));
   result.pageErrors=pageErrors;
   await fs.writeFile(path.join(root,`${probe}-result.json`),JSON.stringify(result,null,2));
   if(pageErrors.length || result.abort || !(game ? result.messages.some(x=>x.includes('Browser game frame 120')) :
