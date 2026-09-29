@@ -27,3 +27,5 @@ subprocess.run([str(EMCC), '-std=c11', '-O2', '-D_POSIX_C_SOURCE=200809L',
                 str(NATIVE/'web/test-disc-fonts.c'), str(NATIVE/'src/disc.c'),
                 '-o', str(OUT/'disc-fonts.js')], check=True)
 subprocess.run(['node', str(OUT/'disc-fonts.js')], check=True, timeout=30)
+
+subprocess.run(['python3', str(NATIVE/'web/test-item-callback-types.py')], check=True)

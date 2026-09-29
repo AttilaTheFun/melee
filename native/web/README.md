@@ -23,8 +23,9 @@ explicitly. Subsequent release and sanitizer soaks passed more than ten minutes
 with rematches and no further invalid-access report. This does not establish
 the cause of the earlier freezes. A later Venom long-session check exposed an
 Arwing laser animation callback with the wrong Wasm return type. Its isolated
-regression now passes with an explicit expiration result; the renewed full
-Venom/rematch soak is still pending.
+regression passes with an explicit expiration result. The subsequent 11-minute
+41-second Venom/Onett run completed four matches/rematches with stable Wasm
+memory and zero reported audio underruns.
 
 ## Full-game build
 
@@ -277,6 +278,10 @@ Use `MELEE_INPUT_FILE=native/web/scenarios/pikachu-mirror.json` with
 scenario guides both controllers from live icon positions, including layouts
 with locked characters; it does not modify selection/gameplay memory. The
 ordinary stage-entry scenario remains timing-based and may select other fighters.
+
+`MELEE_NET_STAGE=venom` selects Venom using read-only cursor guidance and normal
+inputs; `onett` (default), `fountain`, and `greatbay` are also supported. Full
+online tests still require results, even if stage navigation takes extra ticks.
 
 `MELEE_NET_DRAW_TICKS=1` tests one draw per logic tick instead of the shared
 two-tick default. Both peers must use the same cadence. Fixed scheduling avoids

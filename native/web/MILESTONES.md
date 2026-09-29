@@ -16,7 +16,7 @@ The character viewer remains a separate diagnostic; it is not a gameplay milesto
 - [x] Verify durable importable/exportable browser memory cards: a nonempty card
       survives reload and import/export byte-for-byte, another tab cannot acquire
       the active card, and corrupt import preserves the prior save.
-- [ ] Verify frame pacing, loading, memory, pause/resume, and a ten-minute match
+- [x] Verify frame pacing, loading, memory, pause/resume, and a ten-minute match
       in an actual browser. Preserve native Apple builds and regression checks.
 
 ## 2. Online TURN multiplayer
@@ -34,18 +34,26 @@ The character viewer remains a separate diagnostic; it is not a gameplay milesto
 - [x] Provide reproducible hosting instructions and local tests. Hosted files
       contain the application only; each player selects their own game disc.
 
-Current work: the latest Mario/Pikachu and Pikachu-mirror soaks each passed more
-than eleven minutes and four matches/rematches. Earlier intermittent offline
-freezes remain unexplained. Fixed online draw cadence passes a full local TURN
-match with packet loss; Cloudflare deployment and separate-network tests remain.
-After correcting strict callback signatures, the full game renders a live
-Onett versus match with two fighters and an advancing timer. The stage-entry
-scenario passed with no browser errors. A complete match (including sudden
-death) reached results. Keyboard attacks/jumps, synthetic Gamepad API movement and rematch also pass.
-Broader stage/character coverage and unexplained earlier freezes remain.
-Both-player actions, pause/resume and multiple ten-minute soaks now pass.
-The full offline milestone remains open for performance/stability verification;
-the online milestone is not complete.
+Current status: offline two-player functional checks pass in headless macOS
+Chrome, including controls, rendering, audio measurements, saves, lifecycle,
+results and rematches. The final renderer/Arwing-fix soak ran 701,115 ms with
+four matches/rematches, stable Wasm memory after the first rematch and zero
+reported audio underruns. It started on Venom and rematched on Onett. Shorter
+action/lifecycle checks also cover Fountain of Dreams and Great Bay.
+
+Online implementation passes full local WebRTC/TURN matches, including Venom
+with real UDP loss and skewed peer clocks. Cloudflare deployment and testing
+across separate networks remain unverified because local Wrangler is not
+authenticated and account/TURN configuration has not been supplied.
+
+This remains a development port: measured hitches and loading pauses remain,
+production online rendering uses a fixed two-tick cadence, physical-controller
+and broader browser/device coverage are limited, and earlier intermittent
+freezes have not been assigned a proven common cause. The targeted Arwing
+crash is fixed and its new long-session check passes. These qualifications do
+not turn the completed local tests into proof of universal game compatibility.
+
+## Earlier checkpoints and detailed evidence
 
 Foundation evidence: all 1,151 shared game/backend compilation units build with
 Emscripten 6.0.9. Wasm alarm, VI, command and JPEG tests pass alongside native
@@ -654,3 +662,45 @@ passes afterward in Wasm, plus native ASan/UBSan (`wasm-arwing-before.log`,
 `native-arwing-fixed.log`). Full browser and native startup builds pass. A fresh
 ten-minute Venom/rematch run is in progress (`wasm-arwing-fixed-soak.log`);
 this fixes a reproduced defect but does not yet establish long-session success.
+
+
+The callback audit also found a barrel-cannon physics helper returning `float`
+cast to the `void` item-physics ABI. Native/Wasm tables now use a typed adapter
+that discards the helper's result; direct callers retain the original helper.
+The GameCube table retains its original cast. This is an ABI correction found
+by source inspection, not a separately reproduced barrel gameplay crash.
+`test-item-callback-types.py` compiles both affected real source files with
+strict function-pointer-cast and assignment errors. The original barrel source
+fails that check and the corrected files pass (`wasm-barrel-types-before.log`,
+`wasm-item-callback-types.log`). The Arwing native table also omits its unnecessary
+intermediate cast. Native and Wasm builds pass.
+
+Online stage selection now accepts Onett, Venom, Fountain and Great Bay. The
+first Venom relay attempts failed their test navigation: frequent pulses
+oscillated around the icon, and a reduced pulse fell below the menu's 30/80
+stick deadzone. The harness now uses 0.55 axis pulses spaced by input delay
+plus eight ticks, allowing feedback to arrive before another correction, and
+bounds stage navigation separately. These failures were in stage selection,
+not evidence of a completed or desynchronized Venom match. The corrected full
+relay run is in progress (`wasm-venom-turn-deadzone.log`).
+
+
+Final Arwing-fix soak: 701,115 ms, four completed matches/rematches, stable at
+1,174,011,904 Wasm bytes after the first rematch, zero reported audio underruns
+(`wasm-arwing-fixed-soak.log`, `wasm-arwing-fixed-soak-result.json`). The first
+match was Venom, followed by Onett rematches. This run started before the
+barrel adapter/type-check cleanup; it validates the current renderer and
+Arwing fix, not a separate barrel-specific gameplay scenario.
+
+The corrected Venom TURN scenario passes 9,765 matching tick snapshots through
+results, with 4,050/79,743 UDP datagrams dropped and 17-second peer-clock skew.
+Measured gameplay was 56.98 simulation ticks/s and 28.48 draws/s during overlap
+with the offline soak (`wasm-venom-turn-deadzone.log`). Relay/proxy sockets closed
+and temporary credentials were removed. Final native startup build, native
+Arwing sanitizer regression and strict Wasm callback-type checks all pass.
+
+Completion audit: the offline functional milestone has the evidence listed
+above; online's local implementation and relay path are verified. No Cloudflare
+deployment, real Cloudflare credentials request or separate-network test is
+claimed. Rechecking `wrangler whoami` still reports unauthenticated. The pending
+account/configuration request is required to finish that external validation.

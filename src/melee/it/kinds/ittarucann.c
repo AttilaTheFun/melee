@@ -28,6 +28,18 @@ const lbColl_80008D30_arg1 it_803B8610 = {
 };
 const Vec3 it_803B8634 = { 0.0f, 1.0f, 0.0f };
 
+#ifdef MELEE_NATIVE
+/* The helper returns a speed for direct callers, but item physics callbacks
+ * have no return value. Keep a correctly typed adapter for Wasm's strict ABI. */
+static void itTarucann_Motion7_PhysCallback(Item_GObj* gobj)
+{
+    (void) itTarucann_UnkMotion7_Phys(gobj);
+}
+#else
+#define itTarucann_Motion7_PhysCallback \
+    (HSD_GObjEvent) (Event) itTarucann_UnkMotion7_Phys
+#endif
+
 ItemStateTable it_803F63C0[] = {
     { -1, itTarucann_UnkMotion0_Anim, itTarucann_UnkMotion0_Phys,
       itTarucann_UnkMotion0_Coll },
@@ -37,14 +49,14 @@ ItemStateTable it_803F63C0[] = {
     { 1, itTarucann_UnkMotion6_Anim, itTarucann_UnkMotion6_Phys,
       itTarucann_UnkMotion6_Coll },
     { 1, itTarucann_UnkMotion7_Anim,
-      (HSD_GObjEvent) (Event) itTarucann_UnkMotion7_Phys,
+      itTarucann_Motion7_PhysCallback,
       itTarucann_UnkMotion7_Coll },
     { 1, itTarucann_UnkMotion8_Anim, itTarucann_UnkMotion8_Phys,
       itTarucann_UnkMotion8_Coll },
     { 2, itTarucann_UnkMotion6_Anim, itTarucann_UnkMotion6_Phys,
       itTarucann_UnkMotion6_Coll },
     { 2, itTarucann_UnkMotion7_Anim,
-      (HSD_GObjEvent) (Event) itTarucann_UnkMotion7_Phys,
+      itTarucann_Motion7_PhysCallback,
       itTarucann_UnkMotion7_Coll },
     { 2, itTarucann_UnkMotion8_Anim, itTarucann_UnkMotion8_Phys,
       itTarucann_UnkMotion8_Coll },

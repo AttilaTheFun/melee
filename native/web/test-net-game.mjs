@@ -10,6 +10,8 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const root=process.env.MELEE_WASM_BUILD?path.resolve(process.env.MELEE_WASM_BUILD):path.resolve(here,'../build/wasm-renderer');
 const limit=Number(process.env.MELEE_NET_TICKS||600);
 const jitter=!!process.env.MELEE_NET_JITTER;
+const stage=process.env.MELEE_NET_STAGE||'onett';
+if(!['onett','venom','fountain','greatbay'].includes(stage))throw new Error('Unsupported test stage');
 const bootDelay=Number(process.env.MELEE_NET_BOOT_DELAY||0);
 const clockOffset=Number(process.env.MELEE_NET_CLOCK_OFFSET_MS||0);
 if(!Number.isFinite(clockOffset))throw new Error('Invalid test clock offset');
@@ -47,12 +49,12 @@ try{
    page.on('console',message=>{if(shuttingDown)return;if(message.text().includes('Online input')||message.text().includes('signature mismatch'))console.log('PEER',slot,message.text());});
    await page.exposeFunction('signal',message=>pages[1-slot].evaluate(message=>peer.acceptSignal(message),message));
    await page.goto('https://melee.test/');
-   await page.evaluate(async({slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit,inputDelay,bootDelay,drawTicks})=>{
+   await page.evaluate(async({slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit,inputDelay,bootDelay,drawTicks,stage})=>{
      const {PeerTransport}=await import('/transport.mjs'),{GameSession}=await import('/session.mjs');
      window.historyByTick={};window.failure=null;window.reachedLimit=false;window.matchTiming=null;window.matchEntered=null;window.resultTick=null;
      window.Module={disableSaving:true,netDrawTicks:drawTicks,netCatchupLimit:catchupLimit,print:()=>{},printErr:message=>console.log(message),onAbort:message=>{window.failure=String(message);},
        onGameState:state=>{
-         if(state.netTick)historyByTick[state.netTick]={mode:state.mode,scene:state.scene,rng:state.rng,cursorTargets:state.cursorTargets,stageGuidance:state.stageGuidance,fighters:state.fighters};
+         if(state.netTick)historyByTick[state.netTick]={mode:state.mode,scene:state.scene,rng:state.rng,cursorTargets:state.cursorTargets,stageGuidance:state.stageGuidance,stageTargets:state.stageTargets,fighters:state.fighters};
          if(state.mode===2&&state.scene===4&&resultTick===null)resultTick=state.netTick;
          if(state.mode===2&&state.scene===2&&state.fighters.every(f=>f[0]===1)){
            if(matchEntered===null)matchEntered=state.netTick;
@@ -102,12 +104,18 @@ try{
          if(slot===0&&age>600&&age%60<6)sample[0]=4096;
        }
        if(slot===0&&state?.mode===2&&state.scene===1&&age>30){
-         const guidance=state.stageGuidance;
+         if(age>3600)throw new Error('Stage cursor did not converge: '+stage);
+         const guidance=state.stageTargets?.[stage]??(stage==='onett'?state.stageGuidance:0);
+         if(!(guidance&16))throw new Error('No cursor guidance for '+stage);
          if(guidance===16&&selectedAt===null)selectedAt=frame;
          if(selectedAt!==null&&frame-selectedAt<4)sample[0]=256;
-         else if(selectedAt===null&&frame%4===0){
-           sample[1]=(guidance&1)?-0.65:(guidance&2)?0.65:0;
-           sample[2]=(guidance&4)?-0.65:(guidance&8)?0.65:0;
+         else if(selectedAt===null&&frame%(inputDelay+8)===0){
+           // Let the delayed pulse reach the game and its new cursor snapshot
+           // return before sending another correction. Small pulses converge
+           // inside the icon's tolerance instead of oscillating around it.
+           // 0.55 clears the menu's 30/80 stick deadzone.
+           sample[1]=(guidance&1)?-0.55:(guidance&2)?0.55:0;
+           sample[2]=(guidance&4)?-0.55:(guidance&8)?0.55:0;
          }
        }
        if(state?.mode===2&&state.scene===2){
@@ -129,7 +137,7 @@ try{
        await Module.audioContext.audioWorklet.addModule(url);URL.revokeObjectURL(url);
        const script=document.createElement('script');script.src='/melee_browser.js';document.body.append(script);
      };
-   },{slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit:catchupLimits[slot],inputDelay,bootDelay,drawTicks:Number(process.env.MELEE_NET_DRAW_TICKS||2)});
+   },{slot,build,disc,limit,jitter,iceServers,relayOnly,catchupLimit:catchupLimits[slot],inputDelay,bootDelay,stage,drawTicks:Number(process.env.MELEE_NET_DRAW_TICKS||2)});
    await page.locator('#disc').setInputFiles(process.env.MELEE_DISC);
  }
  await pages[0].evaluate(()=>peer.offer());
@@ -165,7 +173,7 @@ try{
    if(process.env.MELEE_NET_MIN_TPS)assert.ok(ticksPerSecond>=Number(process.env.MELEE_NET_MIN_TPS),'Simulation below requested pacing target');
  }
  assert.deepEqual(errors,[],'Unexpected browser errors');
- console.log('PASS two Wasm engines over WebRTC:',checked,'matching logic-tick snapshots');
+ console.log('PASS two Wasm engines over WebRTC:',checked,'matching logic-tick snapshots; stage:',stage);
 }finally{
  shuttingDown=true;
  await Promise.allSettled(pages.map(page=>page.evaluate(()=>{
