@@ -1,5 +1,9 @@
 #include <m2c_macros.h>
+#ifdef MELEE_NATIVE
+#include <stdio.h>
+#else
 #include <printf.h> // IWYU pragma: keep
+#endif
 
 #include "cobj.h"
 #include "gobj.h"

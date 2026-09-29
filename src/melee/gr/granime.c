@@ -57,7 +57,7 @@ static void fn_801C82E8(HSD_AObj* aobj, void* context);
 
 #ifndef MELEE_NATIVE
 struct padded_jmp_buf {
-    __jmp_buf buf;
+    HSD_JumpBuffer buf;
     u8 pad[0x118 - 0xF8];
 };
 
@@ -511,52 +511,53 @@ enum {
     CALL_ON_TOBJ = 1 << (ARG_TYPE_TOBJ - 1),
 };
 
-typedef void (*Callback1)(HSD_AObj* aobj, HSD_TObj* obj, u32 flags,
-                          float param);
-typedef void (*Callback2)(HSD_AObj* aobj, int param);
-typedef void (*Callback4)(HSD_AObj* aobj, HSD_TObj* obj, u32 flags, int param);
-typedef void (*Callback3)(HSD_AObj* aobj, HSD_TObj* obj, int param);
-
+/* Match the declared AObj argument format, as HSD's animation walker does.
+ * Passing spare integer registers happened to work on PowerPC/arm64, but
+ * Wasm checks the complete indirect-call signature. */
 void grAnime_801C6F50(HSD_AObj* aobj, void* obj, u32 flags, void* func,
                       u32 type, void* param)
 {
+    callbackArg* arg = param;
     switch (type) {
-    case 0:
-        ((Event) func)();
-        break;
-    case 1:
-        ((Callback1) func)(aobj, obj, flags, *(float*) param);
-        break;
-    case 2:
-        ((Callback2) func)(aobj, *(int*) param);
-        break;
-    case 3:
-        ((Callback2) func)(aobj, *(int*) param);
-        break;
-    case 4:
-        ((Event) func)();
-        break;
-    case 8:
-        ((Event) func)();
-        break;
-    case 5:
-        ((Callback1) func)(aobj, obj, flags, *(float*) param);
-        break;
-    case 6:
-        ((Callback3) func)(aobj, obj, *(int*) param);
-        break;
-    case 7:
-        ((Callback3) func)(aobj, obj, *(int*) param);
-        break;
-    case 9:
-        ((Callback1) func)(aobj, obj, flags, *(float*) param);
-        break;
-    case 10:
-        ((Callback4) func)(aobj, obj, flags, *(int*) param);
-        break;
-    case 11:
-        ((Callback4) func)(aobj, obj, flags, *(int*) param);
-        break;
+    case AOBJ_ARG_A:
+        (*(void (*)(HSD_AObj*)) func)(aobj);
+        return;
+    case AOBJ_ARG_AF:
+        (*(void (*)(HSD_AObj*, f32)) func)(aobj, arg->f);
+        return;
+    case AOBJ_ARG_AV:
+        (*(void (*)(HSD_AObj*, void*)) func)(aobj, arg->v);
+        return;
+    case AOBJ_ARG_AU:
+        (*(void (*)(HSD_AObj*, u32)) func)(aobj, arg->d);
+        return;
+    case AOBJ_ARG_AO:
+        (*(void (*)(HSD_AObj*, void*)) func)(aobj, obj);
+        return;
+    case AOBJ_ARG_AOT:
+        (*(void (*)(HSD_AObj*, void*, HSD_Type)) func)(aobj, obj, flags);
+        return;
+    case AOBJ_ARG_AOF:
+        (*(void (*)(HSD_AObj*, void*, f32)) func)(aobj, obj, arg->f);
+        return;
+    case AOBJ_ARG_AOV:
+        (*(void (*)(HSD_AObj*, void*, void*)) func)(aobj, obj, arg->v);
+        return;
+    case AOBJ_ARG_AOU:
+        (*(void (*)(HSD_AObj*, void*, u32)) func)(aobj, obj, arg->d);
+        return;
+    case AOBJ_ARG_AOTF:
+        (*(void (*)(HSD_AObj*, void*, HSD_Type, f32)) func)(aobj, obj, flags,
+                                                            arg->f);
+        return;
+    case AOBJ_ARG_AOTV:
+        (*(void (*)(HSD_AObj*, void*, HSD_Type, void*)) func)(aobj, obj, flags,
+                                                              arg->v);
+        return;
+    case AOBJ_ARG_AOTU:
+        (*(void (*)(HSD_AObj*, void*, HSD_Type, u32)) func)(aobj, obj, flags,
+                                                            arg->d);
+        return;
     }
 }
 

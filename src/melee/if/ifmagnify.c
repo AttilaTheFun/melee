@@ -272,7 +272,7 @@ static inline void ifMagnify_GetCornerColors(GXColor* colors, Vec3* world_pos)
     }
 }
 
-void ifMagnify_802FBBDC(HSD_GObj* gobj)
+void ifMagnify_802FBBDC(HSD_GObj* gobj, int unused_code)
 {
     UNUSED u8 top_pad[8];
     int i;
@@ -525,7 +525,7 @@ void ifMagnify_802FC618(void)
     gobj = GObj_Create(HSD_GOBJ_CLASS_UI, 15, 0);
     cobj = lb_80013B14((HSD_CameraDescPerspective*) &ifMagnify_803F97E8);
     HSD_GObjObject_80390A70(gobj, HSD_GObj_CameraKind, cobj);
-    GObj_SetupGXLinkMax(gobj, (GObj_RenderFunc) (Event) ifMagnify_802FBBDC, 0);
+    GObj_SetupGXLinkMax(gobj, ifMagnify_802FBBDC, 0);
     gobj->gxlink_prios = 0x10;
 
     idesc = player0->idesc;

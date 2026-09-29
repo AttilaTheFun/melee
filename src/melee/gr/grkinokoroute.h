@@ -36,7 +36,7 @@
 /* 208480 */ bool grKinokoRoute_80208480(bool);
 /* 2084B4 */ void grKinokoRoute_802084B4(Ground_GObj*);
 /* 208564 */ void grKinokoRoute_80208564(Ground_GObj*);
-/* 208660 */ bool grKinokoRoute_80208660(int unused, Fighter_GObj*);
+/* 208660 */ bool grKinokoRoute_80208660(Ground_GObj*, Fighter_GObj*, Vec3*);
 /* 2086EC */ void grKinokoRoute_802086EC(Vec3*, f32);
 /* 208754 */ DynamicsDesc* grKinokoRoute_80208754(enum_t);
 /* 20875C */ bool grKinokoRoute_8020875C(Vec3*, int arg, HSD_JObj* jobj);

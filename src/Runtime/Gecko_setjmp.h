@@ -4,13 +4,13 @@
 #ifdef MELEE_NATIVE
 #include <setjmp.h>
 /* Keep the codec's reserved prefix; save host registers, never PPC registers. */
-typedef union __jmp_buf {
+typedef union HSD_JumpBuffer {
     jmp_buf native;
     double alignment;
     unsigned char reserved[248];
-} __jmp_buf;
+} HSD_JumpBuffer;
 _Static_assert(sizeof(jmp_buf) <= 248, "Host jump state exceeds codec prefix");
-_Static_assert(sizeof(__jmp_buf) == 248, "Preserve JPEG workspace offsets");
+_Static_assert(sizeof(HSD_JumpBuffer) == 248, "Preserve JPEG workspace offsets");
 #define HSD_SETJMP(env) setjmp((env)->native)
 #define HSD_LONGJMP(env, value) longjmp((env)->native, (value))
 #else
@@ -41,6 +41,7 @@ typedef struct __jmp_buf {
     double fp31;
     double fpscr; /* 240: saved FPSCR		*/
 } __jmp_buf;
+typedef __jmp_buf HSD_JumpBuffer;
 
 int __setjmp(register __jmp_buf*);
 void longjmp(register __jmp_buf* env, register int val);

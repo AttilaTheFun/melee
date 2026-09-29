@@ -93,13 +93,13 @@ typedef struct CardState {
 /* 4D1138 */ extern u8 hsd_804D1138[0x10];
 #ifdef MELEE_NATIVE
 union HSD_NativeJpegWork {
-    __jmp_buf jump;
+    HSD_JumpBuffer jump;
     u8 bytes[0x828];
 };
 extern union HSD_NativeJpegWork hsd_native_jpeg_work;
 #define hsd_804D2648 (hsd_native_jpeg_work.jump)
 #else
-/* 4D2648 */ extern __jmp_buf hsd_804D2648;
+/* 4D2648 */ extern HSD_JumpBuffer hsd_804D2648;
 #endif
 /* 4D2E70 */
 #ifdef MELEE_NATIVE

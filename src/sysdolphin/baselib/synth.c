@@ -1579,12 +1579,12 @@ void HSD_SynthSFXUpdateAllVolume(int vol, u16 fade_frames, int channel)
     }
 }
 
-void HSD_SynthSFXSetDriverInactivatedCallback(UNK_T callback)
+void HSD_SynthSFXSetDriverInactivatedCallback(void (*callback)(int))
 {
     driverInactivatedCallback = callback;
 }
 
-void HSD_SynthSFXSetDriverMasterClockCallback(UNK_T callback)
+void HSD_SynthSFXSetDriverMasterClockCallback(void (*callback)(int))
 {
     driverMasterClockCallback = callback;
 }

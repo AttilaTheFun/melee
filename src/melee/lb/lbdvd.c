@@ -661,7 +661,7 @@ const void* lbDvd_NativeGetRawData(int entry_num, size_t* length)
     for (size_t i = 0; i < ARRAY_SIZE(preloadCache.entries); ++i) {
         PreloadEntry* e = &preloadCache.entries[i];
         if (e->state == 4 && e->load_score > 0 && e->entry_num == entry_num &&
-            e->raw_data && (uintptr_t)e->raw_data->addr >= 0x80000000U) {
+            e->raw_data && (uintptr_t)e->raw_data->addr >= 0x01000000U) {
             result = e->raw_data->addr;
             *length = e->size;
             break;

@@ -65,7 +65,13 @@ static inline Handle* new_handle(void* arenaLo, void* arenaHi)
     Handle* h;
     HSD_ASSERT(0x7B, _p(free_heap));
 
+#ifdef MELEE_NATIVE
+    /* Host pointers (including wasm32) do not carry GameCube's cached-RAM bit.
+     * ARAM handles use offsets into the separate 16 MiB ARAM address space. */
+    if ((uintptr_t) arenaLo < ARGetSize()) {
+#else
     if (((uintptr_t) arenaLo < 0x80000000U) && ((uintptr_t) arenaHi < 0x80000000U)) {
+#endif
         HSD_ASSERT(0x80, (uintptr_t)arenaLo >= (uintptr_t)_p(a_arenaLo) && (uintptr_t)arenaHi <= (uintptr_t)_p(a_arenaHi));
     }
 
@@ -283,7 +289,11 @@ static void lbMemory_80015320(int arg0, HSD_DevComArg _handle, void* arg2,
             *currentp = (void*) ((uintptr_t) handle->x4_lo + (uintptr_t) handle->x8_hi);
             copy_src = null_or_old;
 
+#ifdef MELEE_NATIVE
+            if ((uintptr_t) handle->x4_lo < ARGetSize()) {
+#else
             if ((uintptr_t) handle->x4_lo < 0x80000000U) {
+#endif
                 HSD_DevComRequest(0, (uintptr_t) copy_src, current,
                                   OSRoundUp32B(handle->x8_hi), 0x1B, 1,
                                   lbMemory_80015320, handle->x0_next);

@@ -35,7 +35,7 @@
 /* 21FB24 */ static bool grTMario_8021FB24(Ground_GObj*);
 /* 21FB2C */ static void grTMario_8021FB2C(Ground_GObj*);
 /* 21FB4C */ static void grTMario_8021FB4C(Ground_GObj*);
-/* 21FB50 */ static int lbl_8021FB50(s32, HSD_GObj*);
+/* 21FB50 */ static int lbl_8021FB50(Ground_GObj*, HSD_GObj*, Vec3*);
 /* 21FBE8 */ static void grTMario_8021FBE8(Vec3*, f32);
 /* 21FC50 */ static DynamicsDesc* grTMario_8021FC50(enum_t);
 /* 21FC58 */ static bool grTMario_8021FC58(Vec3*, int, HSD_JObj*);
@@ -172,7 +172,7 @@ void grTMario_8021FB2C(Ground_GObj* gobj)
 
 void grTMario_8021FB4C(Ground_GObj* gobj) {}
 
-int lbl_8021FB50(s32 unk, HSD_GObj* gobj)
+int lbl_8021FB50(Ground_GObj* unused_ground, HSD_GObj* gobj, Vec3* unused_result)
 {
     f32 temp_f1;
     f32 temp_f31;

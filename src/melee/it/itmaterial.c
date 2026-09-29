@@ -56,12 +56,12 @@ void it_80277D08(void)
                      sizeof(HSD_MObjInfo), sizeof(HSD_MObj));
     it_mobj.parent.release = hsdMObj.parent.release;
     it_mobj.parent.amnesia = hsdMObj.parent.amnesia;
-    it_mobj.setup = (it_MObjSetupFunc) fn_80277D8C;
+    it_mobj.setup = fn_80277D8C;
     it_mobj.load = hsdMObj.load;
     it_mobj.make_texp = hsdMObj.make_texp;
 }
 
-void fn_80277D8C(HSD_MObj* mobj, u32 rendermode_arg, u32 unused_arg)
+void fn_80277D8C(HSD_MObj* mobj, u32 rendermode_arg)
 {
     HSD_TObj* tobj2;
     HSD_TExp sp38;

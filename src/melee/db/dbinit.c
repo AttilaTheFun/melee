@@ -9,6 +9,9 @@
 #ifdef MELEE_NATIVE
 #include <pthread.h>
 #include <stdint.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/stack.h>
+#endif
 #endif
 
 /* 4D6B30 */ u16 db_gameLaunchButtonState;
@@ -150,9 +153,15 @@ void db_PrintThreadInfo(void)
     /* Darwin owns each thread's stack. It has no SDK fill sentinel from which
      * to infer a high-water mark; report current usage without scanning memory.
      * A frame address remains on the real stack under ASan's fake-stack mode. */
+#ifdef __EMSCRIPTEN__
+    uintptr_t base = emscripten_stack_get_base();
+    size_t size = base - emscripten_stack_get_end();
+    uintptr_t frame = emscripten_stack_get_current();
+#else
     uintptr_t base = (uintptr_t) pthread_get_stackaddr_np(pthread_self());
     size_t size = pthread_get_stacksize_np(pthread_self());
     uintptr_t frame = (uintptr_t) __builtin_frame_address(0);
+#endif
     OSReport("------ Thread info ------\n");
     if (size <= base && frame <= base && frame >= base - size) {
         OSReport("base:%p, end:%p, size:%zu current:%zu (peak unavailable)\n",

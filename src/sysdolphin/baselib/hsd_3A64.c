@@ -1,4 +1,8 @@
+#ifdef MELEE_NATIVE
+#include <stdio.h>
+#else
 #include <printf.h> // IWYU pragma: keep
+#endif
 #include <stdarg.h>
 #include <stdio.h>
 

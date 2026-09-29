@@ -25,7 +25,7 @@ typedef struct JpegWorkData {
 } JpegWorkData;
 
 typedef struct JpegState {
-    __jmp_buf jmp;
+    HSD_JumpBuffer jmp;
     u8 unk_f8[0x20];
     JpegWorkData work;
 } JpegState;
@@ -170,7 +170,7 @@ extern u8 lbl_804316B4[0xC];
 
 static inline s32 hsd_803B5C4C_read(s32 bits, s32 bit_count)
 {
-    __jmp_buf* jmp_buf = (__jmp_buf*) hsd_804D2E70;
+    HSD_JumpBuffer* jmp_buf = (HSD_JumpBuffer*) hsd_804D2E70;
     u8* next_byte;
 
     do {

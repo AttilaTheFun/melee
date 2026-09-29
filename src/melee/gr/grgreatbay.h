@@ -54,7 +54,7 @@
 /* 1F63F4 */ bool grGreatBay_801F63F4(Ground_GObj*);
 /* 1F660C */ void grGreatBay_801F660C(Ground_GObj*);
 /* 1F66A4 */ bool grGreatBay_801F66A4(void);
-/* 1F6708 */ bool grGreatBay_801F6708(u32, HSD_GObj*);
+/* 1F6708 */ bool grGreatBay_801F6708(Ground_GObj*, HSD_GObj*, Vec3*);
 /* 1F67A4 */ void grGreatBay_801F67A4(Vec3*, f32);
 /* 1F680C */ DynamicsDesc* grGreatBay_801F680C(enum_t);
 /* 1F6814 */ bool grGreatBay_801F6814(Vec3*, int _, HSD_JObj*);

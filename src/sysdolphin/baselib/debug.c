@@ -5,7 +5,9 @@
 #include <dolphin/os.h>
 
 #ifdef MELEE_NATIVE
+#ifndef __EMSCRIPTEN__
 #include <execinfo.h>
+#endif
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -58,7 +60,9 @@ void HSD_Panic(char* file, u32 line, char* message)
     }
     HSD_NativePanicContext context = { .file = file, .line = line,
                                        .message = message };
+#ifndef __EMSCRIPTEN__
     context.frame_count = backtrace(context.frames, 64);
+#endif
     OSReport("%s in %s on line %u.\n", message, file, line);
     PanicCallback cb = atomic_load(&panicCallback);
     if (cb != NULL) {

@@ -14,11 +14,11 @@ struct HSD_NativeCardCommands hsd_native_card_commands;
 #endif
 
 #ifdef MELEE_NATIVE
-_Alignas(__jmp_buf) u8 hsd_804D2E70[0x828];
+_Alignas(HSD_JumpBuffer) u8 hsd_804D2E70[0x828];
 #else
 /* 4D2E70 */ u8 hsd_804D2E70[2084];
 #endif
-/// @todo Declared as `__jmp_buf` (0xF8 bytes) by users, but the object is
+/// @todo Declared as `HSD_JumpBuffer` (0xF8 bytes) by users, but the object is
 /// 0x828 bytes: a JpegWork whose first member is the jmp_buf (see hsd_3B34.c).
 #ifdef MELEE_NATIVE
 union HSD_NativeJpegWork hsd_native_jpeg_work;

@@ -326,6 +326,9 @@ struct ColorOverlay_UnkInner {
 
 union ColorOverlay_x8_t {
 #ifdef MELEE_NATIVE
+    /* Decoded commands also carry hitbox lookahead, so CmdUnion has an
+     * eight-byte stride even on wasm32. Color scripts share that allocation. */
+    u32 native_command_words[2];
     union CmdUnion* branch;
 #endif
     GXColor light_color;

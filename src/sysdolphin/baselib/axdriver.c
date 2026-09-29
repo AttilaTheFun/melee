@@ -486,7 +486,7 @@ void AXDriver_8038C6C0(HSD_SM* voice)
 }
 #endif
 
-static void fn_8038CC1C(void)
+static void fn_8038CC1C(int unused_tick)
 {
     HSD_SM* v;
     HSD_SM* next;

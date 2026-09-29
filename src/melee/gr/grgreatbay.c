@@ -1152,7 +1152,7 @@ bool grGreatBay_801F66A4(void)
     return false;
 }
 
-bool grGreatBay_801F6708(u32 unk, HSD_GObj* gobj)
+bool grGreatBay_801F6708(Ground_GObj* unused_ground, HSD_GObj* gobj, Vec3* unused_result)
 {
     Vec3 current;
     Vec3 previous;

@@ -623,7 +623,7 @@ void grKinokoRoute_80208564(HSD_GObj* gobj)
     }
 }
 
-bool grKinokoRoute_80208660(int unused, Fighter_GObj* gobj)
+bool grKinokoRoute_80208660(Ground_GObj* unused, Fighter_GObj* gobj, Vec3* unused_result)
 {
     Vec3 pos;
     Vec3 vel;

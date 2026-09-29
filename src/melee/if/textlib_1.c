@@ -1,6 +1,10 @@
 #include <Runtime/platform.h>
 
+#ifdef MELEE_NATIVE
+#include <stdio.h>
+#else
 #include <printf.h> // IWYU pragma: keep
+#endif
 
 #include "textdraw.h"
 #include "textlib.h"

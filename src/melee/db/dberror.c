@@ -1,7 +1,11 @@
 #ifdef MELEE_NATIVE
 #include "db.h"
 #include <fenv.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#else
 #include <execinfo.h>
+#endif
 #include <unistd.h>
 #include <sysdolphin/baselib/debug.h>
 #include <sysdolphin/baselib/hsd_393C.h>
@@ -14,7 +18,12 @@ void db_ClearFPUExceptions(void)
 static void fn_HSDPanicHandler(const HSD_NativePanicContext* ctx)
 {
     OSReport("%s\n", db_build_timestamp);
+#ifdef __EMSCRIPTEN__
+    (void)ctx;
+    emscripten_log(EM_LOG_ERROR | EM_LOG_C_STACK, "Melee panic");
+#else
     backtrace_symbols_fd(ctx->frames, ctx->frame_count, STDERR_FILENO);
+#endif
 }
 
 void db_SetupCrashHandler(void)
