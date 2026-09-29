@@ -357,3 +357,20 @@ Native preservation check: the macOS startup target completes 1,200 original-gam
 GPU submissions in its windowless versus probe and captures a nonblack framebuffer
 (`wasm-native-checkpoint.log`, `wasm-native-checkpoint.png`). Native disc/card
 regressions also pass. This does not revalidate all Apple device UI features.
+
+TURN loss uncovered a title-screen desync: `gmTitle_801A165C` advanced the random
+generator using the local calendar second. Online now derives that entropy from
+the agreed session seed; offline behavior is unchanged. A deliberately skewed
+peer clock must apply inside pthreads as well as the page. The clean pre-fix
+artifact fails at tick 240 with a 17-second worker-clock offset; the fixed build
+passes the 600-tick scenario (`wasm-title-worker-skew-before.log`,
+`wasm-title-worker-skew-fixed.log`). The earlier page-only offset did not reach
+the native clock and is not counted as a skew test.
+
+The fixed game also passes 2,200 matching snapshots through a live match over
+forced TURN with 5% configured UDP loss: 898/18,053 datagrams dropped, all sockets
+closed afterward (`wasm-turn-loss-game-fixed.log`). The measured short gameplay
+window was 55.42/57.29 ticks/s; this is not full-match or wide-area performance
+evidence. Another offline diagnostic attempt failed its timed rematch navigation
+before reproducing the stall. Rematch now follows live Onett cursor guidance;
+the input-alarm investigation continues with that corrected test navigation.

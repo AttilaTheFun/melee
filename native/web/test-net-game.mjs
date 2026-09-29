@@ -6,10 +6,13 @@ import {fileURLToPath} from 'node:url';
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 if(!process.env.MELEE_DISC)throw new Error('MELEE_DISC is required');
-const here=path.dirname(fileURLToPath(import.meta.url)),root=path.resolve(here,'../build/wasm-renderer');
+const here=path.dirname(fileURLToPath(import.meta.url));
+const root=process.env.MELEE_WASM_BUILD?path.resolve(process.env.MELEE_WASM_BUILD):path.resolve(here,'../build/wasm-renderer');
 const limit=Number(process.env.MELEE_NET_TICKS||600);
 const jitter=!!process.env.MELEE_NET_JITTER;
 const bootDelay=Number(process.env.MELEE_NET_BOOT_DELAY||0);
+const clockOffset=Number(process.env.MELEE_NET_CLOCK_OFFSET_MS||0);
+if(!Number.isFinite(clockOffset))throw new Error('Invalid test clock offset');
 const inputDelay=Number(process.env.MELEE_NET_DELAY||2);
 const catchupLimits=(process.env.MELEE_NET_CATCHUP||'3,3').split(',').map(Number);
 const iceServers=process.env.MELEE_ICE_CONFIG?JSON.parse(await fs.readFile(process.env.MELEE_ICE_CONFIG,'utf8')):[];
@@ -23,7 +26,7 @@ const browser=await chromium.launch({headless:true,executablePath:process.env.CH
 let pages=[],shuttingDown=false;
 try{
  const contexts=await Promise.all([browser.newContext(),browser.newContext()]);
- for(const context of contexts)await context.route('https://melee.test/**',async route=>{
+ for(const [contextSlot,context] of contexts.entries())await context.route('https://melee.test/**',async route=>{
    const name=new URL(route.request().url()).pathname.slice(1);
    const headers={'Cross-Origin-Opener-Policy':'same-origin','Cross-Origin-Embedder-Policy':'require-corp'};
    if(!name)return route.fulfill({headers,contentType:'text/html',body:'<!doctype html><canvas id="canvas" width="640" height="480"></canvas><input id="disc" type="file">'});
@@ -31,7 +34,12 @@ try{
    if(['melee_browser.js','melee_browser.wasm','audio-worklet.js'].includes(name))file=path.join(root,name);
    else if(['transport.mjs','inputs.mjs','session.mjs'].includes(name))file=path.join(here,'netplay',name);
    else return route.abort();
-   return route.fulfill({headers,contentType:name.endsWith('.wasm')?'application/wasm':'text/javascript',body:await fs.readFile(file)});
+   let body=await fs.readFile(file);
+   // Each pthread loads this script into its own realm. Skew Date.now there
+   // too: changing only the page clock does not affect OSGetTime on workers.
+   if(contextSlot===1&&clockOffset&&name==='melee_browser.js')body=Buffer.concat([
+     Buffer.from(`{const realNow=Date.now;Date.now=()=>realNow()+${clockOffset};}\n`),body]);
+   return route.fulfill({headers,contentType:name.endsWith('.wasm')?'application/wasm':'text/javascript',body});
  });
  pages=await Promise.all(contexts.map(c=>c.newPage()));const errors=[];
  for(let slot=0;slot<2;slot++){

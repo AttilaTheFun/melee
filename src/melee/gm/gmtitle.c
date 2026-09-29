@@ -169,6 +169,14 @@ HSD_GObj* gmTitle_801A165C(void)
         int second;
         gm_801692E8(lbTime_GetTimeInSeconds(), &time);
         second = time.second;
+#ifdef __EMSCRIPTEN__
+        /* Loading/retransmissions can put peers on opposite clock seconds.
+         * Online entropy must come from the agreed session seed. */
+        {
+            extern u32 melee_browser_net_seed(u32);
+            second = melee_browser_net_seed(second) % 60;
+        }
+#endif
         while (second != 0) {
             HSD_Rand();
             second--;

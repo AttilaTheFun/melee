@@ -96,6 +96,11 @@ broader browser/device coverage and long-session performance still need testing.
 
 ## Online transport development
 
+`MELEE_NET_CLOCK_OFFSET_MS=17000` skews the second peer's page and pthread wall
+clocks in the game harness. This catches title-screen entropy that previously
+depended on each machine's current second. `MELEE_WASM_BUILD=/path/to/build`
+selects a separate compiled artifact for before/after or clean-checkout tests.
+
 `node native/web/test-net-transport.mjs` exercises the real WebRTC transport in
 two isolated headless browser contexts. It requires the same Playwright/Chrome
 configuration as the GPU test. No HTTP server is opened. By default it tests
