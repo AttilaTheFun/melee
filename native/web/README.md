@@ -21,7 +21,10 @@ The subsequent sanitizer run found an item-table write past a global variable
 during stage loading. The native/Wasm path now addresses the intended table
 explicitly. Subsequent release and sanitizer soaks passed more than ten minutes
 with rematches and no further invalid-access report. This does not establish
-the cause of the earlier freezes.
+the cause of the earlier freezes. A later Venom long-session check exposed an
+Arwing laser animation callback with the wrong Wasm return type. Its isolated
+regression now passes with an explicit expiration result; the renewed full
+Venom/rematch soak is still pending.
 
 ## Full-game build
 

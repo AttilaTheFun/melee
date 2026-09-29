@@ -843,3 +843,11 @@ build/test-item-spawn-tables: tests/test_item_spawn_tables.c ../src/melee/it/its
 test: test-item-spawn-tables
 test-item-spawn-tables: build/test-item-spawn-tables
 	UBSAN_OPTIONS=halt_on_error=1 ./build/test-item-spawn-tables
+
+# Real projectile callbacks must match the item predicate ABI on native/Wasm.
+build/test-arwing-laser-callbacks: tests/test_arwing_laser_callbacks.c ../src/melee/it/kinds/itarwinglaser.c $(NATIVE_HEADERS) | build
+	$(CC) $(CPPFLAGS) -I../src -std=gnu11 -O2 -g -fsanitize=address,undefined -Wl,-dead_strip tests/test_arwing_laser_callbacks.c -o $@
+.PHONY: test-arwing-laser-callbacks
+test: test-arwing-laser-callbacks
+test-arwing-laser-callbacks: build/test-arwing-laser-callbacks
+	UBSAN_OPTIONS=halt_on_error=1 ./build/test-arwing-laser-callbacks

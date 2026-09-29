@@ -624,3 +624,33 @@ checks, with its framebuffer visually inspected (`wasm-texture-queue-venom.log`)
 The final window averages 1.62 ms render-queue time and 6.01 ms completion;
 628 ms stage-entry and 238 ms later frames are still present. This confirms
 correctness and reduced binding overhead, not elimination of hitching.
+
+
+The host/join launcher integration test can now load the actual staged Wasm
+build and local disc instead of its default tiny bootstrap fixture. With
+`MELEE_LAUNCHER_GAME=1`, both browser instances fingerprint the real CISO, use
+the invitation UI, connect real WebRTC, and produce 480 matching initial game
+ticks. Fresh saves, distinct slots, the selected shared input delay and disabled
+online pause are also verified (`wasm-full-launcher.log`,
+`launcher-game-result.json`). Signaling and room/ICE HTTP responses remain
+mocked, so this closes a UI/runtime integration gap without substituting for
+Cloudflare deployment or separate-network testing.
+
+
+The current-renderer long-session check starting on Venom found a real crash
+before its first results screen, near frame 7,440 (`wasm-final-renderer-soak.log`):
+`Item_80269528` trapped with a Wasm function-signature mismatch while invoking
+its animation predicate. The Arwing laser table casts two `void` animation
+functions to boolean predicates. Their last call computes projectile lifetime
+expiration, which the original PPC path leaves in its return register; the
+Wasm function type must explicitly return that result. Native/Wasm callbacks
+now have the correct boolean return type and propagate expiration. The original
+GameCube path is preserved.
+
+A regression calls both real callbacks indirectly through the predicate ABI,
+covering animation-complete/incomplete and expired/live cases, vector copying
+and state flags. It traps with the same signature mismatch before the fix and
+passes afterward in Wasm, plus native ASan/UBSan (`wasm-arwing-before.log`,
+`native-arwing-fixed.log`). Full browser and native startup builds pass. A fresh
+ten-minute Venom/rematch run is in progress (`wasm-arwing-fixed-soak.log`);
+this fixes a reproduced defect but does not yet establish long-session success.

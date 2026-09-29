@@ -9,7 +9,7 @@ NATIVE = ROOT/'native'
 EMCC = NATIVE/'build/deps/emsdk/upstream/emscripten/emcc'
 OUT = NATIVE/'build/web-foundation'
 OUT.mkdir(parents=True, exist_ok=True)
-for name in ['alarm', 'vi-backend', 'command', 'jpeg-runtime', 'card-store', 'movie-stop', 'item-spawn-tables']:
+for name in ['alarm', 'vi-backend', 'command', 'jpeg-runtime', 'card-store', 'movie-stop', 'item-spawn-tables', 'arwing-laser-callbacks']:
     target = f'build/test-{name}'
     dry = subprocess.check_output(['make', '-n', '-B', target], cwd=NATIVE, text=True)
     line = next(line for line in dry.splitlines() if f'-o {target}' in line)

@@ -17,6 +17,17 @@ node native/web/test-net-session.mjs
 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node native/web/test-room-launcher.mjs
 ```
 
+To exercise the real game through the host/join launcher (after staging), run:
+
+```sh
+MELEE_LAUNCHER_GAME=1 MELEE_DISC=/path/to/melee.ciso \
+  PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node native/web/test-room-launcher.mjs
+```
+
+This fingerprints the actual local file and compares 480 initial game ticks in
+two Wasm runtimes connected by real WebRTC. Room/ICE HTTP responses and signaling
+are still mocked; this is not a deployed Worker or Internet routing test.
+
 Deploy **only** `native/build/wasm-site`. The staging script copies an explicit
 allowlist and generates `build.json` from the game runtime and protocol files.
 Never configure assets to point at `native/build` or a disc directory. Each

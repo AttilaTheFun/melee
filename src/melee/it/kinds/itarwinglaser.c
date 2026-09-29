@@ -21,8 +21,17 @@
 
 
 
-static void itArwinglaser_UnkMotion2_Anim(Item_GObj*);
-static void itArwinglaser_UnkMotion3_Anim(Item_GObj*);
+#ifdef MELEE_NATIVE
+/* Item animation callbacks return whether the projectile has expired. The
+ * original void declarations rely on the last PPC call leaving its result in
+ * r3; Wasm requires the actual function type to match the predicate ABI. */
+typedef bool ArwingAnimResult;
+#else
+typedef void ArwingAnimResult;
+#endif
+
+static ArwingAnimResult itArwinglaser_UnkMotion2_Anim(Item_GObj*);
+static ArwingAnimResult itArwinglaser_UnkMotion3_Anim(Item_GObj*);
 static void itArwinglaser_UnkMotion2_Phys(Item_GObj*);
 static void itArwinglaser_UnkMotion3_Phys(Item_GObj*);
 static bool itArwinglaser_UnkMotion2_Coll(Item_GObj*);
@@ -336,7 +345,7 @@ void it_802E7A4C(Item_GObj* gobj)
     Item_80268E5C(gobj, item->xDD4_itemVar.arwinglaser.xE38, 2);
 }
 
-static void itArwinglaser_UnkMotion2_Anim(Item_GObj* gobj)
+static ArwingAnimResult itArwinglaser_UnkMotion2_Anim(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
 
@@ -344,16 +353,24 @@ static void itArwinglaser_UnkMotion2_Anim(Item_GObj* gobj)
     if (it_80272C6C(gobj) == 0) {
         ip->xDD4_itemVar.arwinglaser.xE30 = 1;
     }
+#ifdef MELEE_NATIVE
+    return it_80273130(gobj);
+#else
     it_80273130(gobj);
+#endif
 }
 
-static void itArwinglaser_UnkMotion3_Anim(Item_GObj* gobj)
+static ArwingAnimResult itArwinglaser_UnkMotion3_Anim(Item_GObj* gobj)
 {
     Item* ip = GET_ITEM(gobj);
 
     ip->xDD4_itemVar.arwinglaser.xE24 = ip->xDD4_itemVar.arwinglaser.xE18;
     ip->xDD4_itemVar.arwinglaser.xE30 = 1;
+#ifdef MELEE_NATIVE
+    return it_80273130(gobj);
+#else
     it_80273130(gobj);
+#endif
 }
 
 static void itArwinglaser_UnkMotion2_Phys(Item_GObj* gobj)
