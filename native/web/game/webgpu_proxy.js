@@ -184,3 +184,14 @@ addToLibrary({
       [uniformOffset>>>0,immediateOffset>>>0]);
   },
 });
+
+// No-offset bindings carry only scalar handles. The ordinary pointer-taking
+// SetBindGroup import remains synchronous for callers with dynamic arrays.
+addToLibrary({
+  melee_browser_bind_group__proxy:'async',
+  melee_browser_bind_group__sig:'viii',
+  melee_browser_bind_group__deps:['$WebGPU'],
+  melee_browser_bind_group: (pass, index, group) => {
+    WebGPU.getJsObject(pass).setBindGroup(index>>>0,WebGPU.getJsObject(group));
+  },
+});

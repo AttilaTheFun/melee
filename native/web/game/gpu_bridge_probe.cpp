@@ -1,4 +1,5 @@
 #include <webgpu/webgpu_cpp.h>
+extern "C" void melee_browser_bind_group(WGPURenderPassEncoder, uint32_t, WGPUBindGroup);
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -68,7 +69,8 @@ int main() {
             let p=array<vec2f,3>(vec2f(-1,-1),vec2f(3,-1),vec2f(-1,3));
             return vec4f(p[i],0,1);
           }
-          @fragment fn fs()->@location(0) vec4f { return vec4f(0,1,0,1); }
+          @group(2) @binding(0) var<uniform> color:vec4f;
+          @fragment fn fs()->@location(0) vec4f { return color; }
         )";
         wgpu::ShaderModuleDescriptor shaderDescriptor{.nextInChain=&source};
         auto shader=device.CreateShaderModule(&shaderDescriptor);
@@ -81,15 +83,27 @@ int main() {
         wgpu::BufferDescriptor indexDescriptor{.usage=wgpu::BufferUsage::Index|wgpu::BufferUsage::CopyDst,.size=8};
         auto indices=device.CreateBuffer(&indexDescriptor);
         const uint16_t indexData[4]={0,1,2,0};queue.WriteBuffer(indices,0,indexData,sizeof(indexData));
+        wgpu::BufferDescriptor uniformDescriptor{.usage=wgpu::BufferUsage::Uniform|wgpu::BufferUsage::CopyDst,.size=16};
+        auto greenBuffer=device.CreateBuffer(&uniformDescriptor),blueBuffer=device.CreateBuffer(&uniformDescriptor);
+        const float greenData[4]={0,1,0,1},blueData[4]={0,0,1,1};
+        queue.WriteBuffer(greenBuffer,0,greenData,sizeof(greenData));queue.WriteBuffer(blueBuffer,0,blueData,sizeof(blueData));
+        wgpu::BindGroupEntry entry{.binding=0,.buffer=greenBuffer,.size=16};
+        wgpu::BindGroupDescriptor groupDescriptor{.layout=pipeline.GetBindGroupLayout(2),.entryCount=1,.entries=&entry};
+        auto greenGroup=device.CreateBindGroup(&groupDescriptor);
+        entry.buffer=blueBuffer;auto blueGroup=device.CreateBindGroup(&groupDescriptor);
         auto pass=encoder.BeginRenderPass(&pd);pass.SetPipeline(pipeline);
         pass.SetIndexBuffer(indices,wgpu::IndexFormat::Uint16,0,8);
         // A burst of asynchronous scalar commands must finish in FIFO order
         // before End() returns and the pass's C++ owner is released.
         for(unsigned i=0;i<1000;i++){
-            pass.SetViewport(0,0,4,4,0,1);pass.SetScissorRect(0,0,2,4);pass.SetPipeline(pipeline);pass.DrawIndexed(3);
+            pass.SetViewport(0,0,4,4,0,1);pass.SetScissorRect(0,0,2,4);pass.SetPipeline(pipeline);
+            melee_browser_bind_group(pass.Get(),2,greenGroup.Get());pass.DrawIndexed(3);
+            pass.SetScissorRect(2,0,1,4);
+            melee_browser_bind_group(pass.Get(),2,blueGroup.Get());pass.DrawIndexed(3);
         }
         // Drop these owners before End: synchronous JS registry deletion must
         // drain queued uses first, while WebGPU retains the encoded resources.
+        greenGroup=nullptr;blueGroup=nullptr;greenBuffer=nullptr;blueBuffer=nullptr;
         pipeline=nullptr;indices=nullptr;
         pass.End();pass=nullptr;
         wgpu::TexelCopyTextureInfo src{.texture=texture};
@@ -103,7 +117,7 @@ int main() {
           });
         wait(done);
         auto* pixels=static_cast<const unsigned char*>(buffer.GetConstMappedRange());
-        require(pixels&&pixels[0]==0&&pixels[1]==255&&pixels[2]==0&&pixels[3]==255&&pixels[8]==255&&pixels[9]==64&&pixels[10]==0&&pixels[11]==255,"rendered pixels");
+        require(pixels&&pixels[0]==0&&pixels[1]==255&&pixels[2]==0&&pixels[3]==255&&pixels[8]==0&&pixels[9]==0&&pixels[10]==255&&pixels[11]==255&&pixels[12]==255&&pixels[13]==64&&pixels[14]==0&&pixels[15]==255,"rendered pixels");
         buffer.Unmap();
     });
     render.join();

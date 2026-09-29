@@ -895,21 +895,22 @@ index b12b327..cdb273b 100644
      sPipelineLayout = g_device.CreatePipelineLayout(&desc);
    }
 diff --git a/lib/gx/pipeline.cpp b/lib/gx/pipeline.cpp
-index 0c3631c..013620b 100644
+index 0c3631c..91772a9 100644
 --- a/lib/gx/pipeline.cpp
 +++ b/lib/gx/pipeline.cpp
-@@ -10,6 +10,10 @@
+@@ -10,6 +10,11 @@
  
  #include <tracy/Tracy.hpp>
  
 +#ifdef __EMSCRIPTEN__
++extern "C" void melee_browser_bind_group(WGPURenderPassEncoder, uint32_t, WGPUBindGroup);
 +extern "C" void melee_browser_bind_uniforms(WGPURenderPassEncoder, WGPUBindGroup, uint32_t, uint32_t);
 +#endif
 +
  namespace aurora::gx {
  
  wgpu::RenderPipeline create_pipeline(const PipelineConfig& config) {
-@@ -27,9 +31,15 @@ void render(const DrawData& data, const wgpu::RenderPassEncoder& pass) {
+@@ -27,11 +32,22 @@ void render(const DrawData& data, const wgpu::RenderPassEncoder& pass) {
    }
  
    const auto& resources = gfx::detail::resources();
@@ -923,8 +924,15 @@ index 0c3631c..013620b 100644
    pass.SetBindGroup(1, resources.uniformBindGroup, offsets.size(), offsets.data());
 +#endif
    if (data.bindGroups.textureBindGroup) {
++#ifdef __EMSCRIPTEN__
++    const auto textures = gfx::find_bind_group(data.bindGroups.textureBindGroup);
++    melee_browser_bind_group(pass.Get(), 2, textures.Get());
++#else
      pass.SetBindGroup(2, gfx::find_bind_group(data.bindGroups.textureBindGroup));
++#endif
    }
+   pass.SetIndexBuffer(resources.indexBuffer, wgpu::IndexFormat::Uint16, data.idxRange.offset, data.idxRange.size);
+   if (data.dstAlpha != UINT32_MAX) {
 diff --git a/lib/gx/pipeline.hpp b/lib/gx/pipeline.hpp
 index 1abcbd5..1daa0ab 100644
 --- a/lib/gx/pipeline.hpp

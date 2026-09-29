@@ -229,7 +229,10 @@ handle can be released. Resource-handle deletion is also synchronous on that
 queue, draining prior commands before registry removal. Descriptor and general buffer-offset-array calls remain
 synchronous because their Wasm memory may be temporary. GX's two uniform offsets
 use a dedicated asynchronous import that copies both values as scalar arguments;
-it constructs the offset array on the browser thread. The Aurora probe checks
+it constructs the offset array on the browser thread. GX texture bindings use a
+separate no-offset scalar import. The GPU bridge probe alternates binding groups
+within a pass and releases their owners before ending it, checking exact pixels
+and deletion ordering. The Aurora probe checks
 different left/right draw data across twelve reused frame slots. This relies on the
 pinned Emscripten 6.0.9 proxy queue's argument-copying and FIFO behavior (see
 [the proxying API](https://emscripten.org/docs/api_reference/proxying.h.html)).

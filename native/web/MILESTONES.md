@@ -598,3 +598,29 @@ forced TURN with clock skew and 897/18,022 UDP datagrams dropped, reaching
 57.54–57.56 simulation ticks/s and 28.77–28.78 draws/s during the measured
 gameplay interval (`wasm-bind-queue-turn.log`). This is a stage-entry test,
 not another full relay match. The relay/proxy closed and credentials were removed.
+
+
+GX texture bindings now also use a no-offset scalar proxy import, removing
+another per-draw synchronous round trip. General pointer/descriptor APIs stay
+synchronous. A strengthened GPU bridge test alternates two binding groups in
+1,000 ordered draw pairs, releases their owners before pass-end, and checks
+exact green/blue/untouched pixel regions. This passes alongside 6,000 concurrent
+handle lifetimes and the Aurora per-draw/reused-buffer pixel checks. Native
+startup builds with its original binding path.
+
+The one-draw-per-tick full online test passes 9,600 matching snapshots through
+results with 17-second clock skew, measuring 55.26 ticks/draws per second
+(`wasm-texture-queue-single-draw.log`). The previous uniform-only run measured
+50.92–50.93 under different overlapping load; do not present this as a controlled
+benchmark. The production fixed two-tick draw cadence remains unchanged.
+
+Deployment state was checked directly with the installed Wrangler CLI: it is
+not authenticated. Cloudflare account configuration/credentials and testing
+across separate networks remain outstanding; local relay passes do not prove
+those requirements.
+
+The standalone textured Venom check passes both-player actions and lifecycle
+checks, with its framebuffer visually inspected (`wasm-texture-queue-venom.log`).
+The final window averages 1.62 ms render-queue time and 6.01 ms completion;
+628 ms stage-entry and 238 ms later frames are still present. This confirms
+correctness and reduced binding overhead, not elimination of hitching.
