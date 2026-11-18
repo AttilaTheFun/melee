@@ -5,6 +5,7 @@
 #include "lib/webgpu/gpu_prof.hpp"
 #include "lib/gfx/frame.hpp"
 #include "lib/gfx/recording.hpp"
+#include "lib/gfx/pipeline_cache.hpp"
 #include "lib/gx/fifo.hpp"
 #include "lib/gx/texture.hpp"
 #include "melee_reset.h"
@@ -442,6 +443,24 @@ void submit_frame() {
     }
 
     std::fprintf(stderr,"Original game GPU submission %u completed\n",++frames);
+    // Optional per-frame attribution for the windowless performance fixture.
+    static FILE* profile = [] {
+        const char* path = std::getenv("MELEE_FRAME_PROFILE");
+        FILE* file = path ? std::fopen(path, "w") : nullptr;
+        if(file) { std::setvbuf(file,nullptr,_IOLBF,0);
+            std::fputs("frame,interval_ms,pipeline_waits,pipeline_wait_ms,pipeline_builds,pipeline_build_ms\n",file); }
+        return file;
+    }();
+    if(profile) {
+        const auto now=std::chrono::steady_clock::now();
+        static auto previous=now;
+        const auto pipelines=gfx::take_pipeline_timing();
+        std::fprintf(profile,"%u,%.6f,%llu,%.6f,%llu,%.6f\n",frames,
+            std::chrono::duration<double,std::milli>(now-previous).count(),
+            (unsigned long long)pipelines.waits,pipelines.waitNs/1e6,
+            (unsigned long long)pipelines.builds,pipelines.buildNs/1e6);
+        previous=now;
+    }
     if(confirm_script && (frames==180||frames==186||frames==300||frames==306||(title_script&&(frames==450||frames==456)))){
         melee_startup_publish_confirm(frames==180||frames==300||frames==450);
         std::fprintf(stderr,"Scripted controller A %s at submission %u\n",(frames==180||frames==300||frames==450)?"pressed":"released",frames);

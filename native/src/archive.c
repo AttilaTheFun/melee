@@ -91,9 +91,13 @@ MeleeHostBool melee_archive_open(MeleeArchive *out, const void *bytes, size_t si
         !table_end(a.reloc_start, a.reloc_count, 4, size, &a.public_start) ||
         !table_end(a.public_start, a.public_count, 8, size, &a.extern_start) ||
         !table_end(a.extern_start, a.extern_count, 8, size, &a.strings_start)) return false;
+    a.reloc_sorted = true;
+    uint32_t previous_slot = 0;
     for (uint32_t i = 0; i < a.reloc_count; ++i) {
         uint32_t s, t;
         if (!melee_archive_relocation(&a, i, &s, &t)) return false;
+        if (i && s < previous_slot) a.reloc_sorted = false;
+        previous_slot = s;
     }
     for (uint32_t i = 0; i < a.public_count; ++i) {
         const char *name;
@@ -132,6 +136,23 @@ MeleeHostBool melee_archive_pointer(const MeleeArchive* a, uint32_t slot,
             if (external == slot || ++steps > a->data_size / 4 ||
                 !melee_archive_u32(a, external, &external)) return false;
         }
+    }
+    if (a->reloc_sorted) {
+        /* All entries were bounds-checked at open and the borrowed archive is
+         * immutable. Search the serialized table without allocating an index. */
+        uint32_t lo = 0, hi = a->reloc_count;
+        while (lo < hi) {
+            uint32_t mid = lo + (hi - lo) / 2;
+            uint32_t candidate = be32(a->bytes + a->reloc_start + (size_t)mid * 4);
+            if (candidate < slot) lo = mid + 1;
+            else hi = mid;
+        }
+        if (lo < a->reloc_count &&
+            be32(a->bytes + a->reloc_start + (size_t)lo * 4) == slot) {
+            *present = true;
+            return true;
+        }
+        return *target == 0;
     }
     for (uint32_t i = 0; i < a->reloc_count; ++i) {
         uint32_t s, t;

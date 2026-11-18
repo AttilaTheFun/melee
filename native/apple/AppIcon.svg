@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#d62839"/>
+      <stop offset=".52" stop-color="#9b1429"/>
+      <stop offset="1" stop-color="#360b1a"/>
+    </linearGradient>
+    <linearGradient id="emblem" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#fffdf2"/>
+      <stop offset="1" stop-color="#eddbb9"/>
+    </linearGradient>
+    <mask id="quarters">
+      <circle cx="512" cy="500" r="322" fill="white"/>
+      <path d="M425 150V850M150 602H874" stroke="black" stroke-width="62"/>
+    </mask>
+  </defs>
+  <path fill="url(#background)" d="M0 0H1024V1024H0Z"/>
+  <circle cx="512" cy="514" r="348" fill="#240615" opacity=".19"/>
+  <circle cx="512" cy="500" r="348" fill="none" stroke="#ffe9c6" stroke-width="2" opacity=".18"/>
+  <path fill="url(#emblem)" mask="url(#quarters)" d="M0 0H1024V1024H0Z"/>
+</svg>

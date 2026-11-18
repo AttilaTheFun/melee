@@ -27,6 +27,8 @@ def main():
     binary_dir = contents/'MacOS'
     frameworks.mkdir(parents=True, exist_ok=True)
     binary_dir.mkdir(parents=True, exist_ok=True)
+    (contents/'Resources').mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT/'native/shaders/initial_pipeline_cache.db', contents/'Resources/initial_pipeline_cache.db')
     clang_resources = Path(command('xcrun', 'clang', '--print-resource-dir'))/'lib/darwin'
     queued, copied = [runtime], {}
     while queued:

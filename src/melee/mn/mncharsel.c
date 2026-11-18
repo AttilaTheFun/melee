@@ -5552,6 +5552,25 @@ void mnCharSel_Scene_OnExit(void* unused)
 }
 
 #ifdef MELEE_NATIVE
+/* Read-only cursor/widget observations for external controller testing. */
+bool mnCharSel_NativeAgentTargets(float* values)
+{
+    struct CSSCursorData* cursor=mnCharSel_804A0BC0[0];
+    if(!cursor||!mnCharSel_804A0BD0[0])return false;
+    values[0]=cursor->xC; values[1]=cursor->x10;
+    values[2]=(mnCharSel_803F0EBC.cpudown_left+mnCharSel_803F0EBC.cpudown_right)*0.5f;
+    values[3]=(mnCharSel_803F0EBC.cpubtn_top+mnCharSel_803F0EBC.cpubtn_btm)*0.5f;
+    values[4]=(data2.x100+data2.x104)*0.5f;
+    values[5]=(data2.x108+data2.x10c)*0.5f;
+    values[6]=mnCharSel_803F0EBC.cpu_level;
+    values[7]=data2.stocks;
+    values[8]=mnCharSel_804A0BD0[0]->x5;
+    for(unsigned i=0;i<25;i++)if(icons[i].char_kind==4){
+        values[9]=(icons[i].bound_l+icons[i].bound_r)*0.5f;
+        values[10]=(icons[i].bound_u+icons[i].bound_d)*0.5f;
+    }
+    return true;
+}
 bool mnCharSel_NativeTargetDelta(unsigned slot,unsigned kind,float* dx,float* dy)
 {
     if(slot>=4||!dx||!dy||!mnCharSel_804A0BD0[slot])return false;

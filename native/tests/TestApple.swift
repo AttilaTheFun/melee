@@ -1,5 +1,6 @@
 import Foundation
 import GameController
+import Combine
 
 @main struct TestApple {
     @MainActor static func main() {
@@ -8,6 +9,14 @@ import GameController
         defer { prefs.removePersistentDomain(forName: suite) }
         let input = InputModel(preferences: prefs)
         precondition(input.keyLabel(0) == "A/←" && input.keyLabel(8) == "J")
+        // Repeated polling while Settings is open must not rebuild its controls.
+        input.sample(connected: [], deliver: false)
+        var padChanges = 0, nameChanges = 0
+        let padObserver = input.$pads.dropFirst().sink { _ in padChanges += 1 }
+        let nameObserver = input.$controllerNames.dropFirst().sink { _ in nameChanges += 1 }
+        for _ in 0..<120 { input.sample(connected: [], deliver: false) }
+        precondition(padChanges == 0 && nameChanges == 0)
+        padObserver.cancel(); nameObserver.cancel()
         // Both advertised movement layouts must produce the same game input,
         // including releasing one of two keys bound to the same direction.
         for (letter, arrow, x, y) in [(0,123,-80,0), (2,124,80,0),
@@ -67,7 +76,10 @@ import GameController
         c1.extendedGamepad!.leftThumbstick.setValueForXAxis(0.5, yAxis: 0)
         c1.extendedGamepad!.leftTrigger.setValue(0.5)
         c2.extendedGamepad!.buttonX.setValue(1)
+        restored.touch = melee_analog_pad(0x100, 1, 0, 0, 0, 0, 0)
+        precondition(!restored.hasPlayerOneController)
         restored.sample(connected: [c1, c2])
+        precondition(restored.hasPlayerOneController && restored.touch.button == 0 && restored.touch.stickX == 0)
         precondition(restored.pads[0].button == 0x200 && restored.pads[0].stickX == 40)
         precondition(restored.pads[1].button == 0x400)
         precondition(restored.gamePads[0].stick_x == 0.5 && restored.gamePads[0].left == 0.5)
@@ -75,7 +87,19 @@ import GameController
         restored.sample(connected: [c2, c1])
         precondition(restored.pads[0].button == 0x200 && restored.pads[1].button == 0x400)
         restored.sample(connected: [c2])
+        precondition(!restored.hasPlayerOneController)
         precondition(restored.pads[0].button == 0 && restored.pads[1].button == 0x400)
+        restored.bindController(1, to: 0x100)
+        restored.bindController(6, to: 0x20)
+        restored.sample(connected: [c1])
+        precondition(restored.pads[0].button & 0x100 != 0 && restored.pads[0].button & 0x200 == 0)
+        precondition(restored.gamePads[0].right == 0.5 && restored.gamePads[0].left == 0)
+        restored.sample(connected: [c1], deliver: false)
+        precondition(restored.hasPlayerOneController && restored.pads[0].button == 0 && restored.pads[0].stickX == 0)
+        let controllerReload = InputModel(preferences: prefs)
+        precondition(controllerReload.controllerBindings[1] == 0x100 && controllerReload.controllerBindings[6] == 0x20)
+        controllerReload.resetControllerBindings()
+        precondition(controllerReload.controllerBindings == ControllerBindings.defaults)
         restored.resetBindings()
         precondition(restored.bindings["0"] == 1 && restored.bindings["123"] == 1)
         print("Apple input model: WASD/arrows, capture cancellation, remapping, persistence, controller slots, disconnect and focus tests passed.")

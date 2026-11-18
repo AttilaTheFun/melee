@@ -13,6 +13,7 @@ import time
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--device', required=True)
+parser.add_argument('--bundle-id', default='dev.melee.native.game')
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--button', choices=['A', 'B', 'X', 'Y', 'Z', 'L', 'R', 'Start'])
 parser.add_argument('--x', type=float, default=0)
@@ -30,7 +31,7 @@ command.write_text(json.dumps(dict(sequence=sequence, buttons=buttons.get(args.b
                                   x=args.x, y=args.y, duration=args.duration, metalFXScale=args.metalfx)))
 base = ['xcrun', 'devicectl', 'device', 'copy']
 domain = ['--device', args.device, '--domain-type', 'appDataContainer',
-          '--domain-identifier', 'dev.melee.native.game']
+          '--domain-identifier', args.bundle_id]
 subprocess.run(base+['to', *domain, '--source', str(command),
                      '--destination', 'Documents/Diagnostics/command.json'], check=True, timeout=30)
 time.sleep(args.duration+2.5)

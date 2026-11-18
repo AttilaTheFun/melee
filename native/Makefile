@@ -836,6 +836,21 @@ test-match-runtime: test-animation-flags
 test-animation-flags: build/test-animation-flags
 	UBSAN_OPTIONS=halt_on_error=1 ./build/test-animation-flags
 
+# Archive resolution must preserve nullable/external pointer semantics.
+test: test-archive-lookup
+.PHONY: test-archive-lookup
+test-archive-lookup: build/test-archive-lookup
+	./build/test-archive-lookup
+build/test-archive-lookup: tests/test_archive_lookup.c src/archive.c include/melee_archive.h | build
+	$(CC) $(CPPFLAGS) -std=c11 -O2 -g -fsanitize=address,undefined tests/test_archive_lookup.c src/archive.c -o $@
+
+# Apple-only, windowless watchdog/stack-sampling regression test.
+.PHONY: test-hitch-profiler
+test-hitch-profiler:
+	mkdir -p build
+	clang++ -std=c++20 -O2 -g -fno-omit-frame-pointer tests/test_hitch_profiler.cpp -o build/test_hitch_profiler
+	build/test_hitch_profiler
+
 # Keep globals separate so the item-table regression cannot pass by BSS adjacency.
 build/test-item-spawn-tables: tests/test_item_spawn_tables.c ../src/melee/it/itspawn.c ../src/melee/it/types.h $(NATIVE_HEADERS) | build
 	$(CC) $(CPPFLAGS) -I../src -std=gnu11 -O2 -g -fno-common -fsanitize=address,undefined -Wl,-dead_strip tests/test_item_spawn_tables.c -o $@

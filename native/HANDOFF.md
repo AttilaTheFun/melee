@@ -3,6 +3,23 @@
 Prepared September 19, 2026. Latest engineering/test work was September 17.
 This is a continuation handoff, not a claim that the port is finished.
 
+October 3 continuation: the current shader-learning and Jev simulator work is
+documented in [STATUS.md](STATUS.md), [JEV_TESTING.md](JEV_TESTING.md), and
+[shaders/README.md](shaders/README.md). These supersede the historical next-work
+list below for that feature. The Jev-driven run reached Adventure's clear ending
+and staff credits; the expanded seed contains 3,385 validated configurations after the Link follow-up.
+That follow-up recovered nine of 57 new discoveries; black roof textures remain
+unresolved. See STATUS.md for the current findings.
+Local run evidence and resumable inputs are under `native/build/jev-adventure/`.
+
+## Local signing/device values
+
+Team and physical-device identifiers are omitted from this repository document.
+Use ignored `native/build/local-signing.json` for the current installation, or
+query the local Xcode account/device configuration. Shell examples below use
+placeholders; set them locally before running. The original Downloads handoff
+remains private local context. Do not commit certificates or provisioning profiles.
+
 ## Start here
 
 Continue in `/Users/logan/Developer/melee`, the user's fork at
@@ -82,7 +99,7 @@ This handoff request authorizes committing and pushing all port source work.
   `src/` and `extern/dolphin/`. `MELEE_NATIVE` selects native paths;
   `MELEE_AURORA` also affects GX SDK object sizes/ABI.
 - User disc:
-  `/Users/logan/Downloads/Super Smash Bros. Melee (USA) (En,Ja) (Rev 2).ciso`.
+  `/Users/logan/Developer/game_images/Super Smash Bros. Melee (USA) (En,Ja) (Rev 2).ciso`.
   Test copy: `native/build/simulator-test.ciso`.
 - The app's original memory-card pipeline persists under Application Support,
   `MeleeNative/MemoryCardA.card`. On iPhone the disc is Documents/Melee.ciso.
@@ -210,7 +227,7 @@ python3 native/tools/prepare_ios_app_project.py
 xcodebuild -project native/build/ios-device-project/MeleeNative.xcodeproj \
   -scheme MeleeNative -configuration Debug -destination 'generic/platform=iOS' \
   -derivedDataPath native/build/ios-device-project/DeviceDerivedData \
-  DEVELOPMENT_TEAM=9CLW2BBDAG build
+  DEVELOPMENT_TEAM=$MELEE_PERSONAL_TEAM build
 ```
 
 App locations:
@@ -279,10 +296,10 @@ after30min; quit it explicitly, wait for XCTest exit and verify app termination.
 ## Physical test device / diagnostics
 
 Authorized old iPhone13 Pro, A15, iPhone14,2, last observed iOS18.7.8.
-CoreDevice ID: `684AF0BF-87F2-5C64-99B7-4F5ADD7B04E5`.
-UDID: `00008110-001E219A1E44801E`.
-Bundle: `dev.melee.native.game`; personal signing team `9CLW2BBDAG`.
-Paid team `B86E5YKCTK` required accepting an updated agreement; do not accept
+CoreDevice ID: `$MELEE_TEST_CORE_DEVICE`.
+UDID: `$MELEE_TEST_DEVICE_UDID`.
+Bundle: `dev.melee.native.game`; personal signing team `$MELEE_PERSONAL_TEAM`.
+Paid team `$MELEE_SIGNING_TEAM` required accepting an updated agreement; do not accept
 legal terms on the user's behalf. Existing personal-team signing worked.
 
 Last known state: old confirmed pacing/audio build remains installed. The new
@@ -292,10 +309,10 @@ Recheck now; don't assume current lock state. Preserve app data during upgrade.
 
 ```sh
 xcrun devicectl list devices
-xcrun devicectl device info processes --device 684AF0BF-87F2-5C64-99B7-4F5ADD7B04E5
-xcrun devicectl device install app --device 684AF0BF-87F2-5C64-99B7-4F5ADD7B04E5 \
+xcrun devicectl device info processes --device $MELEE_TEST_CORE_DEVICE
+xcrun devicectl device install app --device $MELEE_TEST_CORE_DEVICE \
   native/build/ios-device-project/DeviceDerivedData/Build/Products/Debug-iphoneos/MeleeNative.app
-xcrun devicectl device process launch --device 684AF0BF-87F2-5C64-99B7-4F5ADD7B04E5 \
+xcrun devicectl device process launch --device $MELEE_TEST_CORE_DEVICE \
   --terminate-existing --console \
   --environment-variables '{"MELEE_DEVICE_DIAGNOSTICS":"1","MELEE_DEVICE_CONTROL":"1","MELEE_PERF_ONLY":"1"}' \
   dev.melee.native.game

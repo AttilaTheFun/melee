@@ -50,6 +50,7 @@ def main():
         'CFBundleSupportedPlatforms': ['iPhoneOS' if args.sdk == 'iphoneos' else 'iPhoneSimulator'],
     }
     (framework/'Info.plist').write_bytes(plistlib.dumps(framework_info))
+    shutil.copy2(ROOT/'native/shaders/initial_pipeline_cache.db', app/'initial_pipeline_cache.db')
     sdk = output('xcrun', '--sdk', args.sdk, '--show-sdk-path')
     target = f'arm64-apple-ios{minimum}' + ('-simulator' if args.sdk == 'iphonesimulator' else '')
     subprocess.run([
@@ -64,14 +65,22 @@ def main():
         '-Xlinker', '-dead_strip', '-o', str(app/'MeleeNative'),
     ], cwd=ROOT, check=True)
     info = {
+        'CFBundleDisplayName': 'Melee',
         'CFBundleExecutable': 'MeleeNative', 'CFBundleIdentifier': 'dev.melee.native.game',
         'CFBundleName': 'Melee Native', 'CFBundlePackageType': 'APPL',
-        'CFBundleVersion': '1', 'CFBundleShortVersionString': '0.2',
+        'CFBundleVersion': '2', 'CFBundleShortVersionString': '0.2',
         'MinimumOSVersion': minimum, 'UIDeviceFamily': [1, 2],
         'CFBundleSupportedPlatforms': framework_info['CFBundleSupportedPlatforms'], 'UILaunchScreen': {},
         'UISupportedInterfaceOrientations': [
             'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'],
     }
+    icon_info = build/'AppIconInfo.plist'
+    subprocess.run(['xcrun', 'actool', str(ROOT/'native/apple/Assets.xcassets'),
+                    '--compile', str(app), '--platform', args.sdk,
+                    '--minimum-deployment-target', minimum, '--app-icon', 'AppIcon',
+                    '--target-device', 'iphone', '--target-device', 'ipad',
+                    '--output-partial-info-plist', str(icon_info)], check=True)
+    info.update(plistlib.loads(icon_info.read_bytes()))
     (app/'Info.plist').write_bytes(plistlib.dumps(info))
     if args.sdk == 'iphonesimulator':
         subprocess.run(['codesign', '--force', '--sign', '-', str(framework)], check=True)

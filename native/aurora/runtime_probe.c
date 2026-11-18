@@ -42,7 +42,15 @@ int main(int argc,char** argv){
         }
         if(melee_runtime_state()==MELEE_RUNTIME_FAILED){char error[512];melee_runtime_error(error,sizeof(error));fprintf(stderr,"Runtime failed: %s\n",error);return 3;}
         uint64_t next=melee_runtime_copy_frame(pixels,640*480*4,sequence);
-        if(!next){usleep(1000);continue;}sequence=next;
+        if(!next){usleep(1000);continue;}
+        if(!sequence){
+            MeleeShaderStatus shaders;melee_runtime_shader_status(&shaders);
+            assert(!shaders.preparing && !shaders.log_failed && !shaders.catalog_failed && !shaders.dropped_events);
+            const char* expected=getenv("MELEE_EXPECT_KNOWN_SHADERS");
+            if(expected)assert(shaders.known==strtoull(expected,NULL,10));
+            fprintf(stderr,"Prepared %llu known shaders before first frame\n",(unsigned long long)shaders.known);
+        }
+        sequence=next;
         if(audio&&!producer){producer=melee_audio_producer_start(queue);assert(producer);}
         if(audio&&input_event<6&&sequence>=events[input_event]){
             ports[0].button=(input_event%2)?0:PAD_BUTTON_A;

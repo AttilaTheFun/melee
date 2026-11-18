@@ -27,7 +27,8 @@ spec = {
         'MeleeUITestGame': {
             'type': 'application', 'platform': 'iOS',
             'sources': [str(ROOT/'native/apple'/name) for name in
-                        ['MeleeNative.swift', 'GameView.swift', 'DirectMetalSurface.swift', 'MetalGeometryRenderer.swift', 'MetalFXRenderer.swift', 'AudioOutput.swift']],
+                        ['MeleeNative.swift', 'GameView.swift', 'DirectMetalSurface.swift', 'MetalGeometryRenderer.swift', 'MetalFXRenderer.swift', 'AudioOutput.swift']] +
+                       [{'path': str(ROOT/'native/shaders/initial_pipeline_cache.db'), 'buildPhase': 'resources'}],
             'dependencies': [{'framework': str(framework), 'embed': True}],
             'settings': {'base': {
                 'PRODUCT_BUNDLE_IDENTIFIER': 'dev.melee.native.uitestgame',

@@ -7,10 +7,19 @@ let actionNames = ["Move left", "Move right", "Move down", "Move up",
     "C left", "C right", "C down", "C up", "A · Attack", "B · Special",
     "X · Jump", "Y · Jump", "Z · Grab", "L · Shield", "R · Shield", "Start"]
 
+enum ControllerBindings {
+    static let sources = ["A", "B", "X", "Y", "Left shoulder", "Right shoulder", "Left trigger", "Right trigger", "Menu / Start", "Options / Select", "Left stick click", "Right stick click", "D-pad left", "D-pad right", "D-pad down", "D-pad up"]
+    static let defaults: [UInt16] = [0x100, 0x200, 0x400, 0x800, 0x40, 0x10, 0x40, 0x20, 0x1000, 0, 0, 0, 1, 2, 4, 8]
+    static let actions: [(String, UInt16)] = [("Unassigned", 0), ("A · Attack", 0x100), ("B · Special", 0x200), ("X · Jump", 0x400), ("Y · Jump", 0x800), ("Z · Grab", 0x10), ("L · Shield", 0x40), ("R · Shield", 0x20), ("Start · Pause", 0x1000), ("D-pad left", 1), ("D-pad right", 2), ("D-pad down", 4), ("D-pad up", 8)]
+}
+
 @MainActor final class InputModel: ObservableObject {
+    @Published private(set) var controllerBindings = ControllerBindings.defaults
+    @Published var discoveringControllers = false
     @Published var pads = [PADStatus](repeating: PADStatus(), count: 4)
     @Published var gamePads = [MeleeGamePad](repeating: MeleeGamePad(), count: 4)
     @Published var controllerNames = [String]()
+    @Published private(set) var hasPlayerOneController = false
     @Published var capture: Int?
     @Published var importing = false
     @Published var bindings: [String: UInt32] = [:]
@@ -98,7 +107,36 @@ let actionNames = ["Move left", "Move right", "Move down", "Move up",
            }) {
             for (key, actions) in saved { _ = melee_keyboard_bind(&keyboard, UInt32(key)!, actions) }
         }
+        if let data = preferences.data(forKey: "controllerBindings"),
+           let saved = try? JSONDecoder().decode([UInt16].self, from: data),
+           saved.count == ControllerBindings.sources.count,
+           saved.allSatisfy({ value in ControllerBindings.actions.contains { $0.1 == value } }) {
+            controllerBindings = saved
+        }
         refreshBindings()
+    }
+
+    func bindController(_ source: Int, to action: UInt16) {
+        guard controllerBindings.indices.contains(source), ControllerBindings.actions.contains(where: { $0.1 == action }) else { return }
+        controllerBindings[source] = action
+        preferences.set(try? JSONEncoder().encode(controllerBindings), forKey: "controllerBindings")
+        clear()
+    }
+    func resetControllerBindings() {
+        controllerBindings = ControllerBindings.defaults
+        preferences.removeObject(forKey: "controllerBindings")
+        clear()
+    }
+    func discoverControllers() {
+        guard !discoveringControllers else { return }
+        discoveringControllers = true
+        GCController.startWirelessControllerDiscovery { [weak self] in
+            Task { @MainActor in self?.discoveringControllers = false }
+        }
+    }
+    func stopControllerDiscovery() {
+        GCController.stopWirelessControllerDiscovery()
+        discoveringControllers = false
     }
 
     func refreshBindings() {
@@ -168,7 +206,7 @@ let actionNames = ["Move left", "Move right", "Move down", "Move up",
         melee_pad_disconnect_all()
     }
 
-    func sample(connected available: [GCController] = GCController.controllers()) {
+    func sample(connected available: [GCController] = GCController.controllers(), deliver: Bool = true) {
         let connected = available.filter { $0.extendedGamepad != nil }
         for i in 0..<4 {
             if let c = controllers[i], !connected.contains(where: { $0 === c }) { controllers[i] = nil }
@@ -176,31 +214,53 @@ let actionNames = ["Move left", "Move right", "Move down", "Move up",
         for c in connected where !controllers.contains(where: { $0 === c }) {
             if let slot = controllers.firstIndex(where: { $0 == nil }) { controllers[slot] = c }
         }
-        controllerNames = controllers.enumerated().compactMap { i, c in
+        let attached = controllers[0] != nil
+        if attached != hasPlayerOneController {
+            touch = PADStatus() // Never keep a held touch after hiding its view.
+            hasPlayerOneController = attached
+            NSLog("Melee player-one controller: %@; touch controls %@",
+                  controllers[0]?.vendorName ?? "none", attached ? "hidden" : "visible")
+        }
+        let names = controllers.enumerated().compactMap { i, c in
             c.map { "P\(i + 1): \($0.vendorName ?? "Game controller")" }
         }
+        if controllerNames != names { controllerNames = names }
         var next = [PADStatus](repeating: PADStatus(), count: 4)
         for i in 0..<4 {
             next[i].err = -1
-            guard active, let g = controllers[i]?.extendedGamepad else { continue }
+            guard active && deliver, let g = controllers[i]?.extendedGamepad else { continue }
             var buttons: UInt16 = 0
-            let mapping: [(GCControllerButtonInput, UInt16)] = [
-                (g.buttonA, 0x100), (g.buttonB, 0x200), (g.buttonX, 0x400), (g.buttonY, 0x800),
-                (g.leftShoulder, 0x40), (g.rightShoulder, 0x10), (g.buttonMenu, 0x1000),
-                (g.dpad.left, 1), (g.dpad.right, 2), (g.dpad.down, 4), (g.dpad.up, 8)]
-            for (button, mask) in mapping where button.isPressed { buttons |= mask }
-            if g.leftTrigger.value > 0.95 { buttons |= 0x40 }
-            if g.rightTrigger.value > 0.95 { buttons |= 0x20 }
+            let physical: [GCControllerButtonInput?] = [g.buttonA, g.buttonB, g.buttonX, g.buttonY,
+                g.leftShoulder, g.rightShoulder, g.leftTrigger, g.rightTrigger, g.buttonMenu,
+                g.buttonOptions, g.leftThumbstickButton, g.rightThumbstickButton,
+                g.dpad.left, g.dpad.right, g.dpad.down, g.dpad.up]
+            var left: Float = 0, right: Float = 0
+            for (index, button) in physical.enumerated() {
+                guard let button else { continue }
+                let mask = controllerBindings[index]
+                let analog = index == 6 || index == 7
+                if (analog ? button.value > 0.95 : button.isPressed) { buttons |= mask }
+                if mask == 0x40 { left = max(left, button.value) }
+                if mask == 0x20 { right = max(right, button.value) }
+            }
             next[i] = melee_analog_pad(buttons, g.leftThumbstick.xAxis.value,
                 g.leftThumbstick.yAxis.value, g.rightThumbstick.xAxis.value,
-                g.rightThumbstick.yAxis.value, g.leftTrigger.value, g.rightTrigger.value)
+                g.rightThumbstick.yAxis.value, left, right)
         }
-        if active && capture == nil {
+        if active && deliver && capture == nil {
             next[0] = melee_pad_merge(next[0], melee_pad_merge(melee_keyboard_read(&keyboard),
                 melee_pad_merge(touch, deviceTestPad())))
         }
         if touch.button != 0 && ProcessInfo.processInfo.environment["MELEE_UI_INPUT_TRACE"] == "1" { NSLog("Melee sampled touch %x merged %x active %d", Int(touch.button), Int(next[0].button), active ? 1 : 0) }
-        pads = next
+        // Do not invalidate SwiftUI's settings controls on every display tick.
+        // Compare fields rather than C-struct padding bytes.
+        let changed = zip(pads, next).contains { a, b in
+            a.button != b.button || a.stickX != b.stickX || a.stickY != b.stickY ||
+            a.substickX != b.substickX || a.substickY != b.substickY ||
+            a.triggerLeft != b.triggerLeft || a.triggerRight != b.triggerRight ||
+            a.analogA != b.analogA || a.analogB != b.analogB || a.err != b.err
+        }
+        if changed { pads = next }
         next.withUnsafeBufferPointer { melee_pad_publish($0.baseAddress!, 0) }
         #if !MELEE_GAME_RUNTIME
         var processed = [MeleeGamePad](repeating: MeleeGamePad(), count: 4)

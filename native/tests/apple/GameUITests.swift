@@ -79,6 +79,57 @@ final class GameUITests: XCTestCase {
         XCTFail("Simulator control session timed out")
     }
 
+    func testOptInHitchProfiling() throws {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        app.launchEnvironment["MELEE_DISC_IMAGE"] = try XCTUnwrap(ProcessInfo.processInfo.environment["MELEE_UI_TEST_DISC"])
+        app.launchEnvironment["MELEE_TEST_SILENT"] = "1"
+        app.launchEnvironment["MELEE_PROFILE_TEST_STALL"] = "1"
+        app.launch()
+        defer { app.terminate() }
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 20))
+        app.buttons["Settings"].tap()
+        let toggle = app.switches["melee.profiling"]
+        for _ in 0..<5 {
+            if toggle.isHittable { break }
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        if toggle.value as? String == "1" {
+            toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        }
+        XCTAssertEqual(toggle.value as? String, "0")
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        app.buttons["Done"].tap()
+        Thread.sleep(forTimeInterval: 12)
+        app.buttons["Settings"].tap()
+        for _ in 0..<5 {
+            if toggle.isHittable { break }
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        XCTAssertEqual(app.staticTexts["melee.profiling.status"].label, "Paused")
+        XCTAssertTrue(app.buttons["Share profiling logs"].exists)
+        // Leave a measurable pause interval in the log, then resume. A gap in
+        // wall time must not itself be reported as a gameplay hitch.
+        Thread.sleep(forTimeInterval: 2)
+        app.buttons["Done"].tap()
+        Thread.sleep(forTimeInterval: 3)
+        XCUIDevice.shared.press(.home)
+        Thread.sleep(forTimeInterval: 2)
+        app.activate()
+        Thread.sleep(forTimeInterval: 3)
+        app.buttons["Settings"].tap()
+        for _ in 0..<5 {
+            if toggle.isHittable { break }
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        toggle.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.buttons["Done"].tap()
+        Thread.sleep(forTimeInterval: 3)
+    }
+
     func testFrameClockResumesAfterBackgroundAndSettings() throws {
         continueAfterFailure = false
         let app = XCUIApplication()
@@ -90,12 +141,13 @@ final class GameUITests: XCTestCase {
         defer { app.terminate() }
         let counter = app.staticTexts["melee.test.frameSequence"]
         XCTAssertTrue(counter.waitForExistence(timeout: 20))
-        func waitForProgress(after previous: UInt64) {
+        func waitForProgress(after previous: UInt64, timeout: TimeInterval = 20) {
             let progress = NSPredicate { _, _ in (UInt64(counter.label) ?? 0) > previous + 10 }
             expectation(for: progress, evaluatedWith: counter)
-            waitForExpectations(timeout: 20)
+            waitForExpectations(timeout: timeout)
         }
-        waitForProgress(after: 0)
+        // A fresh bundled catalog may take longer than normal frame progression.
+        waitForProgress(after: 0, timeout: 180)
         let metal = app.staticTexts["melee.test.metalState"]
         XCTAssertEqual(metal.label, "1", "The direct Metal surface must be active")
         let copies = app.staticTexts["melee.test.readbacks"]
@@ -110,8 +162,16 @@ final class GameUITests: XCTestCase {
         XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
         app.activate()
         waitForProgress(after: before)
-        app.buttons["Graphics…"].tap()
-        XCTAssertTrue(app.staticTexts["Graphics"].waitForExistence(timeout: 5))
+        app.buttons["Settings"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+        let marker = app.buttons["Mark a visual problem"]
+        for _ in 0..<6 {
+            if marker.isHittable { break }
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        XCTAssertTrue(marker.isHittable, app.debugDescription)
+        marker.tap()
+        XCTAssertTrue(app.buttons["Share debugging logs"].exists)
         app.buttons["Done"].tap()
         before = try XCTUnwrap(UInt64(counter.label))
         waitForProgress(after: before)
@@ -131,8 +191,9 @@ final class GameUITests: XCTestCase {
             app.launch()
             XCTAssertTrue(app.otherElements["melee.game.controls"].waitForExistence(timeout: 20))
             Thread.sleep(forTimeInterval: 3)
-            app.buttons["Graphics…"].tap()
-            XCTAssertTrue(app.staticTexts["Graphics"].waitForExistence(timeout: 5))
+            app.buttons["Settings"].tap()
+            XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+            if !app.segmentedControls.firstMatch.isHittable { app.swipeUp() }
             XCTAssertTrue(app.staticTexts["MetalFX is unavailable on this device. The original image will be displayed."].exists)
             let options = app.segmentedControls.firstMatch
             XCTAssertTrue(options.exists)
@@ -157,7 +218,7 @@ final class GameUITests: XCTestCase {
         app.launchEnvironment["MELEE_DISC_IMAGE"] = disc
         app.launchEnvironment["MELEE_TEST_SILENT"] = "1"
         app.launch()
-        XCTAssertTrue(app.staticTexts["Melee"].waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["Settings"].waitForExistence(timeout: 20))
         let controls = app.otherElements["melee.game.controls"]
         XCTAssertTrue(controls.waitForExistence(timeout: 10))
         print("Game app frame: \(app.frame), controls: \(controls.frame)")

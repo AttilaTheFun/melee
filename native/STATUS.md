@@ -1,7 +1,289 @@
 # Native Apple port status
 
-Updated September 17, 2026. The full port is **unfinished**. Mac runtime and iPhone/iPad Simulator verification is complete for the
-coverage below. Physical iPhone verification is in progress; broader mode coverage remains incomplete.
+Updated October 3, 2026. The full port is **unfinished**. The coverage below
+includes historical passes; broad gameplay reliability and physical-device
+performance coverage remain incomplete.
+
+## October 3 expanded play-session diagnostics
+
+- Automatic bounded local session history now records mode/scene/stage transitions,
+  lifecycle and pause/resume, graphics settings, controller product categories,
+  thermal/low-power state, audio/runtime errors and two-second frame summaries.
+  Separate cumulative timing counters avoid consuming the opt-in profiler's data.
+- Shader events carry last observed game context. Settings starts with Debugging:
+  **Share debugging logs** includes session, shader and existing profiling files;
+  **Mark a visual problem** records a timestamp and scene context without an image.
+  Stack capture remains opt-in. Session disk I/O runs off the main/game threads.
+- Simulator runtime/app compilation and physical-iPhone runtime compilation pass.
+  The simulator UI test passed marker/share availability, direct Metal with zero
+  readbacks, background/resume and Settings pause/resume. Exported JSON was checked
+  for the marker, scene IDs, lifecycle events and advancing frame counters.
+  Evidence: `build/session-diagnostics-evidence/`,
+  `build/session-diagnostics-ui-retry.log`, `build/session-diagnostics-device-build.log`.
+  Xcode stalled finalizing the result bundle after reporting the test passed;
+  the retained text log and copied JSON are the validation evidence. The Xcode
+  process was stopped and the dedicated simulator shut down.
+  No new build was installed on a personal device for this change.
+- Details and limits: [PERFORMANCE.md](PERFORMANCE.md). This is session history,
+  not automatic texture diagnosis or a crash reporter.
+
+## October 3 Link single-player follow-up
+
+- User completed single-player with Link and confirmed the Xbox controller worked.
+  Original single-player game logic disables C-stick attacks; the right stick is
+  already mapped to GameCube substick input, so no mapping change was made.
+- New export: 57 discoveries, all successfully compiled; 30 waits totaled
+  2,469 ms, with a 296 ms maximum. Nine complete configurations were recovered
+  from older local captures and added to the bundled seed, now **3,385** entries.
+  The remaining 48 cannot be reconstructed from the exported hashes alone.
+- Fresh real-Metal validation prepared all 3,385 entries before play, with no
+  new discoveries or dropped events; nonblack rendering and pause/resume passed.
+  Evidence: `build/link-shader-review/validation/`. This updated seed has not
+  been installed on the phone; installed build 2 still bundles 3,376 entries.
+- Black roof textures remain unresolved. A fresh Link/Onett windowless fixture
+  rendered the roofs normally; the affected scene and device rendering path
+  still need reproduction. Evidence: `build/link-shader-review/link-specials.png`.
+
+## October 3 shader learning and Jev simulator coverage
+
+- Shader preparation now includes a bundled portable catalog. The seed at this milestone
+  contained 3,376 configurations, including all 40 discoveries in the first phone
+  report and all eight in the follow-up. New discoveries still accumulate locally.
+- Added a bounded OpenRouter Jev controller, simulator-only structured observation
+  and input bridge, route assistance, isolated saves, per-call cost records,
+  screenshots, a dedicated-simulator launcher and WAL-safe catalog collection.
+  No game outcomes, fighter positions or difficulty are patched by the harness.
+- A Jev-driven Kirby playthrough completed Very Easy Adventure with continues
+  and reached the staff credits. Policies were refined between resumed runs;
+  this is not a fresh uninterrupted replay of the final policy. The run collected
+  2,263 configurations before merging earlier captures and reported $0.2517 in
+  API charges. Evidence: `build/jev-adventure/report.json` and `completion.json`.
+- The expanded seed passed windowless real-Metal validation: all 3,376 entries
+  prepared before the first frame, all eight latest phone hashes covered, zero
+  new discoveries, zero dropped events, nonblack rendering and pause/resume.
+  Evidence: `build/jev-seed-final-verified/`. Simulator timing under stepped
+  automation is not a physical-device frame-pacing measurement.
+- The final simulator app passed normal startup, direct-Metal presentation with
+  no additional CPU readbacks, background/resume and Settings pause/resume with
+  the expanded seed (`build/jev-seed-ui.xcresult`). The one-command launcher
+  passed setup, one paid gameplay decision, catalog backup and automatic shutdown
+  (`build/jev-launcher-smoke/`). No new shaders were discovered in that smoke run.
+- A business-signed Release iPhone build with the identical seed is ready at
+  `build/jev-device-derived/Build/Products/Release-iphoneos/MeleeNative.app`.
+  Signing verification passed and the simulator agent symbols are absent from
+  its runtime. On the subsequent user request, build 2 was installed on the
+  iPhone 15 Pro with Home Screen name **Melee** and a new app icon. Installed
+  metadata confirmed the name/build; the app was not launched. Evidence:
+  `build/melee-icon-install.json` and `build/melee-icon-installed-apps.json`.
+- Reusable commands and limitations: [JEV_TESTING.md](JEV_TESTING.md) and
+  [shaders/README.md](shaders/README.md). Other characters, modes, difficulties,
+  random items and graphics settings still need coverage.
+
+## September 28 opt-in hitch profiler
+
+- Added persistent, default-off Performance profiling in Settings, local share
+  and clear actions, and rotating logs capped at approximately 10 MB.
+- A serial background watchdog samples the still-stalled game thread after a
+  50.05 ms frame gap, no more than once per second. Startup/pause/background
+  exclusion, safe bounded frame-pointer capture/resume, ARM pointer-auth stripping,
+  native timing counters, and UUID-based offline symbolication are implemented.
+- Mac windowless sampling tests and Mac/iOS builds pass. Simulator UI testing
+  captured injected stalls at the actual stalled function; pause/background and
+  disable flows pass. The physical iPhone produced a successful 14-frame stack
+  (both Mach capture and resume returned success). Final signed Release installed.
+- Details, limitations, commands, and log locations: [PERFORMANCE.md](PERFORMANCE.md).
+  Evidence under `native/build/hitch-profile/profiler-*`, `simulator-profile*`,
+  and `iphone-profile.jsonl`. The exact final device runtime is retained locally
+  as `native/build/hitch-profile/installed-profiler-runtime.dylib`.
+
+## September 28 performance work
+
+- Profiled stage loading and gameplay, optimized sorted archive relocation
+  lookups, and changed Metal shader scheduling to defer waits until encoding
+  with two compiler workers. Required draws still wait; none are skipped.
+- Repeated Mac stage decode/playback checks improved by 5.5–12.1×. Controlled
+  shader comparisons reduced total measured shader waits by 45–61%; first-use
+  hitches remain and these are not physical iPhone speedup claims.
+- Added reproducible profiling and regression checks. See [PERFORMANCE.md](PERFORMANCE.md)
+  for measurements, artifacts, limitations, and remaining physical-device testing.
+
+## September 27 iPhone 15 Pro / Backbone installation
+
+- Built and installed on Logan’s iPhone 15 Pro using the requested
+  development team and bundle `com.LoganShire.Melee.Port`. Automatic provisioning
+  succeeded. The supplied disc was copied into this app’s Documents/Melee.ciso;
+  other apps and the older iPhone 13 Pro installation were not modified.
+- The game view now hides touch controls and removes their horizontal margins
+  when an extended controller occupies player one. Disconnect restores the
+  controls, and changing between controller/touch clears held touch input.
+  Input-model tests cover connection, disconnection and stale-touch clearing.
+- Actual device launch reports `Backbone One; touch controls hidden`. Live
+  diagnostics confirm Backbone detection, active audio, direct Metal rendering
+  with zero CPU readbacks, and approximately60 FPS in a short startup sample.
+  That sample had zero audio underruns; it is not sustained combat evidence or
+  a completed physical-button gameplay test.
+- The device runtime includes the September20 shader-cache warmup fix. Build,
+  signing, installation and startup succeeded. The app was relaunched normally
+  without diagnostic flags and left available for the user to play.
+- Evidence: `build/iphone15-backbone-{build,sign,launch}.log`,
+  `build/backbone-input-test.log`, and `build/iphone15-backbone-evidence/`.
+  Signed app: `build/iphone15-backbone-derived/Build/Products/Debug-iphoneos/MeleeNative.app`.
+- Project generation now supports `--bundle-id` and `--team-id`; the defaults
+  preserve the earlier development identifier. Reproduce this configuration with
+  `python3 native/tools/prepare_ios_app_project.py --bundle-id com.LoganShire.Melee.Port --team-id "$MELEE_SIGNING_TEAM"`.
+  Device/team values are stored only in ignored `build/local-signing.json`.
+
+### Fullscreen layout and controller settings
+
+- iOS gameplay now occupies the full display with a centered, aspect-preserving
+  4:3 image at the maximum fitting size. The header/footer are removed. A settings
+  gear lives in the side margin; touch controls still depend on player-one
+  controller presence. Actual phone capture: `build/iphone15-fullscreen.png`.
+- Settings pause gameplay and expose connected controllers, wireless discovery,
+  Bluetooth pairing guidance, saved controller button/trigger mappings and reset,
+  and MetalFX Off/2×/3×. Sticks retain movement/C-stick behavior. Mapping preferences
+  apply to all extended controllers; profiles per individual controller are not
+  implemented. Pairing/forgetting that requires system UI stays in iOS Settings.
+- Controller-model tests pass remapping, persistence, analog shield mapping,
+  disconnect/touch fallback, and suppression of gameplay input while settings are
+  open (`build/fullscreen-input-test.log`). Device signing/install/normal launch
+  passed (`build/fullscreen-sign.log`). Wireless pairing itself was not tested.
+- Optional experimental 16:9 uses an anamorphic 640×480 framebuffer. The renderer
+  scales the complete horizontal projection row by 0.75 before GPU uniform upload;
+  the view then presents at 16:9. This expands perspective scene framing without
+  stretching characters and centers orthographic content at its original size.
+  Raw GX projection registers/camera/game logic remain unchanged, so projection
+  save/restore cannot accumulate scaling. Offscreen targets are excluded and
+  uniform caches are invalidated when the correction changes across passes.
+  This is not a higher-resolution EFB or a complete HUD/camera rewrite: edge
+  culling, backgrounds, screen effects, indicators and every stage remain to be
+  audited. Settings label the feature experimental and it defaults to Off.
+- Fixed a reproduced device settings bug: redundant `@Published` assignments on
+  every controller poll rebuilt settings during touches; MetalFX segments were
+  enabled but taps failed to select them. Controller names and PAD status now
+  publish only on actual changes. Model regression checks 120 identical polls;
+  `build/settings-input-test.log` passed. The physical-device test reproduced the
+  failure before the fix and passed 2× selection/rendering and return to direct
+  Metal afterward (`build/upscale-repro2.xcresult`, `build/upscale-fix.xcresult`).
+  Fresh completed 2× output was retrieved from the app's diagnostics container.
+- `prepare_ios_app_project.py --ui-tests` includes the opt-in physical-device
+  `DeviceGraphicsTests` suite. Supply signing identifiers locally; the user's
+  disc must already be installed in this app's Documents directory. The suite
+  changes both graphics settings, checks frame progress, verifies zero additional
+  readbacks with MetalFX Off, and verifies preferences after relaunch.
+- Final physical-device graphics matrix passed (`build/graphics-matrix2.xcresult`):
+  2×/3× in 4:3 and 16:9, Off in 16:9, unchanged CPU-readback count with Off,
+  saved 16:9+2× after termination/relaunch, then restore 4:3+Off. Both 1280×960
+  and 1920×1440 completed GPU images were retrieved; screenshots are in
+  `build/graphics-matrix2-attachments/`. Simulator runtime/app compilation passed
+  (`build/widescreen-simulator-build.log`); no new Simulator UI run or physical
+  iPad run was made for this change. The signed build installed successfully.
+- Live device visual check reached a Link-versus-Kirby match on Fountain of
+  Dreams in 16:9 using bounded diagnostic pad input; the timer and damage advanced.
+  Actual display capture: `build/wide-gameplay.png`. This is a smoke check, not
+  exhaustive stage/culling validation. The final app was relaunched normally
+  without diagnostic environment or launch-argument overrides; defaults remain
+  4:3 and MetalFX Off, with both preferences available in Settings → Graphics.
+
+### Follow-up: reported black screen
+
+- User reported a black screen after the normal launch. The process was alive;
+  its game thread was waiting in the runtime pause gate when inspected. That
+  observation does not establish the original cause (the app may have been
+  backgrounded before inspection). LLDB was detached afterward.
+- A temporary CPU-presentation launch produced a valid game framebuffer and
+  actual phone screenshot with the Backbone label and no touch controls.
+  A subsequent direct-Metal launch also produced a visible title-screen capture.
+- The final normal launch, without diagnostic flags or CPU override, visibly
+  reached the main menu (`build/iphone15-normal-screen.png`). Actual captures use
+  `devicectl device capture screenshot`; no host desktop capture was used.
+  `build/iphone15-{fallback,direct}-screen.png` preserve the comparison.
+- No source fix was made during this investigation. The original black-screen
+  cause remains unresolved; the current successful launch is not proof that an
+  intermittent startup/resume problem is fixed. The normal app remains running.
+
+## September 20 continuation
+
+- Reproduced the zero-frame Simulator startup timeout on September 19, under
+  Xcode 27.0 / iOS 27.0. The sampled game thread was inside Aurora pipeline-cache
+  initialization while the worker compiled Metal shaders. The UI remained live.
+  Evidence: `build/direct-metal-handoff-20260919.{log,xcresult,png,sample.txt}`.
+- Found a concrete startup issue in the native Aurora patch: its synchronous
+  pipeline setting also made background cache loads blocking. Restricting that
+  setting to normal draw requests allows cache warmup to run in the background;
+  required draws and explicitly blocking requests still wait for their shaders.
+- A windowless Mac runtime probe using 1,245 copied pipeline configurations
+  completed startup, 180 nonblack frames and pause/resume in 22.76 seconds before
+  the fix and 3.91 seconds after. Both started with an empty per-run Dawn disk
+  cache; OS/driver caches were not reset. Evidence:
+  `build/cache-startup-20260920-{before,after}/`. This is a diagnostic comparison,
+  not an iPhone performance result or verification of direct surface presentation.
+- `tools/test_cached_startup.py` reproduces the populated-cache runtime check
+  without touching the source cache or real saves. Supply `--pipeline-cache`
+  pointing to an existing populated `pipeline_cache.db`. Run sequentially with
+  other GPU tests. Its timeout is configurable; the refreshed run passed at 20s.
+- All five refreshed windowless checks pass with the cache fix: Classic match,
+  next round, game-over, rematch and disposable-card fresh-process save/reload.
+  The next-round framebuffer was visually inspected. Evidence:
+  `build/playable-20260920-cache-fix/report.json`. These are controlled fixtures,
+  not ordinary human campaign completion or earned-unlock persistence.
+- Mac runtime/probe targets and the Simulator app package build successfully
+  with the cache fix (`build/cache-startup-build-20260920.log` and
+  `build/cache-startup-simulator-build-20260920.log`). The updated Simulator
+  package has not been launched. The signed iPhone candidate still predates this
+  cache fix and needs rebuilding before the next device installation.
+- PosterBoard crash reports identify the same Simulator, with an Apple
+  `PRPosterDescriptor` initialization trap. This is a separate unresolved system
+  process failure; fixing game shader warmup does not establish its resolution.
+  Simulator testing is paused to avoid disturbing the user's desktop. No device
+  was erased. The Simulator was found booted again during the September 20
+  inventory and final check, and shut down each time. This continuation issued
+  no boot/launch commands; the source of the unexpected restarts is unresolved.
+- The test iPhone 13 Pro remains unavailable and the private Mac VM is not on
+  the network. The confirmed phone build and rollback bundles remain intact.
+- [Browser/Wasm feasibility](WASM_FEASIBILITY.md): substantial reuse is plausible,
+  with concrete ABI, scheduling, storage and memory work identified. A bounded
+  desktop WebGPU prototype is now implemented as described below; no browser
+  gameplay has been implemented or validated.
+
+## September 20 isolated Simulator and browser prototype
+
+- Created `Melee Dedicated iPhone 17 Pro`, iOS 27.0, UUID
+  `ECC92EA9-C4F5-47F1-8FF0-0127214DBFFF`. Booted it and installed the refreshed
+  native game package; gameplay was not launched in this turn. All Simulator
+  operations in this turn used this exact UUID. Other agents' devices were not
+  operated. The dedicated device was shut down after testing.
+  `tools/melee_simulator.py` selects/creates only this named device.
+- [Browser prototype](web/README.md) builds with pinned local Emscripten 6.0.9.
+  Native disc/DAT/animation/skinning/texture/visibility code runs in a dedicated
+  browser worker. WORKERFS reads ranges of a user-selected File without uploading
+  or copying the whole disc. The asset-free static UI implements fighter
+  selection, animation playback/scrubbing, orbit and zoom.
+- This is an animated Mario/Fox/Peach viewer, **not playable Melee**. The small JS
+  WebGPU renderer approximates the native geometry diagnostic; Aurora, full GX,
+  gameplay, audio and saves have not been ported. Omitted texture layers are
+  disclosed in the UI.
+- Wasm tests pass on the actual CISO: finite geometry, valid indices, changed
+  animation, all three fighters and return to Mario. Windowless WebGPU tests
+  pass with Dawn Node 0.6.1/Metal: shader compilation, all material pipelines,
+  pixel readback and distinct animated frames. Rendered Mario, Fox and Peach
+  frames were visually inspected. Evidence: `build/web/scene-test.log`,
+  `renderer-test.json`, `fighter-*.{ppm,png}`.
+- WebKit on the dedicated Simulator passes module worker, WORKERFS File input,
+  Wasm animation and character reloads. WebGPU exists but requestAdapter returns
+  null; this is **not a GPU/browser rendering pass**. Evidence:
+  `build/webkit-test/result.json`. `web/test-webkit.py` reproduces this check
+  with private extracted fixtures and closes its temporary server/probe app.
+- The prototype's first test harness hit iOS 27's required scene lifecycle trap;
+  it was corrected to use UIScene. This was the disposable WebKitProbe app,
+  separate from the earlier PosterBoard system-process issue.
+- Made the heap header explicitly 32-byte aligned on wasm32 and excluded POSIX
+  execinfo/backtrace on Emscripten. Native heap and diagnostics tests pass with
+  sanitizers. The Wasm model unit test also passes.
+- Desktop Safari remains unverified: the private Mac VM was started headlessly
+  but is not reachable over SSH. Host desktop automation is prohibited by the
+  Developer AGENTS.md. Use `python3 native/web/serve.py` to try the built
+  prototype manually; its server serves only the seven asset-free app files.
 
 ## September 17 presentation candidate
 

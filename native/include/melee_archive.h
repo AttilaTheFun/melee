@@ -12,6 +12,7 @@ typedef struct {
     size_t size;
     uint32_t data_size, reloc_count, public_count, extern_count;
     size_t reloc_start, public_start, extern_start, strings_start;
+    MeleeHostBool reloc_sorted; /* Validated at open; unordered tables remain supported. */
     struct MeleeArchiveStorage* storage; /* Borrowed token; see owned APIs below. */
 } MeleeArchive;
 

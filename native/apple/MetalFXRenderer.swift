@@ -68,10 +68,11 @@ import MetalKit
 struct MetalFXFrame: View {
     let frame: CGImage
     let scale: Int
+    var aspect: CGFloat = 4.0 / 3.0
     let failed: (String) -> Void
     var body: some View {
         MetalFXSurface(frame: frame, scale: scale, failed: failed)
-            .aspectRatio(4.0 / 3.0, contentMode: .fit)
+            .aspectRatio(aspect, contentMode: .fit)
             .allowsHitTesting(false)
     }
 }
@@ -82,6 +83,9 @@ private final class MetalFXPresenter: NSObject, MTKViewDelegate {
     private let queue: MTLCommandQueue
     private let available = DispatchSemaphore(value: 1)
     private let diagnostics = ProcessInfo.processInfo.environment["MELEE_DEVICE_DIAGNOSTICS"] == "1"
+    // Timing runs must not add periodic GPU readbacks, multi-megabyte copies,
+    // and PNG compression to the workload being measured.
+    private let performanceOnly = ProcessInfo.processInfo.environment["MELEE_PERF_ONLY"] == "1"
     private var diagnosticTime: TimeInterval = 0
     private var diagnosticSequence = 0
     private var missingDrawableSince: TimeInterval?
@@ -148,7 +152,7 @@ private final class MetalFXPresenter: NSObject, MTKViewDelegate {
             destinationOrigin: MTLOrigin(x: 0, y: 0, z: 0))
         var capture: MTLBuffer?
         let now = ProcessInfo.processInfo.systemUptime
-        if diagnostics && now - diagnosticTime >= 2 {
+        if diagnostics && !performanceOnly && now - diagnosticTime >= 2 {
             diagnosticTime = now; diagnosticSequence += 1
             capture = renderer.device.makeBuffer(length: renderer.width * renderer.height * 4, options: .storageModeShared)
             if let capture {
@@ -193,6 +197,7 @@ private final class MetalFXPresenter: NSObject, MTKViewDelegate {
             CGImageDestinationAddImage(destination, image, nil)
             guard CGImageDestinationFinalize(destination) else { return }
             try (encoded as Data).write(to: directory.appendingPathComponent("metalfx-frame.png"), options: .atomic)
+            try (encoded as Data).write(to: directory.appendingPathComponent("metalfx-\(width)x\(height).png"), options: .atomic)
             let state: [String: Any] = ["width": width, "height": height, "sequence": sequence, "uptime": uptime]
             try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys])
                 .write(to: directory.appendingPathComponent("metalfx.json"), options: .atomic)
@@ -236,9 +241,9 @@ enum MeleeMetalFXRenderer { static let supported = false }
 #if MELEE_GAME_RUNTIME
 import SwiftUI
 struct MetalFXFrame: View {
-    let frame: CGImage; let scale: Int; let failed: (String) -> Void
+    let frame: CGImage; let scale: Int; var aspect: CGFloat = 4.0 / 3.0; let failed: (String) -> Void
     var body: some View {
-        Image(decorative: frame, scale: 1).resizable().interpolation(.none).scaledToFit()
+        Image(decorative: frame, scale: 1).resizable().interpolation(.none).aspectRatio(aspect, contentMode: .fit)
     }
 }
 #endif
